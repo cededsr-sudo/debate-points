@@ -21,7 +21,16 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: "Break the input into Truth, Lies, Opinion, Foolery, Manipulation, Fluff, and Sources. Be concise."
+            content: `Analyze the input and return ONLY valid JSON in this exact format:
+{
+  "truth": "",
+  "lies": "",
+  "opinion": "",
+  "foolery": "",
+  "manipulation": "",
+  "fluff": "",
+  "sources": []
+}`
           },
           {
             role: "user",
@@ -33,9 +42,24 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    const result = data.choices?.[0]?.message?.content || "No response";
+    const content = data.choices?.[0]?.message?.content || "{}";
 
-    return res.status(200).json({ result });
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      parsed = {
+        truth: "",
+        lies: "",
+        opinion: "",
+        foolery: "",
+        manipulation: "",
+        fluff: content,
+        sources: []
+      };
+    }
+
+    return res.status(200).json(parsed);
 
   } catch (err) {
     return res.status(500).json({ error: "Analysis failed" });
