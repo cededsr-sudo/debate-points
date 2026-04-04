@@ -1,228 +1,67 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Debate Points</title>
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-  <style>
-    body {
-      margin: 0;
-      font-family: system-ui, Arial, sans-serif;
-      background: #0b0b0b;
-      color: #ffffff;
+  try {
+    const { text } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: "No text provided" });
     }
 
-    .container {
-      max-width: 900px;
-      margin: auto;
-      padding: 20px;
-    }
-
-    h1 {
-      font-size: 32px;
-      margin-bottom: 8px;
-    }
-
-    p {
-      color: #cfcfcf;
-      margin-top: 0;
-    }
-
-    .box {
-      background: #111;
-      border: 1px solid #222;
-      border-radius: 10px;
-      padding: 15px;
-      margin-top: 15px;
-    }
-
-    textarea,
-    input {
-      width: 100%;
-      background: #000;
-      color: #fff;
-      border: 1px solid #333;
-      padding: 10px;
-      margin-top: 10px;
-      border-radius: 6px;
-      box-sizing: border-box;
-    }
-
-    textarea {
-      min-height: 180px;
-      resize: vertical;
-    }
-
-    button {
-      background: #ffd400;
-      color: #000;
-      border: none;
-      padding: 12px 18px;
-      margin-top: 15px;
-      font-weight: bold;
-      cursor: pointer;
-      border-radius: 6px;
-    }
-
-    .results div.result-row {
-      margin-top: 10px;
-      padding: 10px;
-      border-radius: 6px;
-    }
-
-    .truth { background: #1b5e20; }
-    .lies { background: #7f0000; }
-    .opinion { background: #444; }
-    .foolery { background: #5d4037; }
-    .manipulation { background: #311b92; }
-
-    .fluff-box {
-      margin-top: 15px;
-      padding: 10px;
-      background: #1f1f1f;
-      border-radius: 6px;
-    }
-
-    .sources-box {
-      margin-top: 15px;
-    }
-
-    video {
-      width: 100%;
-      margin-top: 10px;
-      border-radius: 8px;
-    }
-
-    ul {
-      margin: 8px 0 0 18px;
-      padding: 0;
-    }
-
-    li {
-      margin-bottom: 6px;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="container">
-    <h1>Debate Points</h1>
-    <p>Drop text, link, or video. Get breakdown instantly.</p>
-
-    <div class="box">
-      <textarea id="textInput" placeholder="Paste argument or transcript..."></textarea>
-      <input id="linkInput" placeholder="Paste video link (optional)" />
-      <input type="file" id="videoUpload" accept="video/*" />
-      <button onclick="analyze()">Analyze</button>
-    </div>
-
-    <div id="videoPreview"></div>
-
-    <div id="results" class="results box" style="display:none;">
-      <h2>Results</h2>
-
-      <div class="result-row truth">
-        <strong>Truth:</strong>
-        <div id="truthScore"></div>
-      </div>
-
-      <div class="result-row lies">
-        <strong>Lies:</strong>
-        <div id="lieScore"></div>
-      </div>
-
-      <div class="result-row opinion">
-        <strong>Opinion:</strong>
-        <div id="opinionScore"></div>
-      </div>
-
-      <div class="result-row foolery">
-        <strong>Foolery:</strong>
-        <div id="foolScore"></div>
-      </div>
-
-      <div class="result-row manipulation">
-        <strong>Manipulation:</strong>
-        <div id="manipScore"></div>
-      </div>
-
-      <div class="fluff-box">
-        <strong>Fluff:</strong>
-        <div id="scale"></div>
-      </div>
-
-      <div class="sources-box">
-        <strong>Sources:</strong>
-        <ul id="sources"></ul>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    document.getElementById("videoUpload").addEventListener("change", function (e) {
-      const file = e.target.files[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        document.getElementById("videoPreview").innerHTML =
-          '<video controls src="' + url + '"></video>';
-      }
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.3,
+        messages: [
+          {
+            role: "system",
+            content: `Analyze the input and return ONLY valid JSON in this exact format:
+{
+  "truth": "",
+  "lies": "",
+  "opinion": "",
+  "foolery": "",
+  "manipulation": "",
+  "fluff": "",
+  "sources": []
+}`
+          },
+          {
+            role: "user",
+            content: text
+          }
+        ]
+      })
     });
 
-    async function analyze() {
-      const text = document.getElementById("textInput").value.trim();
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "{}";
 
-      if (!text) {
-        alert("Put something in.");
-        return;
-      }
-
-      document.getElementById("results").style.display = "block";
-
-      try {
-        const res = await fetch("/api/analyze", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ text })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          document.getElementById("truthScore").innerText = "Error";
-          document.getElementById("lieScore").innerText = "Error";
-          document.getElementById("opinionScore").innerText = "Error";
-          document.getElementById("foolScore").innerText = "Error";
-          document.getElementById("manipScore").innerText = "Error";
-          document.getElementById("scale").innerText = data.error || "Analysis failed";
-          document.getElementById("sources").innerHTML = "<li>No sources listed</li>";
-          return;
-        }
-
-        document.getElementById("truthScore").innerText = data.truth || "-";
-        document.getElementById("lieScore").innerText = data.lies || "-";
-        document.getElementById("opinionScore").innerText = data.opinion || "-";
-        document.getElementById("foolScore").innerText = data.foolery || "-";
-        document.getElementById("manipScore").innerText = data.manipulation || "-";
-        document.getElementById("scale").innerText = data.fluff || "-";
-
-        document.getElementById("sources").innerHTML =
-          Array.isArray(data.sources) && data.sources.length
-            ? data.sources.map(s => "<li>" + s + "</li>").join("")
-            : "<li>No sources listed</li>";
-
-      } catch (err) {
-        document.getElementById("truthScore").innerText = "Error";
-        document.getElementById("lieScore").innerText = "Error";
-        document.getElementById("opinionScore").innerText = "Error";
-        document.getElementById("foolScore").innerText = "Error";
-        document.getElementById("manipScore").innerText = "Error";
-        document.getElementById("scale").innerText = "Request failed";
-        document.getElementById("sources").innerHTML = "<li>No sources listed</li>";
-      }
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      parsed = {
+        truth: "",
+        lies: "",
+        opinion: "",
+        foolery: "",
+        manipulation: "",
+        fluff: content,
+        sources: []
+      };
     }
-  </script>
-</body>
-</html>
+
+    return res.status(200).json(parsed);
+
+  } catch (err) {
+    return res.status(500).json({ error: "Analysis failed" });
+  }
+}
