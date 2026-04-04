@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -22,7 +22,8 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: `Analyze the input and return ONLY valid JSON in this exact format:
+            content: `Return ONLY valid JSON. No extra text.
+
 {
   "truth": "",
   "lies": "",
@@ -42,19 +43,21 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "{}";
+
+    const raw = data.choices?.[0]?.message?.content || "{}";
 
     let parsed;
+
     try {
-      parsed = JSON.parse(content);
-    } catch {
+      parsed = JSON.parse(raw);
+    } catch (e) {
       parsed = {
         truth: "",
         lies: "",
         opinion: "",
         foolery: "",
         manipulation: "",
-        fluff: content,
+        fluff: raw,
         sources: []
       };
     }
