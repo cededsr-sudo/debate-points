@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debate Points</title>
+
+<style>
+body {
+  margin:0;
+  font-family:Arial;
+  background:#0d0d0d;
+  color:#f2f2f2;
+}
+
+.container {
+  max-width:900px;
+  margin:auto;
+  padding:30px;
+}
+
+h1 {
+  font-size:42px;
+}
+
+.sub {
+  color:#aaa;
+  margin-bottom:20px;
+}
+
+.box {
+  background:#151515;
+  padding:20px;
+  border-radius:10px;
+  border:1px solid #333;
+  margin-bottom:20px;
+}
+
+textarea {
+  width:100%;
+  height:200px;
+  background:#000;
+  color:#fff;
+  border:1px solid #333;
+  padding:10px;
+}
+
+button {
+  margin-top:10px;
+  padding:12px 20px;
+  border:none;
+  background:gold;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+.result {
+  margin-top:20px;
+  background:#111;
+  padding:20px;
+  border-radius:10px;
+}
+
+.scale {
+  margin-top:10px;
+  padding:10px;
+  background:#222;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Debate Points</h1>
+
+<div class="sub">
+Paste text. Get facts, lies, opinion, and reality distance.
+</div>
+
+<div class="box">
+<textarea id="inputText" placeholder="Paste argument, transcript, or statement..."></textarea>
+<button onclick="analyze()">Analyze</button>
+</div>
+
+<div id="output" class="result" style="display:none;">
+<h2>Results</h2>
+
+<p><strong>Facts:</strong></p>
+<ul id="facts"></ul>
+
+<p><strong>Lies:</strong></p>
+<ul id="lies"></ul>
+
+<p><strong>Opinion:</strong></p>
+<ul id="opinions"></ul>
+
+<p><strong>Preference Distance:</strong></p>
+<ul id="preference"></ul>
+
+<p><strong>Reality Scale:</strong></p>
+<div id="scale" class="scale"></div>
+
+<p><strong>Sources Used:</strong></p>
+<p>Primary (1st Tier) / Secondary (2nd Tier)</p>
+
+</div>
+
+</div>
+
+<script>
+function analyze(){
+  let text = document.getElementById("inputText").value;
+
+  document.getElementById("output").style.display="block";
+
+  // Placeholder logic for now
+  document.getElementById("facts").innerHTML = "<li>Detected factual elements (placeholder)</li>";
+  document.getElementById("lies").innerHTML = "<li>Potential false claims (placeholder)</li>";
+  document.getElementById("opinions").innerHTML = "<li>Subjective statements (placeholder)</li>";
+  document.getElementById("preference").innerHTML = "<li>Bias / preference detected (placeholder)</li>";
+
+  document.getElementById("scale").innerHTML = "Mixed Reality (early stage)";
+}
+</script>
+
+</body>
+</html>
