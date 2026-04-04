@@ -18,20 +18,26 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.3,
+        temperature: 0.2,
         messages: [
           {
             role: "system",
-            content: `Return ONLY valid JSON. No extra text.
+            content: `You are analyzing an argument or transcript.
+
+Fill every field with a short useful summary based on the input.
+Do NOT leave fields blank unless absolutely nothing relevant exists.
+If something is unclear, still give your best concise judgment.
+
+Return ONLY valid JSON in this exact format:
 
 {
-  "truth": "",
-  "lies": "",
-  "opinion": "",
-  "foolery": "",
-  "manipulation": "",
-  "fluff": "",
-  "sources": []
+  "truth": "short summary of truthful or grounded parts",
+  "lies": "short summary of false, exaggerated, or unsupported parts",
+  "opinion": "short summary of subjective or personal-view parts",
+  "foolery": "short summary of unserious, sloppy, clownish, or weak reasoning",
+  "manipulation": "short summary of emotional steering, loaded framing, or selective pressure",
+  "fluff": "short summary of padding, repetition, or low-substance filler",
+  "sources": ["list any explicit sources mentioned in the input, or write 'No explicit sources mentioned'"]
 }`
           },
           {
@@ -43,7 +49,6 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-
     const raw = data.choices?.[0]?.message?.content || "{}";
 
     let parsed;
@@ -58,7 +63,7 @@ export default async function handler(req, res) {
         foolery: "",
         manipulation: "",
         fluff: raw,
-        sources: []
+        sources: ["No explicit sources mentioned"]
       };
     }
 
