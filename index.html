@@ -65,7 +65,8 @@
       border-radius: 6px;
     }
 
-    .results div.result-row {
+    .results div.result-row,
+    .fluff-box {
       margin-top: 10px;
       padding: 10px;
       border-radius: 6px;
@@ -76,13 +77,7 @@
     .opinion { background: #444; }
     .foolery { background: #5d4037; }
     .manipulation { background: #311b92; }
-
-    .fluff-box {
-      margin-top: 15px;
-      padding: 10px;
-      background: #1f1f1f;
-      border-radius: 6px;
-    }
+    .fluff-box { background: #1f1f1f; }
 
     .sources-box {
       margin-top: 15px;
@@ -124,37 +119,39 @@
 
       <div class="result-row truth">
         <strong>Truth:</strong>
-        <div id="truthScore"></div>
+        <div id="truthScore">-</div>
       </div>
 
       <div class="result-row lies">
         <strong>Lies:</strong>
-        <div id="lieScore"></div>
+        <div id="lieScore">-</div>
       </div>
 
       <div class="result-row opinion">
         <strong>Opinion:</strong>
-        <div id="opinionScore"></div>
+        <div id="opinionScore">-</div>
       </div>
 
       <div class="result-row foolery">
         <strong>Foolery:</strong>
-        <div id="foolScore"></div>
+        <div id="foolScore">-</div>
       </div>
 
       <div class="result-row manipulation">
         <strong>Manipulation:</strong>
-        <div id="manipScore"></div>
+        <div id="manipScore">-</div>
       </div>
 
       <div class="fluff-box">
         <strong>Fluff:</strong>
-        <div id="scale"></div>
+        <div id="fluffScore">-</div>
       </div>
 
       <div class="sources-box">
         <strong>Sources:</strong>
-        <ul id="sources"></ul>
+        <ul id="sources">
+          <li>No sources listed</li>
+        </ul>
       </div>
     </div>
   </div>
@@ -196,7 +193,7 @@
           document.getElementById("opinionScore").innerText = "Error";
           document.getElementById("foolScore").innerText = "Error";
           document.getElementById("manipScore").innerText = "Error";
-          document.getElementById("scale").innerText = data.error || "Analysis failed";
+          document.getElementById("fluffScore").innerText = data.error || "Analysis failed";
           document.getElementById("sources").innerHTML = "<li>No sources listed</li>";
           return;
         }
@@ -206,7 +203,7 @@
         document.getElementById("opinionScore").innerText = data.opinion || "-";
         document.getElementById("foolScore").innerText = data.foolery || "-";
         document.getElementById("manipScore").innerText = data.manipulation || "-";
-        document.getElementById("scale").innerText = data.fluff || "-";
+        document.getElementById("fluffScore").innerText = data.fluff || "-";
 
         document.getElementById("sources").innerHTML =
           Array.isArray(data.sources) && data.sources.length
@@ -219,7 +216,7 @@
         document.getElementById("opinionScore").innerText = "Error";
         document.getElementById("foolScore").innerText = "Error";
         document.getElementById("manipScore").innerText = "Error";
-        document.getElementById("scale").innerText = "Request failed";
+        document.getElementById("fluffScore").innerText = "Request failed";
         document.getElementById("sources").innerHTML = "<li>No sources listed</li>";
       }
     }
