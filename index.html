@@ -14,7 +14,7 @@
     }
 
     .container {
-      max-width: 900px;
+      max-width: 1000px;
       margin: auto;
       padding: 20px;
     }
@@ -50,7 +50,7 @@
     }
 
     textarea {
-      min-height: 180px;
+      min-height: 220px;
       resize: vertical;
     }
 
@@ -65,29 +65,20 @@
       border-radius: 6px;
     }
 
-    .results div.result-row,
-    .fluff-box {
-      margin-top: 10px;
-      padding: 10px;
-      border-radius: 6px;
-    }
-
-    .truth { background: #1b5e20; }
-    .lies { background: #7f0000; }
-    .opinion { background: #444; }
-    .foolery { background: #5d4037; }
-    .manipulation { background: #311b92; }
-    .fluff-box { background: #1f1f1f; }
-
-    .sources-box {
-      margin-top: 15px;
-    }
-
-    video {
-      width: 100%;
-      margin-top: 10px;
+    .section {
+      margin-top: 12px;
+      padding: 12px;
       border-radius: 8px;
     }
+
+    .a-box { background: #1b5e20; }
+    .b-box { background: #7f0000; }
+    .strong-box { background: #2b2b2b; }
+    .weak-box { background: #5d4037; }
+    .edge-box { background: #311b92; }
+    .why-box { background: #444; }
+    .manip-box { background: #4a148c; }
+    .fluff-box { background: #1f1f1f; }
 
     ul {
       margin: 8px 0 0 18px;
@@ -97,16 +88,22 @@
     li {
       margin-bottom: 6px;
     }
+
+    video {
+      width: 100%;
+      margin-top: 10px;
+      border-radius: 8px;
+    }
   </style>
 </head>
 
 <body>
   <div class="container">
     <h1>Debate Points</h1>
-    <p>Drop text, link, or video. Get breakdown instantly.</p>
+    <p>Drop text, link, or video. Get side-by-side breakdown instantly.</p>
 
     <div class="box">
-      <textarea id="textInput" placeholder="Paste argument or transcript..."></textarea>
+      <textarea id="textInput" placeholder="Paste argument, transcript, or exchange..."></textarea>
       <input id="linkInput" placeholder="Paste video link (optional)" />
       <input type="file" id="videoUpload" accept="video/*" />
       <button onclick="analyze()">Analyze</button>
@@ -114,40 +111,50 @@
 
     <div id="videoPreview"></div>
 
-    <div id="results" class="results box" style="display:none;">
+    <div id="results" class="box" style="display:none;">
       <h2>Results</h2>
 
-      <div class="result-row truth">
-        <strong>Truth:</strong>
-        <div id="truthScore">-</div>
+      <div class="section a-box">
+        <strong>Speaker A:</strong>
+        <div id="speakerA">-</div>
       </div>
 
-      <div class="result-row lies">
-        <strong>Lies:</strong>
-        <div id="lieScore">-</div>
+      <div class="section b-box">
+        <strong>Speaker B:</strong>
+        <div id="speakerB">-</div>
       </div>
 
-      <div class="result-row opinion">
-        <strong>Opinion:</strong>
-        <div id="opinionScore">-</div>
+      <div class="section strong-box">
+        <strong>Strongest Point:</strong>
+        <div id="strongestPoint">-</div>
       </div>
 
-      <div class="result-row foolery">
-        <strong>Foolery:</strong>
-        <div id="foolScore">-</div>
+      <div class="section weak-box">
+        <strong>Weakest Point:</strong>
+        <div id="weakestPoint">-</div>
       </div>
 
-      <div class="result-row manipulation">
+      <div class="section edge-box">
+        <strong>Current Edge:</strong>
+        <div id="edge">-</div>
+      </div>
+
+      <div class="section why-box">
+        <strong>Why:</strong>
+        <div id="why">-</div>
+      </div>
+
+      <div class="section manip-box">
         <strong>Manipulation:</strong>
-        <div id="manipScore">-</div>
+        <div id="manipulation">-</div>
       </div>
 
-      <div class="fluff-box">
+      <div class="section fluff-box">
         <strong>Fluff:</strong>
-        <div id="fluffScore">-</div>
+        <div id="fluff">-</div>
       </div>
 
-      <div class="sources-box">
+      <div class="section">
         <strong>Sources:</strong>
         <ul id="sources">
           <li>No sources listed</li>
@@ -177,7 +184,7 @@
       document.getElementById("results").style.display = "block";
 
       try {
-        const res = await fetch("/api/analyze2", { 
+        const res = await fetch("/api/analyze2", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -188,22 +195,26 @@
         const data = await res.json();
 
         if (!res.ok) {
-          document.getElementById("truthScore").innerText = "Error";
-          document.getElementById("lieScore").innerText = "Error";
-          document.getElementById("opinionScore").innerText = "Error";
-          document.getElementById("foolScore").innerText = "Error";
-          document.getElementById("manipScore").innerText = "Error";
-          document.getElementById("fluffScore").innerText = data.error || "Analysis failed";
+          document.getElementById("speakerA").innerText = "Error";
+          document.getElementById("speakerB").innerText = "Error";
+          document.getElementById("strongestPoint").innerText = "Error";
+          document.getElementById("weakestPoint").innerText = "Error";
+          document.getElementById("edge").innerText = "Error";
+          document.getElementById("why").innerText = data.error || "Analysis failed";
+          document.getElementById("manipulation").innerText = "Error";
+          document.getElementById("fluff").innerText = "Error";
           document.getElementById("sources").innerHTML = "<li>No sources listed</li>";
           return;
         }
 
-        document.getElementById("truthScore").innerText = data.truth || "-";
-        document.getElementById("lieScore").innerText = data.lies || "-";
-        document.getElementById("opinionScore").innerText = data.opinion || "-";
-        document.getElementById("foolScore").innerText = data.foolery || "-";
-        document.getElementById("manipScore").innerText = data.manipulation || "-";
-        document.getElementById("fluffScore").innerText = data.fluff || "-";
+        document.getElementById("speakerA").innerText = data.speakerA || "-";
+        document.getElementById("speakerB").innerText = data.speakerB || "-";
+        document.getElementById("strongestPoint").innerText = data.strongestPoint || "-";
+        document.getElementById("weakestPoint").innerText = data.weakestPoint || "-";
+        document.getElementById("edge").innerText = data.edge || "-";
+        document.getElementById("why").innerText = data.why || "-";
+        document.getElementById("manipulation").innerText = data.manipulation || "-";
+        document.getElementById("fluff").innerText = data.fluff || "-";
 
         document.getElementById("sources").innerHTML =
           Array.isArray(data.sources) && data.sources.length
@@ -211,12 +222,14 @@
             : "<li>No sources listed</li>";
 
       } catch (err) {
-        document.getElementById("truthScore").innerText = "Error";
-        document.getElementById("lieScore").innerText = "Error";
-        document.getElementById("opinionScore").innerText = "Error";
-        document.getElementById("foolScore").innerText = "Error";
-        document.getElementById("manipScore").innerText = "Error";
-        document.getElementById("fluffScore").innerText = "Request failed";
+        document.getElementById("speakerA").innerText = "Error";
+        document.getElementById("speakerB").innerText = "Error";
+        document.getElementById("strongestPoint").innerText = "Error";
+        document.getElementById("weakestPoint").innerText = "Error";
+        document.getElementById("edge").innerText = "Error";
+        document.getElementById("why").innerText = "Request failed";
+        document.getElementById("manipulation").innerText = "Error";
+        document.getElementById("fluff").innerText = "Error";
         document.getElementById("sources").innerHTML = "<li>No sources listed</li>";
       }
     }
