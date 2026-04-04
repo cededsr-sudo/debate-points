@@ -18,6 +18,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
+        temperature: 0.3,
         messages: [
           {
             role: "system",
@@ -36,8 +37,7 @@ export default async function handler(req, res) {
             role: "user",
             content: text
           }
-        ],
-        temperature: 0.3
+        ]
       })
     });
 
