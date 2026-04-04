@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   try {
     const { text } = req.body;
 
-    if (!text) {
+    if (!text || !text.trim()) {
       return res.status(400).json({ error: "No text provided" });
     }
 
@@ -22,23 +22,18 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: `You are analyzing an argument or transcript.
+            content: `Analyze the user's text and respond in EXACTLY this format:
 
-Fill every field with a short useful summary based on the input.
-Do NOT leave fields blank unless absolutely nothing relevant exists.
-If something is unclear, still give your best concise judgment.
+TRUTH: one short useful summary
+LIES: one short useful summary
+OPINION: one short useful summary
+FOOLERY: one short useful summary
+MANIPULATION: one short useful summary
+FLUFF: one short useful summary
+SOURCES: comma-separated list of explicit sources mentioned, or "No explicit sources mentioned"
 
-Return ONLY valid JSON in this exact format:
-
-{
-  "truth": "short summary of truthful or grounded parts",
-  "lies": "short summary of false, exaggerated, or unsupported parts",
-  "opinion": "short summary of subjective or personal-view parts",
-  "foolery": "short summary of unserious, sloppy, clownish, or weak reasoning",
-  "manipulation": "short summary of emotional steering, loaded framing, or selective pressure",
-  "fluff": "short summary of padding, repetition, or low-substance filler",
-  "sources": ["list any explicit sources mentioned in the input, or write 'No explicit sources mentioned'"]
-}`
+Do not leave categories blank.
+If a category is weak or absent, write "None clearly present" for that category.`
           },
           {
             role: "user",
@@ -49,25 +44,34 @@ Return ONLY valid JSON in this exact format:
     });
 
     const data = await response.json();
-    const raw = data.choices?.[0]?.message?.content || "{}";
+    const raw = data.choices?.[0]?.message?.content || "";
 
-    let parsed;
-
-    try {
-      parsed = JSON.parse(raw);
-    } catch (e) {
-      parsed = {
-        truth: "",
-        lies: "",
-        opinion: "",
-        foolery: "",
-        manipulation: "",
-        fluff: raw,
-        sources: ["No explicit sources mentioned"]
-      };
+    function pull(label, nextLabels) {
+      const pattern = new RegExp(
+        `${label}:\\s*([\\s\\S]*?)(?=\\n(?:${nextLabels.join("|")}):|$)`,
+        "i"
+      );
+      const match = raw.match(pattern);
+      return match ? match[1].trim() : "None clearly present";
     }
 
-    return res.status(200).json(parsed);
+    const result = {
+      truth: pull("TRUTH", ["LIES", "OPINION", "FOOLERY", "MANIPULATION", "FLUFF", "SOURCES"]),
+      lies: pull("LIES", ["OPINION", "FOOLERY", "MANIPULATION", "FLUFF", "SOURCES"]),
+      opinion: pull("OPINION", ["FOOLERY", "MANIPULATION", "FLUFF", "SOURCES"]),
+      foolery: pull("FOOLERY", ["MANIPULATION", "FLUFF", "SOURCES"]),
+      manipulation: pull("MANIPULATION", ["FLUFF", "SOURCES"]),
+      fluff: pull("FLUFF", ["SOURCES"]),
+      sources: []
+    };
+
+    const sourcesText = pull("SOURCES", []);
+    result.sources =
+      sourcesText.toLowerCase() === "no explicit sources mentioned"
+        ? ["No explicit sources mentioned"]
+        : sourcesText.split(",").map(s => s.trim()).filter(Boolean);
+
+    return res.status(200).json(result);
 
   } catch (err) {
     return res.status(500).json({ error: "Analysis failed" });
