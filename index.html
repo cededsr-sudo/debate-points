@@ -4,84 +4,220 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Debate Points</title>
-
   <style>
-    body {
-      margin: 0;
-      font-family: system-ui, Arial, sans-serif;
-      background: #0b0b0b;
-      color: #ffffff;
-    }
-
-    .container {
-      max-width: 1000px;
-      margin: auto;
-      padding: 20px;
-    }
-
-    h1 {
-      font-size: 32px;
-      margin-bottom: 8px;
-    }
-
-    p {
-      color: #cfcfcf;
-      margin-top: 0;
-    }
-
-    .box {
-      background: #111;
-      border: 1px solid #222;
-      border-radius: 10px;
-      padding: 15px;
-      margin-top: 15px;
-    }
-
-    textarea,
-    input {
-      width: 100%;
-      background: #000;
-      color: #fff;
-      border: 1px solid #333;
-      padding: 10px;
-      margin-top: 10px;
-      border-radius: 6px;
+    * {
       box-sizing: border-box;
     }
 
+    body {
+      margin: 0;
+      font-family: system-ui, Arial, sans-serif;
+      color: #f5f7fa;
+      background:
+        radial-gradient(circle at top right, rgba(0, 255, 170, 0.08), transparent 25%),
+        radial-gradient(circle at bottom left, rgba(0, 128, 255, 0.08), transparent 30%),
+        linear-gradient(180deg, #05070b 0%, #0a0f16 100%);
+      min-height: 100vh;
+    }
+
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(0,255,170,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,170,0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: linear-gradient(to bottom, rgba(255,255,255,0.7), rgba(255,255,255,0.15));
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .hero {
+      margin-bottom: 18px;
+      padding: 18px;
+      border: 1px solid #1d2938;
+      border-radius: 18px;
+      background: rgba(10, 15, 22, 0.86);
+      box-shadow: 0 0 40px rgba(0, 255, 170, 0.05);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 38px;
+      line-height: 1.05;
+      letter-spacing: 0.5px;
+    }
+
+    .subtext {
+      margin: 0;
+      color: #a8b3c2;
+      font-size: 16px;
+    }
+
+    .panel {
+      background: rgba(10, 15, 22, 0.88);
+      border: 1px solid #1d2938;
+      border-radius: 18px;
+      padding: 16px;
+      margin-top: 16px;
+      box-shadow: 0 0 28px rgba(0, 0, 0, 0.35);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+      color: #dbe7f2;
+    }
+
+    input,
     textarea {
-      min-height: 220px;
+      width: 100%;
+      background: #05080d;
+      color: #f5f7fa;
+      border: 1px solid #263445;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: #00d38d;
+      box-shadow: 0 0 0 2px rgba(0, 211, 141, 0.15);
+    }
+
+    textarea {
+      min-height: 240px;
       resize: vertical;
     }
 
-    button {
-      background: #ffd400;
-      color: #000;
+    .btn {
+      background: linear-gradient(135deg, #ffe600, #ffbf00);
+      color: #101010;
       border: none;
-      padding: 12px 18px;
-      margin-top: 15px;
-      font-weight: bold;
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-size: 15px;
+      font-weight: 800;
       cursor: pointer;
-      border-radius: 6px;
+      margin-top: 6px;
     }
 
-    .section {
+    .btn:hover {
+      filter: brightness(1.03);
+    }
+
+    .small-note {
+      margin-top: 8px;
+      color: #8fa1b4;
+      font-size: 13px;
+    }
+
+    .preview-wrap {
       margin-top: 12px;
-      padding: 12px;
-      border-radius: 8px;
     }
 
-    .a-box { background: #1b5e20; }
-    .b-box { background: #7f0000; }
-    .strong-box { background: #2b2b2b; }
-    .weak-box { background: #5d4037; }
-    .edge-box { background: #311b92; }
-    .why-box { background: #444; }
-    .manip-box { background: #4a148c; }
-    .fluff-box { background: #1f1f1f; }
+    video {
+      width: 100%;
+      max-height: 360px;
+      border-radius: 14px;
+      border: 1px solid #263445;
+      background: #000;
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #131d29;
+      border: 1px solid #294056;
+      color: #d7f6ea;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(14,20,29,0.96), rgba(9,13,19,0.96));
+      border: 1px solid #233142;
+      border-radius: 16px;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .team-a {
+      border-left: 5px solid #00d38d;
+    }
+
+    .team-b {
+      border-left: 5px solid #ff5050;
+    }
+
+    .meta-card {
+      border-left: 5px solid #5f8cff;
+    }
+
+    .grade-card {
+      border-left: 5px solid #b46cff;
+    }
+
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 24px;
+    }
+
+    .section-title {
+      margin: 14px 0 6px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8fb3cf;
+      font-weight: 800;
+    }
+
+    .block {
+      background: #0a1017;
+      border: 1px solid #1e2a39;
+      border-radius: 12px;
+      padding: 12px;
+      line-height: 1.45;
+    }
 
     ul {
-      margin: 8px 0 0 18px;
+      margin: 10px 0 0 18px;
       padding: 0;
     }
 
@@ -89,76 +225,161 @@
       margin-bottom: 6px;
     }
 
-    video {
-      width: 100%;
-      margin-top: 10px;
-      border-radius: 8px;
+    .scroll-box {
+      max-height: 260px;
+      overflow: auto;
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      color: #8293a6;
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .grid,
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+
+      textarea {
+        min-height: 200px;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
     }
   </style>
 </head>
-
 <body>
-  <div class="container">
-    <h1>Debate Points</h1>
-    <p>Drop text, link, or video. Get side-by-side breakdown instantly.</p>
+  <div class="bg-grid"></div>
 
-    <div class="box">
-      <textarea id="textInput" placeholder="Paste argument, transcript, or exchange..."></textarea>
-      <input id="linkInput" placeholder="Paste video link (optional)" />
-      <input type="file" id="videoUpload" accept="video/*" />
-      <button onclick="analyze()">Analyze</button>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Debate Points</h1>
+      <p class="subtext">Type both sides clearly. See who’s grounded, who’s bluffing, and who drifted into lala land.</p>
     </div>
 
-    <div id="videoPreview"></div>
+    <div class="panel">
+      <div class="grid">
+        <div>
+          <label for="teamAName">Team A Name (optional)</label>
+          <input id="teamAName" placeholder="Example: Me / Host / Christian / Team A" />
+        </div>
 
-    <div id="results" class="box" style="display:none;">
-      <h2>Results</h2>
+        <div>
+          <label for="teamBName">Team B Name (optional)</label>
+          <input id="teamBName" placeholder="Example: Opponent / Guest / Atheist / Team B" />
+        </div>
 
-      <div class="section a-box">
-        <strong>Speaker A:</strong>
-        <div id="speakerA">-</div>
+        <div>
+          <label for="teamAText">Team A Points</label>
+          <textarea id="teamAText" placeholder="Paste Team A's points here..."></textarea>
+        </div>
+
+        <div>
+          <label for="teamBText">Team B Points</label>
+          <textarea id="teamBText" placeholder="Paste Team B's points here..."></textarea>
+        </div>
+
+        <div class="full">
+          <label for="videoLink">Video Link (optional)</label>
+          <input id="videoLink" placeholder="Paste YouTube, TikTok, or other debate link..." />
+        </div>
+
+        <div class="full">
+          <label for="videoUpload">Video Upload (optional preview only)</label>
+          <input type="file" id="videoUpload" accept="video/*" />
+          <div class="small-note">Upload helps preview the file, but the actual judgment still comes from the text you paste unless you later add transcription.</div>
+          <div class="preview-wrap" id="videoPreview"></div>
+        </div>
+
+        <div class="full">
+          <button class="btn" onclick="analyzeDebate()">Analyze Debate</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="resultsPanel" class="panel" style="display:none;">
+      <div class="result-header">
+        <h2 style="margin:0;">Results</h2>
+        <div class="badge" id="winnerBadge">Current Edge: -</div>
       </div>
 
-      <div class="section b-box">
-        <strong>Speaker B:</strong>
-        <div id="speakerB">-</div>
+      <div class="results-grid">
+        <div class="card team-a">
+          <h3 id="outTeamAName">Team A</h3>
+
+          <div class="section-title">Main Position</div>
+          <div class="block scroll-box" id="outTeamAPosition">-</div>
+
+          <div class="section-title">Truth</div>
+          <div class="block scroll-box" id="outTeamATruth">-</div>
+
+          <div class="section-title">Lies</div>
+          <div class="block scroll-box" id="outTeamALies">-</div>
+
+          <div class="section-title">Opinion</div>
+          <div class="block scroll-box" id="outTeamAOpinion">-</div>
+
+          <div class="section-title">Lala Land</div>
+          <div class="block scroll-box" id="outTeamALala">-</div>
+        </div>
+
+        <div class="card team-b">
+          <h3 id="outTeamBName">Team B</h3>
+
+          <div class="section-title">Main Position</div>
+          <div class="block scroll-box" id="outTeamBPosition">-</div>
+
+          <div class="section-title">Truth</div>
+          <div class="block scroll-box" id="outTeamBTruth">-</div>
+
+          <div class="section-title">Lies</div>
+          <div class="block scroll-box" id="outTeamBLies">-</div>
+
+          <div class="section-title">Opinion</div>
+          <div class="block scroll-box" id="outTeamBOpinion">-</div>
+
+          <div class="section-title">Lala Land</div>
+          <div class="block scroll-box" id="outTeamBLala">-</div>
+        </div>
+
+        <div class="card meta-card">
+          <h3>Who’s BS-ing More?</h3>
+          <div class="block" id="outBSMeter">-</div>
+
+          <div class="section-title">Strongest Point Overall</div>
+          <div class="block scroll-box" id="outStrongestOverall">-</div>
+
+          <div class="section-title">Weakest Point Overall</div>
+          <div class="block scroll-box" id="outWeakestOverall">-</div>
+
+          <div class="section-title">Why</div>
+          <div class="block scroll-box" id="outWhy">-</div>
+        </div>
+
+        <div class="card grade-card">
+          <h3>Readout</h3>
+
+          <div class="section-title">Manipulation</div>
+          <div class="block scroll-box" id="outManipulation">-</div>
+
+          <div class="section-title">Fluff</div>
+          <div class="block scroll-box" id="outFluff">-</div>
+
+          <div class="section-title">Sources</div>
+          <div class="block scroll-box">
+            <ul id="outSources">
+              <li>No sources listed</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
-      <div class="section strong-box">
-        <strong>Strongest Point:</strong>
-        <div id="strongestPoint">-</div>
-      </div>
-
-      <div class="section weak-box">
-        <strong>Weakest Point:</strong>
-        <div id="weakestPoint">-</div>
-      </div>
-
-      <div class="section edge-box">
-        <strong>Current Edge:</strong>
-        <div id="edge">-</div>
-      </div>
-
-      <div class="section why-box">
-        <strong>Why:</strong>
-        <div id="why">-</div>
-      </div>
-
-      <div class="section manip-box">
-        <strong>Manipulation:</strong>
-        <div id="manipulation">-</div>
-      </div>
-
-      <div class="section fluff-box">
-        <strong>Fluff:</strong>
-        <div id="fluff">-</div>
-      </div>
-
-      <div class="section">
-        <strong>Sources:</strong>
-        <ul id="sources">
-          <li>No sources listed</li>
-        </ul>
+      <div class="footer-note">
+        This version judges the pasted arguments directly side-by-side. It stops making the app guess who belongs to what point.
       </div>
     </div>
   </div>
@@ -170,18 +391,25 @@
         const url = URL.createObjectURL(file);
         document.getElementById("videoPreview").innerHTML =
           '<video controls src="' + url + '"></video>';
+      } else {
+        document.getElementById("videoPreview").innerHTML = "";
       }
     });
 
-    async function analyze() {
-      const text = document.getElementById("textInput").value.trim();
+    async function analyzeDebate() {
+      const teamAName = document.getElementById("teamAName").value.trim() || "Team A";
+      const teamBName = document.getElementById("teamBName").value.trim() || "Team B";
+      const teamAText = document.getElementById("teamAText").value.trim();
+      const teamBText = document.getElementById("teamBText").value.trim();
+      const videoLink = document.getElementById("videoLink").value.trim();
 
-      if (!text) {
-        alert("Put something in.");
+      if (!teamAText || !teamBText) {
+        alert("Put both teams' points in.");
         return;
       }
 
-      document.getElementById("results").style.display = "block";
+      document.getElementById("resultsPanel").style.display = "block";
+      document.getElementById("winnerBadge").innerText = "Current Edge: Working...";
 
       try {
         const res = await fetch("/api/analyze2", {
@@ -189,48 +417,54 @@
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ text })
+          body: JSON.stringify({
+            teamAName,
+            teamBName,
+            teamAText,
+            teamBText,
+            videoLink
+          })
         });
 
         const data = await res.json();
 
         if (!res.ok) {
-          document.getElementById("speakerA").innerText = "Error";
-          document.getElementById("speakerB").innerText = "Error";
-          document.getElementById("strongestPoint").innerText = "Error";
-          document.getElementById("weakestPoint").innerText = "Error";
-          document.getElementById("edge").innerText = "Error";
-          document.getElementById("why").innerText = data.error || "Analysis failed";
-          document.getElementById("manipulation").innerText = "Error";
-          document.getElementById("fluff").innerText = "Error";
-          document.getElementById("sources").innerHTML = "<li>No sources listed</li>";
+          document.getElementById("winnerBadge").innerText = "Current Edge: Error";
+          document.getElementById("outWhy").innerText = data.error || "Analysis failed";
           return;
         }
 
-        document.getElementById("speakerA").innerText = data.speakerA || "-";
-        document.getElementById("speakerB").innerText = data.speakerB || "-";
-        document.getElementById("strongestPoint").innerText = data.strongestPoint || "-";
-        document.getElementById("weakestPoint").innerText = data.weakestPoint || "-";
-        document.getElementById("edge").innerText = data.edge || "-";
-        document.getElementById("why").innerText = data.why || "-";
-        document.getElementById("manipulation").innerText = data.manipulation || "-";
-        document.getElementById("fluff").innerText = data.fluff || "-";
+        document.getElementById("outTeamAName").innerText = data.teamAName || teamAName;
+        document.getElementById("outTeamBName").innerText = data.teamBName || teamBName;
 
-        document.getElementById("sources").innerHTML =
+        document.getElementById("outTeamAPosition").innerText = data.teamA?.position || "-";
+        document.getElementById("outTeamATruth").innerText = data.teamA?.truth || "-";
+        document.getElementById("outTeamALies").innerText = data.teamA?.lies || "-";
+        document.getElementById("outTeamAOpinion").innerText = data.teamA?.opinion || "-";
+        document.getElementById("outTeamALala").innerText = data.teamA?.lalaLand || "-";
+
+        document.getElementById("outTeamBPosition").innerText = data.teamB?.position || "-";
+        document.getElementById("outTeamBTruth").innerText = data.teamB?.truth || "-";
+        document.getElementById("outTeamBLies").innerText = data.teamB?.lies || "-";
+        document.getElementById("outTeamBOpinion").innerText = data.teamB?.opinion || "-";
+        document.getElementById("outTeamBLala").innerText = data.teamB?.lalaLand || "-";
+
+        document.getElementById("winnerBadge").innerText = "Current Edge: " + (data.winner || "-");
+        document.getElementById("outBSMeter").innerText = data.bsMeter || "-";
+        document.getElementById("outStrongestOverall").innerText = data.strongestOverall || "-";
+        document.getElementById("outWeakestOverall").innerText = data.weakestOverall || "-";
+        document.getElementById("outWhy").innerText = data.why || "-";
+        document.getElementById("outManipulation").innerText = data.manipulation || "-";
+        document.getElementById("outFluff").innerText = data.fluff || "-";
+
+        document.getElementById("outSources").innerHTML =
           Array.isArray(data.sources) && data.sources.length
             ? data.sources.map(s => "<li>" + s + "</li>").join("")
             : "<li>No sources listed</li>";
 
       } catch (err) {
-        document.getElementById("speakerA").innerText = "Error";
-        document.getElementById("speakerB").innerText = "Error";
-        document.getElementById("strongestPoint").innerText = "Error";
-        document.getElementById("weakestPoint").innerText = "Error";
-        document.getElementById("edge").innerText = "Error";
-        document.getElementById("why").innerText = "Request failed";
-        document.getElementById("manipulation").innerText = "Error";
-        document.getElementById("fluff").innerText = "Error";
-        document.getElementById("sources").innerHTML = "<li>No sources listed</li>";
+        document.getElementById("winnerBadge").innerText = "Current Edge: Error";
+        document.getElementById("outWhy").innerText = "Request failed";
       }
     }
   </script>
