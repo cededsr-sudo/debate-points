@@ -121,46 +121,35 @@ document.getElementById("videoUpload").addEventListener("change", function(e){
       `<video controls src="${url}"></video>`;
   }
 });
-
-function analyze(){
+async function analyze(){
   const text = document.getElementById("textInput").value;
 
   if(!text){
-    alert("Put something in, genius.");
+    alert("Put something in.");
     return;
   }
 
   document.getElementById("results").style.display = "block";
 
-  // Fake scoring (for now)
-  const truth = Math.floor(Math.random()*40)+20;
-  const lies = Math.floor(Math.random()*30);
-  const opinion = Math.floor(Math.random()*40);
-  const fool = Math.floor(Math.random()*20);
-  const manip = Math.floor(Math.random()*25);
+  const res = await fetch("/api/analyze", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ text })
+  });
 
-  document.getElementById("truthScore").innerText = truth + "%";
-  document.getElementById("lieScore").innerText = lies + "%";
-  document.getElementById("opinionScore").innerText = opinion + "%";
-  document.getElementById("foolScore").innerText = fool + "%";
-  document.getElementById("manipScore").innerText = manip + "%";
+  const data = await res.json();
 
-  let scale = "Balanced Reality";
-  if(lies > 25 || manip > 20) scale = "Distorted";
-  if(fool > 15) scale = "Clown Territory";
+  // Show AI output (simple for now)
+  document.getElementById("scale").innerText = data.result;
 
-  document.getElementById("scale").innerText = scale;
+  // Clear old fake scores
+  document.getElementById("truthScore").innerText = "-";
+  document.getElementById("lieScore").innerText = "-";
+  document.getElementById("opinionScore").innerText = "-";
+  document.getElementById("foolScore").innerText = "-";
+  document.getElementById("manipScore").innerText = "-";
 
-  const sources = [
-    "Primary source (if detected)",
-    "Secondary reference",
-    "Contextual inference"
-  ];
-
-  document.getElementById("sources").innerHTML =
-    sources.map(s => `<li>${s}</li>`).join("");
+  document.getElementById("sources").innerHTML = "<li>AI analysis</li>";
 }
-</script>
-
-</body>
-</html>
