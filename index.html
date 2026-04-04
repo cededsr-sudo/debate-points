@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8,66 +8,67 @@
 <style>
 body {
   margin:0;
-  font-family:Arial;
-  background:#0d0d0d;
-  color:#f2f2f2;
+  font-family: system-ui, Arial;
+  background:#0b0b0b;
+  color:#fff;
 }
 
 .container {
   max-width:900px;
   margin:auto;
-  padding:30px;
+  padding:20px;
 }
 
 h1 {
-  font-size:42px;
-}
-
-.sub {
-  color:#aaa;
-  margin-bottom:20px;
+  font-size:32px;
 }
 
 .box {
-  background:#151515;
-  padding:20px;
+  background:#111;
+  border:1px solid #222;
   border-radius:10px;
-  border:1px solid #333;
-  margin-bottom:20px;
+  padding:15px;
+  margin-top:15px;
 }
 
-textarea {
+textarea, input {
   width:100%;
-  height:200px;
   background:#000;
   color:#fff;
   border:1px solid #333;
   padding:10px;
+  margin-top:10px;
+  border-radius:6px;
 }
 
 button {
-  margin-top:10px;
-  padding:12px 20px;
+  background:#ffd400;
+  color:#000;
   border:none;
-  background:gold;
+  padding:12px 18px;
+  margin-top:15px;
   font-weight:bold;
   cursor:pointer;
 }
 
-.result {
-  margin-top:20px;
-  background:#111;
-  padding:20px;
-  border-radius:10px;
-}
-
-.scale {
+.results div {
   margin-top:10px;
   padding:10px;
-  background:#222;
+  border-radius:6px;
+}
+
+.truth { background:#1b5e20; }
+.lies { background:#7f0000; }
+.opinion { background:#444; }
+.foolery { background:#5d4037; }
+.manipulation { background:#311b92; }
+
+video {
+  width:100%;
+  margin-top:10px;
+  border-radius:8px;
 }
 </style>
-
 </head>
 
 <body>
@@ -75,54 +76,89 @@ button {
 <div class="container">
 
 <h1>Debate Points</h1>
-
-<div class="sub">
-Paste text. Get facts, lies, opinion, and reality distance.
-</div>
+<p>Drop text, link, or video. Get breakdown instantly.</p>
 
 <div class="box">
-<textarea id="inputText" placeholder="Paste argument, transcript, or statement..."></textarea>
-<button onclick="analyze()">Analyze</button>
+  <textarea id="textInput" placeholder="Paste argument or transcript..."></textarea>
+
+  <input id="linkInput" placeholder="Paste video link (optional)" />
+
+  <input type="file" id="videoUpload" accept="video/*" />
+
+  <button onclick="analyze()">Analyze</button>
 </div>
 
-<div id="output" class="result" style="display:none;">
-<h2>Results</h2>
+<div id="videoPreview"></div>
 
-<p><strong>Facts:</strong></p>
-<ul id="facts"></ul>
+<div id="results" class="results box" style="display:none;">
+  <h2>Results</h2>
 
-<p><strong>Lies:</strong></p>
-<ul id="lies"></ul>
+  <div class="truth">Truth: <span id="truthScore"></span></div>
+  <div class="lies">Lies: <span id="lieScore"></span></div>
+  <div class="opinion">Opinion: <span id="opinionScore"></span></div>
+  <div class="foolery">Foolery: <span id="foolScore"></span></div>
+  <div class="manipulation">Manipulation: <span id="manipScore"></span></div>
 
-<p><strong>Opinion:</strong></p>
-<ul id="opinions"></ul>
+  <div style="margin-top:15px;">
+    <strong>Reality Scale:</strong>
+    <div id="scale"></div>
+  </div>
 
-<p><strong>Preference Distance:</strong></p>
-<ul id="preference"></ul>
-
-<p><strong>Reality Scale:</strong></p>
-<div id="scale" class="scale"></div>
-
-<p><strong>Sources Used:</strong></p>
-<p>Primary (1st Tier) / Secondary (2nd Tier)</p>
-
+  <div style="margin-top:15px;">
+    <strong>Sources:</strong>
+    <ul id="sources"></ul>
+  </div>
 </div>
 
 </div>
 
 <script>
+document.getElementById("videoUpload").addEventListener("change", function(e){
+  const file = e.target.files[0];
+  if(file){
+    const url = URL.createObjectURL(file);
+    document.getElementById("videoPreview").innerHTML =
+      `<video controls src="${url}"></video>`;
+  }
+});
+
 function analyze(){
-  let text = document.getElementById("inputText").value;
+  const text = document.getElementById("textInput").value;
 
-  document.getElementById("output").style.display="block";
+  if(!text){
+    alert("Put something in, genius.");
+    return;
+  }
 
-  // Placeholder logic for now
-  document.getElementById("facts").innerHTML = "<li>Detected factual elements (placeholder)</li>";
-  document.getElementById("lies").innerHTML = "<li>Potential false claims (placeholder)</li>";
-  document.getElementById("opinions").innerHTML = "<li>Subjective statements (placeholder)</li>";
-  document.getElementById("preference").innerHTML = "<li>Bias / preference detected (placeholder)</li>";
+  document.getElementById("results").style.display = "block";
 
-  document.getElementById("scale").innerHTML = "Mixed Reality (early stage)";
+  // Fake scoring (for now)
+  const truth = Math.floor(Math.random()*40)+20;
+  const lies = Math.floor(Math.random()*30);
+  const opinion = Math.floor(Math.random()*40);
+  const fool = Math.floor(Math.random()*20);
+  const manip = Math.floor(Math.random()*25);
+
+  document.getElementById("truthScore").innerText = truth + "%";
+  document.getElementById("lieScore").innerText = lies + "%";
+  document.getElementById("opinionScore").innerText = opinion + "%";
+  document.getElementById("foolScore").innerText = fool + "%";
+  document.getElementById("manipScore").innerText = manip + "%";
+
+  let scale = "Balanced Reality";
+  if(lies > 25 || manip > 20) scale = "Distorted";
+  if(fool > 15) scale = "Clown Territory";
+
+  document.getElementById("scale").innerText = scale;
+
+  const sources = [
+    "Primary source (if detected)",
+    "Secondary reference",
+    "Contextual inference"
+  ];
+
+  document.getElementById("sources").innerHTML =
+    sources.map(s => `<li>${s}</li>`).join("");
 }
 </script>
 
