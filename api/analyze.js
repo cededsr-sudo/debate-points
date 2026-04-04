@@ -41,13 +41,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Analysis failed" });
   }
 }
-    });
-
-    const data = await response.json();
-
-    res.status(200).json(data);
-
-  } catch (err) {
-    res.status(500).json({ error: "Something broke." });
-  }
-}
