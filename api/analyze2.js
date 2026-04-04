@@ -4,16 +4,75 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { text } = req.body;
+    const { teamAName, teamBName, teamAText, teamBText, videoLink } = req.body;
 
-    if (!text || !text.trim()) {
-      return res.status(400).json({ error: "No text provided" });
+    if (!teamAText || !teamBText) {
+      return res.status(400).json({ error: "Both teams are required" });
     }
+
+    const prompt = `
+You are a direct, sharp debate judge.
+
+Compare these two sides directly.
+
+Team A Name: ${teamAName || "Team A"}
+Team A Text:
+${teamAText}
+
+Team B Name: ${teamBName || "Team B"}
+Team B Text:
+${teamBText}
+
+Optional Link:
+${videoLink || "No link provided"}
+
+Return ONLY valid JSON in this exact format:
+
+{
+  "teamAName": "",
+  "teamBName": "",
+  "teamA": {
+    "position": "",
+    "truth": "",
+    "lies": "",
+    "opinion": "",
+    "lalaLand": ""
+  },
+  "teamB": {
+    "position": "",
+    "truth": "",
+    "lies": "",
+    "opinion": "",
+    "lalaLand": ""
+  },
+  "winner": "",
+  "bsMeter": "",
+  "strongestOverall": "",
+  "weakestOverall": "",
+  "why": "",
+  "manipulation": "",
+  "fluff": "",
+  "sources": []
+}
+
+Rules:
+- Be decisive.
+- Team names should be preserved.
+- "Truth" = grounded, reasonable, or supported points.
+- "Lies" = false, exaggerated, unsupported, or overconfident points.
+- "Opinion" = subjective framing or personal perspective.
+- "Lala Land" = fantasy leaps, reality disconnect, wild overreach, or nonsense.
+- "bsMeter" must plainly say who is bluffing more, exaggerating more, or reaching more.
+- "winner" must be Team A, Team B, or Mixed.
+- Do not use weak filler like "not clearly developed."
+- Be concrete and readable.
+- If no explicit sources are mentioned, return ["No explicit sources mentioned"].
+`;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: \`Bearer \${process.env.OPENAI_API_KEY}\`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -22,35 +81,11 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: `You are a debate breakdown tool.
-
-Analyze the text as a debate, argument, or exchange between sides.
-If there are no clearly named speakers, infer two sides from the competing claims.
-
-Return ONLY valid JSON in this exact format:
-
-{
-  "speakerA": "Main claims, strengths, and weaknesses of side A",
-  "speakerB": "Main claims, strengths, and weaknesses of side B",
-  "strongestPoint": "The strongest point made in the exchange",
-  "weakestPoint": "The weakest point made in the exchange",
-  "edge": "Speaker A / Speaker B / Mixed",
-  "why": "Short explanation for who currently has the stronger case",
-  "manipulation": "Main emotional framing, loaded language, or rhetorical pressure used",
-  "fluff": "Main filler, repetition, or low-substance wording",
-  "sources": ["explicit sources mentioned in the text, or 'No explicit sources mentioned'"]
-}
-
-Rules:
-- Never leave fields blank.
-- Be concrete.
-- Do not say 'None clearly present'.
-- If weak, still make your best judgment.
-- Keep each field concise but useful.`
+            content: "You are a no-nonsense debate breakdown tool."
           },
           {
             role: "user",
-            content: text
+            content: prompt
           }
         ]
       })
@@ -64,29 +99,32 @@ Rules:
       parsed = JSON.parse(raw);
     } catch (e) {
       parsed = {
-        speakerA: "Unable to cleanly parse Speaker A, but one side appears to argue from the stronger grounded position.",
-        speakerB: "Unable to cleanly parse Speaker B, but the opposing side appears to rely more on weaker or less supported claims.",
-        strongestPoint: "A stronger point appears to exist, but the response was not cleanly parsed.",
-        weakestPoint: "A weaker point appears to exist, but the response was not cleanly parsed.",
-        edge: "Mixed",
-        why: raw || "The response was unclear, so the edge could not be judged cleanly.",
-        manipulation: "Some rhetorical steering or framing may be present.",
+        teamAName: teamAName || "Team A",
+        teamBName: teamBName || "Team B",
+        teamA: {
+          position: "Team A presents a position.",
+          truth: "Some grounded content may be present.",
+          lies: "Some unsupported content may be present.",
+          opinion: "Some subjective framing may be present.",
+          lalaLand: "Some overreach or fantasy leap may be present."
+        },
+        teamB: {
+          position: "Team B presents a position.",
+          truth: "Some grounded content may be present.",
+          lies: "Some unsupported content may be present.",
+          opinion: "Some subjective framing may be present.",
+          lalaLand: "Some overreach or fantasy leap may be present."
+        },
+        winner: "Mixed",
+        bsMeter: "Both sides may be reaching in different ways.",
+        strongestOverall: "Could not isolate strongest overall point cleanly.",
+        weakestOverall: "Could not isolate weakest overall point cleanly.",
+        why: raw || "The response could not be parsed cleanly.",
+        manipulation: "Some emotional framing may be present.",
         fluff: "Some filler or repetition may be present.",
         sources: ["No explicit sources mentioned"]
       };
     }
-
-    parsed.speakerA = parsed.speakerA || "Speaker A presents a position, but the case is not clearly developed.";
-    parsed.speakerB = parsed.speakerB || "Speaker B presents a position, but the case is not clearly developed.";
-    parsed.strongestPoint = parsed.strongestPoint || "A strongest point exists, but it was not clearly isolated.";
-    parsed.weakestPoint = parsed.weakestPoint || "A weakest point exists, but it was not clearly isolated.";
-    parsed.edge = parsed.edge || "Mixed";
-    parsed.why = parsed.why || "Neither side clearly dominates based on the available text.";
-    parsed.manipulation = parsed.manipulation || "Some emotional framing or loaded wording may be present.";
-    parsed.fluff = parsed.fluff || "Some filler, repetition, or low-substance wording is present.";
-    parsed.sources = Array.isArray(parsed.sources) && parsed.sources.length
-      ? parsed.sources
-      : ["No explicit sources mentioned"];
 
     return res.status(200).json(parsed);
 
