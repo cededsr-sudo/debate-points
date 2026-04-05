@@ -47,8 +47,6 @@ export default async function handler(req, res) {
       cleanedTranscript
     });
 
-    const schema = buildSchema();
-
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -58,16 +56,10 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "openai/gpt-oss-20b",
         temperature: 0.1,
-        response_format: {
-          type: "json_schema",
-          json_schema: schema
-        },
+        response_format: { type: "json_object" },
+        reasoning_format: "hidden",
+        max_completion_tokens: 2200,
         messages: [
-          {
-            role: "system",
-            content:
-              "Return only schema-valid JSON. Ignore transcript metadata, timestamps, labels, title text, category text, and platform filler."
-          },
           {
             role: "user",
             content: prompt
@@ -92,18 +84,35 @@ export default async function handler(req, res) {
             teamAName,
             teamBName,
             reason:
-              "Groq rate-limit issue. The app is wired correctly, but the provider is refusing requests right now."
+              "Groq rate-limit issue. The provider refused the request right now."
           })
         );
       }
 
-      if (lowered.includes("api key") || lowered.includes("authentication") || lowered.includes("unauthorized")) {
+      if (
+        lowered.includes("api key") ||
+        lowered.includes("authentication") ||
+        lowered.includes("unauthorized")
+      ) {
+        return res.status(200).json(
+          buildFallbackResponse({
+            teamAName,
+            teamBName,
+            reason: "Groq API key issue. Check the key stored in Vercel."
+          })
+        );
+      }
+
+      if (
+        lowered.includes("failed to validate json") ||
+        lowered.includes("failed_generation")
+      ) {
         return res.status(200).json(
           buildFallbackResponse({
             teamAName,
             teamBName,
             reason:
-              "Groq API key issue. Check the key stored in Vercel."
+              "Groq JSON validation failed. The provider did not return valid JSON for this request."
           })
         );
       }
@@ -137,7 +146,7 @@ export default async function handler(req, res) {
         buildFallbackResponse({
           teamAName,
           teamBName,
-          reason: "Structured output parsing failed."
+          reason: "Returned content was not valid JSON."
         })
       );
     }
@@ -180,7 +189,7 @@ function cleanTranscript(text) {
     .replace(/^\s*all\s*$/gim, " ")
     .replace(/^\s*politics news\s*$/gim, " ")
 
-    // chapter labels / youtube wrapper junk
+    // chapter labels / wrapper junk
     .replace(/^\s*chapter\s+\d+.*$/gim, " ")
     .replace(/^\s*\d+\s+views?\s*$/gim, " ")
     .replace(
@@ -188,10 +197,10 @@ function cleanTranscript(text) {
       " "
     )
 
-    // inline timestamp junk
+    // inline timestamps
     .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
 
-    // lines that begin with timestamp sludge
+    // timestamp-heavy lines
     .replace(
       /^\s*\d{1,2}:\d{2}(?::\d{2})?\s*(minutes?,?\s*\d+\s*seconds?)?.*$/gim,
       function (line) {
@@ -205,10 +214,10 @@ function cleanTranscript(text) {
     .replace(/^\s*\[[^\]]*\]\s*$/gm, " ")
     .replace(/^\s*\([^)]*\)\s*$/gm, " ")
 
-    // giant encoded junk blobs
+    // giant junk blobs
     .replace(/[A-Za-z0-9_-]{25,}/g, " ")
 
-    // normalize whitespace
+    // whitespace normalize
     .replace(/[ \t]+/g, " ")
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
@@ -231,33 +240,19 @@ function getTranscriptStats(text) {
 
 function buildPrompt({ teamAName, teamBName, videoLink, cleanedTranscript }) {
   return `
-You are a ruthless debate analyst.
+Return ONLY valid JSON.
+Do not include markdown.
+Do not include commentary before or after the JSON.
+Do not include code fences.
 
-IMPORTANT:
-The transcript may contain metadata such as:
-- video title
-- channel name
-- views
-- months ago / years ago
-- chapter labels
-- timestamps
-- sync to video time
-- subscribe prompts
-- outro junk
-- uploader notes
-- category labels
-
-You must IGNORE all metadata, timestamps, labels, title text, page filler, and platform junk.
+Ignore all metadata, timestamps, labels, title text, page filler, category text, and platform junk.
 Analyze ONLY the actual spoken exchange and argumentative content.
 
-Optional Team A Name: ${teamAName}
-Optional Team B Name: ${teamBName}
-Optional Link: ${videoLink || "No link provided"}
+Team A label: ${teamAName}
+Team B label: ${teamBName}
+Optional link: ${videoLink || "No link provided"}
 
-Transcript:
-${cleanedTranscript}
-
-Return ONLY valid JSON in this exact shape:
+Use this exact JSON shape:
 
 {
   "teamAName": "",
@@ -294,96 +289,18 @@ Return ONLY valid JSON in this exact shape:
 }
 
 Rules:
-- Ignore metadata and non-debate filler completely.
-- Be decisive.
-- Do NOT use filler like "could not be isolated cleanly" unless the content is genuinely too weak.
-- "winner" must be exactly "Team A", "Team B", or "Mixed".
-- "truth" = grounded, supported, reasonable claims by that side.
-- "lies" = false, exaggerated, unsupported, or overconfident claims by that side.
-- "opinion" = subjective framing by that side.
-- "lala" = fantasy leaps, absurd overreach, reality disconnect, nonsense by that side.
-- "bsMeter" must plainly say who is bluffing or reaching more and why.
-- "strongestOverall" must identify one specific strong point from the exchange.
-- "weakestOverall" must identify one specific weak point from the exchange.
-- "why" must explain the edge plainly.
-- "manipulation" should describe rhetorical pressure or emotional steering if present.
-- "fluff" should describe actual spoken filler or repetition, not metadata.
-- "sources" should list 2 to 4 claims that would need outside verification where possible.
-`.trim();
-}
+- winner must be exactly "Team A", "Team B", or "Mixed"
+- truth = grounded, supported, reasonable claims
+- lies = false, exaggerated, unsupported, or overconfident claims
+- opinion = subjective framing
+- lala = fantasy leaps, absurd overreach, reality disconnect, or nonsense
+- strongestOverall = one specific strong point
+- weakestOverall = one specific weak point
+- sources = 2 to 4 claims needing outside verification when possible
 
-function buildSchema() {
-  return {
-    name: "debate_analysis",
-    strict: true,
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        teamAName: { type: "string" },
-        teamBName: { type: "string" },
-        teamA: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            main_position: { type: "string" },
-            truth: { type: "string" },
-            lies: { type: "string" },
-            opinion: { type: "string" },
-            lala: { type: "string" }
-          },
-          required: ["main_position", "truth", "lies", "opinion", "lala"]
-        },
-        teamB: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            main_position: { type: "string" },
-            truth: { type: "string" },
-            lies: { type: "string" },
-            opinion: { type: "string" },
-            lala: { type: "string" }
-          },
-          required: ["main_position", "truth", "lies", "opinion", "lala"]
-        },
-        winner: { type: "string" },
-        bsMeter: { type: "string" },
-        strongestOverall: { type: "string" },
-        weakestOverall: { type: "string" },
-        why: { type: "string" },
-        manipulation: { type: "string" },
-        fluff: { type: "string" },
-        sources: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              claim: { type: "string" },
-              type: { type: "string" },
-              likely_source: { type: "string" },
-              confidence: { type: "string" }
-            },
-            required: ["claim", "type", "likely_source", "confidence"]
-          }
-        }
-      },
-      required: [
-        "teamAName",
-        "teamBName",
-        "teamA",
-        "teamB",
-        "winner",
-        "bsMeter",
-        "strongestOverall",
-        "weakestOverall",
-        "why",
-        "manipulation",
-        "fluff",
-        "sources"
-      ]
-    }
-  };
+Transcript:
+${cleanedTranscript}
+`.trim();
 }
 
 async function safeJson(response) {
