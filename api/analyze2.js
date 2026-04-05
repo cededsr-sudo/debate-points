@@ -959,7 +959,6 @@ function detectWeakClaims(text, used) {
     return (hasOverclaimLanguage(s) || hasExtremeLanguage(s)) && !hasSupportLanguage(s);
   });
   if (!sentence) return "-";
-
   return "Overstates: " + makeClaim(sentence);
 }
 
@@ -971,7 +970,11 @@ function detectOpinion(text, used) {
 
 function detectBiggestMisinformation(text, used) {
   const sentence = pickUnused(splitSentences(text), used, (s) => {
-    return hasLalaLanguage(s) || (hasOverclaimLanguage(s) && !hasSupportLanguage(s));
+    return (
+      hasLalaLanguage(s) ||
+      (hasOverclaimLanguage(s) && !hasSupportLanguage(s)) ||
+      (hasOpinionLanguage(s) && hasLalaLanguage(s))
+    );
   });
 
   if (!sentence) return "-";
@@ -1108,15 +1111,20 @@ function hasLalaLanguage(s) {
     t.includes("nothing matters") ||
     t.includes("everything is fake") ||
     t.includes("the whole world") ||
+    t.includes("blackmail") ||
+    t.includes("possibly being blackmailed") ||
+    t.includes("if he hadn't inherited") ||
+    t.includes("you know where he would be") ||
+    t.includes("that's the only reason") ||
+    t.includes("all you do is") ||
+    t.includes("nobody in your life") ||
     t.includes("you haven't hired anybody") ||
     t.includes("everyone's dumb") ||
     t.includes("he says five things every night") ||
-    t.includes("if he hadn't inherited") ||
-    t.includes("that's why you're here") ||
-    t.includes("you know where he would be") ||
-    t.includes("nobody in your life") ||
-    t.includes("all you do is") ||
-    t.includes("that's the only reason")
+    t.includes("they dropped that investigation because") ||
+    t.includes("complete and total") ||
+    t.includes("obviously because") ||
+    t.includes("clearly because")
   );
 }
 
@@ -1219,19 +1227,28 @@ function buildFailedResponse(side, teamAName, teamBName) {
 }
 
 function buildWeakestOverall(teamAData, teamBData, teamAName, teamBName) {
+  const candidates = [];
+
   if (teamAData.lala && teamAData.lala !== "-") {
-    return teamAName + ": " + teamAData.lala;
+    candidates.push(teamAName + ": " + teamAData.lala);
   }
   if (teamBData.lala && teamBData.lala !== "-") {
-    return teamBName + ": " + teamBData.lala;
+    candidates.push(teamBName + ": " + teamBData.lala);
   }
   if (teamAData.lies && teamAData.lies !== "-") {
-    return teamAName + ": " + teamAData.lies;
+    candidates.push(teamAName + ": " + teamAData.lies);
   }
   if (teamBData.lies && teamBData.lies !== "-") {
-    return teamBName + ": " + teamBData.lies;
+    candidates.push(teamBName + ": " + teamBData.lies);
   }
-  return "No clearly terrible argument.";
+  if (teamAData.opinion && teamAData.opinion !== "-") {
+    candidates.push(teamAName + ": " + teamAData.opinion);
+  }
+  if (teamBData.opinion && teamBData.opinion !== "-") {
+    candidates.push(teamBName + ": " + teamBData.opinion);
+  }
+
+  return candidates.length ? candidates[0] : "No clearly terrible argument.";
 }
 
 function buildWhy(winner, teamAName, teamBName) {
@@ -1283,7 +1300,9 @@ function cleanAnalystField(value) {
 
   text = String(text)
     .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
-    .replace(/\b\d{1,2}:\d{2}\d*\s*(seconds?|minutes?)\b/gi, " ")
+    .replace(/\b\d{1,2}:\d{2,4}\s*seconds?[A-Za-z]+/gi, " ")
+    .replace(/\b\d{1,2}:\d{2,4}\s*seconds?\b/gi, " ")
+    .replace(/\b\d{1,2}:\d{2,4}(?=[A-Za-z])/g, " ")
     .replace(/\b(TRUMP|RUBIO|MODERATOR|HOST|QUESTION|AUDIENCE)\s*:\s*/gi, "")
     .replace(/>>\s*[^:]+:\s*/g, "")
     .replace(/\s+/g, " ")
