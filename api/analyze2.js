@@ -28,10 +28,10 @@ module.exports = async function handler(req, res) {
     }
 
     const localResult = buildDeterministicResult({
-      teamAName: teamAName,
-      teamBName: teamBName,
+      teamAName,
+      teamBName,
       transcript: cleanedTranscript,
-      videoLink: videoLink
+      videoLink
     });
 
     if (!process.env.GROQ_API_KEY) {
@@ -39,15 +39,15 @@ module.exports = async function handler(req, res) {
     }
 
     try {
-      const chunks = chunkTranscript(cleanedTranscript, 900);
+      const chunks = chunkTranscript(cleanedTranscript, 850);
       const chunkResults = [];
 
       for (let i = 0; i < chunks.length; i += 1) {
         await sleep(1800);
 
         const chunkPrompt = buildChunkPrompt({
-          teamAName: teamAName,
-          teamBName: teamBName,
+          teamAName,
+          teamBName,
           chunkText: chunks[i],
           chunkNumber: i + 1,
           totalChunks: chunks.length
@@ -72,10 +72,10 @@ module.exports = async function handler(req, res) {
       await sleep(2200);
 
       const judgePrompt = buildJudgePrompt({
-        teamAName: teamAName,
-        teamBName: teamBName,
-        videoLink: videoLink,
-        chunkResults: chunkResults
+        teamAName,
+        teamBName,
+        videoLink,
+        chunkResults
       });
 
       const judgeResponse = await callGroq(judgePrompt);
@@ -92,11 +92,11 @@ module.exports = async function handler(req, res) {
       }
 
       const aiResult = normalizeAiJudgeResult(parsedJudge, {
-        teamAName: teamAName,
-        teamBName: teamBName
+        teamAName,
+        teamBName
       });
 
-      return res.status(200).json(withMode(mergeLocalAndAi(localResult, aiResult), "Hybrid"));
+      return res.status(200).json(withMode(enforceConsistency(mergeLocalAndAi(localResult, aiResult)), "Hybrid"));
     } catch (err) {
       return res.status(200).json(withMode(localResult, "Local"));
     }
@@ -122,7 +122,7 @@ async function callGroq(prompt) {
       body: JSON.stringify({
         model: "openai/gpt-oss-20b",
         temperature: 0.1,
-        max_completion_tokens: 500,
+        max_completion_tokens: 450,
         messages: [
           {
             role: "user",
@@ -162,7 +162,7 @@ async function callGroq(prompt) {
 
     return {
       ok: true,
-      content: content
+      content
     };
   } catch (err) {
     return {
@@ -181,23 +181,20 @@ function buildChunkPrompt(args) {
     "No text before JSON.",
     "No text after JSON.",
     "",
-    "You are analyzing one chunk of a debate transcript.",
+    "Analyze one debate chunk.",
     "",
-    "DO NOT copy transcript text.",
     "DO NOT quote transcript wording.",
+    "DO NOT copy speaker names.",
     "DO NOT include timestamps.",
-    "DO NOT include filler phrases.",
-    "DO NOT include partial sentences.",
-    "",
-    "Rewrite all outputs into clean analytical statements.",
-    "Each item must be short, clear, and claim-style.",
-    "Each item should be under 16 words.",
+    "DO NOT include filler language.",
+    "Rewrite every output as a short analytical statement.",
+    "Each item must be under 12 words.",
     "",
     "Team A label: " + args.teamAName,
     "Team B label: " + args.teamBName,
     "Chunk: " + args.chunkNumber + " of " + args.totalChunks,
     "",
-    "Return exactly this JSON shape:",
+    "Return exactly:",
     "{",
     '  "teamA": {',
     '    "main_points": [],',
@@ -221,13 +218,13 @@ function buildChunkPrompt(args) {
     "}",
     "",
     "Category rules:",
-    "- main_points = side's core claims in this chunk.",
-    "- truth_points = grounded or supported claims.",
-    "- lie_points = unsupported, exaggerated, or misleading claims.",
-    "- opinion_points = subjective framing or preference.",
-    "- lala_points = speculative leap or absurd overreach.",
+    "- main_points = core claim only.",
+    "- truth_points = grounded point only.",
+    "- lie_points = unsupported claim only.",
+    "- opinion_points = subjective framing only.",
+    "- lala_points = speculative leap only.",
     "",
-    "Return ONLY JSON. No explanations.",
+    "Return ONLY JSON.",
     "",
     "Chunk text:",
     args.chunkText
@@ -245,22 +242,20 @@ function buildJudgePrompt(args) {
     "",
     "You are the final judge for a debate.",
     "",
-    "DO NOT copy transcript text.",
     "DO NOT quote transcript wording.",
+    "DO NOT copy speaker names.",
     "DO NOT include timestamps.",
-    "DO NOT include filler phrases.",
-    "Rewrite all outputs into clean analytical statements.",
+    "Rewrite all outputs as clean debate analysis.",
     "",
     "You MUST make a decision.",
-    'Use "Mixed" ONLY if both sides are truly close and equally weak.',
-    "Scores MUST reflect the winner.",
-    "If there is a winner, that side must have the higher score.",
+    'Use "Mixed" ONLY if the sides are truly close.',
+    "Winner must have the higher score.",
+    "Equal scores only if winner is Mixed.",
     "",
     "Team A label: " + args.teamAName,
     "Team B label: " + args.teamBName,
-    "Optional link: " + (args.videoLink || "No link provided"),
     "",
-    "Return exactly this JSON shape:",
+    "Return exactly:",
     "{",
     '  "teamAName": "",',
     '  "teamBName": "",',
@@ -289,23 +284,23 @@ function buildJudgePrompt(args) {
     '  "fluff": ""',
     "}",
     "",
-    "Formatting rules:",
-    '- winner must be exactly "Team A", "Team B", or "Mixed".',
+    "Field rules:",
+    "- main position: one short core claim.",
+    "- truth: one grounded point.",
+    "- lies: one unsupported claim.",
+    "- opinion: one subjective frame.",
+    "- lala: one unsupported leap.",
+    "- strongestArgument: max 14 words.",
+    "- whyStrongest: max 18 words, direct contrast.",
+    "- failedResponseByOtherSide: max 16 words.",
+    "- weakestOverall: max 12 words.",
     '- strongestArgumentSide must be exactly "Team A" or "Team B".',
-    "- teamAScore and teamBScore must be integers from 1 to 10.",
-    "- Every field must be short and direct.",
-    "- No arrays.",
-    "- No nested objects.",
-    "- No extra keys.",
+    '- bsMeter must be exactly one of:',
+    '  "Team A is reaching more"',
+    '  "Team B is reaching more"',
+    '  "Neither side is reaching significantly"',
     "",
-    "Specific field rules:",
-    "- strongestArgument = one specific argument rewritten cleanly, not transcript wording.",
-    "- whyStrongest = directly contrast why it beats the other side's best point.",
-    "- failedResponseByOtherSide = what the weaker side failed to answer or support.",
-    "- weakestOverall = the weakest argument made, even if it was addressed.",
-    '- bsMeter must be exactly one of: "Team A is reaching more", "Team B is reaching more", or "Neither side is reaching significantly".',
-    "",
-    "Return ONLY JSON. No explanations.",
+    "Return ONLY JSON.",
     "",
     "Chunk analyses:",
     JSON.stringify(args.chunkResults, null, 2)
@@ -345,62 +340,41 @@ function buildDeterministicResult(args) {
   const supportA = supportScore(teamAJoined);
   const supportB = supportScore(teamBJoined);
 
-  const teamAScore = clampScore(5 + supportA - weakA);
-  const teamBScore = clampScore(5 + supportB - weakB);
+  let teamAScore = clampScore(5 + supportA - weakA);
+  let teamBScore = clampScore(5 + supportB - weakB);
 
   let winner = "Mixed";
   if (teamAScore >= teamBScore + 2) winner = "Team A";
   if (teamBScore >= teamAScore + 2) winner = "Team B";
 
-  const strongest = pickStrongestArgument(
-    teamAJoined,
-    teamBJoined,
-    args.teamAName,
-    args.teamBName
-  );
+  const strongest = pickStrongestArgument(teamAJoined, teamBJoined);
 
   if (winner === "Mixed") {
     if (strongest.side === "Team A" && teamAScore >= teamBScore + 1) winner = "Team A";
     if (strongest.side === "Team B" && teamBScore >= teamAScore + 1) winner = "Team B";
   }
 
+  if (winner === "Team A" && teamAScore <= teamBScore) teamAScore = Math.min(10, teamBScore + 1);
+  if (winner === "Team B" && teamBScore <= teamAScore) teamBScore = Math.min(10, teamAScore + 1);
+  if (winner === "Mixed") {
+    const even = Math.max(Math.min(teamAScore, teamBScore), 6);
+    teamAScore = even;
+    teamBScore = even;
+  }
+
   const strongestArgumentSide = strongest.side;
   const strongestArgument = strongest.text;
-  const whyStrongest = buildWhyStrongest(
-    strongest.side,
-    args.teamAName,
-    args.teamBName
-  );
-
-  const failedResponseByOtherSide = buildFailedResponse(
-    strongest.side,
-    teamAJoined,
-    teamBJoined,
-    args.teamAName,
-    args.teamBName
-  );
-
+  const whyStrongest = buildWhyStrongest(strongest.side, args.teamAName, args.teamBName);
+  const failedResponseByOtherSide = buildFailedResponse(strongest.side, args.teamAName, args.teamBName);
   const bsMeter = buildBsMeter(weakA, weakB);
+
   const strongestOverall =
     strongest.side === "Team A"
       ? args.teamAName + ": " + strongest.text
       : args.teamBName + ": " + strongest.text;
 
-  const weakestOverall = buildWeakestOverall(
-    teamAJoined,
-    teamBJoined,
-    args.teamAName,
-    args.teamBName
-  );
-
-  const why = buildWhy(
-    winner,
-    teamAScore,
-    teamBScore,
-    args.teamAName,
-    args.teamBName
-  );
-
+  const weakestOverall = buildWeakestOverall(weakA, weakB, args.teamAName, args.teamBName);
+  const why = buildWhy(winner, args.teamAName, args.teamBName);
   const manipulation = buildManipulation(teamAJoined, teamBJoined);
   const fluff = buildFluff(fluffA, fluffB);
 
@@ -422,14 +396,14 @@ function buildDeterministicResult(args) {
       opinion: cleanAnalystField(teamBOpinion),
       lala: cleanAnalystField(teamBLala)
     },
-    teamAScore: teamAScore,
-    teamBScore: teamBScore,
-    winner: winner,
-    strongestArgumentSide: strongestArgumentSide,
+    teamAScore,
+    teamBScore,
+    winner,
+    strongestArgumentSide,
     strongestArgument: cleanAnalystField(strongestArgument),
     whyStrongest: cleanAnalystField(whyStrongest),
     failedResponseByOtherSide: cleanAnalystField(failedResponseByOtherSide),
-    bsMeter: bsMeter,
+    bsMeter,
     strongestOverall: cleanAnalystField(strongestOverall),
     weakestOverall: cleanAnalystField(weakestOverall),
     why: cleanAnalystField(why),
@@ -480,6 +454,37 @@ function mergeLocalAndAi(localResult, aiResult) {
     fluff: cleanAnalystField(pickBetter(aiResult.fluff, localResult.fluff)),
     sources: localResult.sources
   };
+}
+
+function enforceConsistency(result) {
+  const out = JSON.parse(JSON.stringify(result));
+
+  out.teamAScore = clampScore(Number(out.teamAScore || 5));
+  out.teamBScore = clampScore(Number(out.teamBScore || 5));
+
+  if (out.winner === "Team A" && out.teamAScore <= out.teamBScore) {
+    out.teamAScore = Math.min(10, out.teamBScore + 1);
+  }
+
+  if (out.winner === "Team B" && out.teamBScore <= out.teamAScore) {
+    out.teamBScore = Math.min(10, out.teamAScore + 1);
+  }
+
+  if (out.winner === "Mixed") {
+    const even = Math.max(Math.min(out.teamAScore, out.teamBScore), 6);
+    out.teamAScore = even;
+    out.teamBScore = even;
+  }
+
+  out.strongestArgument = cleanAnalystField(out.strongestArgument);
+  out.strongestOverall = cleanAnalystField(out.strongestOverall);
+  out.weakestOverall = cleanAnalystField(out.weakestOverall);
+  out.failedResponseByOtherSide = cleanAnalystField(out.failedResponseByOtherSide);
+  out.whyStrongest = cleanAnalystField(out.whyStrongest);
+  out.why = cleanAnalystField(out.why);
+  out.bsMeter = normalizeBsMeter(out.bsMeter);
+
+  return out;
 }
 
 function withMode(result, mode) {
@@ -567,7 +572,7 @@ function splitLinesIntoSides(lines) {
     }
   }
 
-  return { teamA: teamA, teamB: teamB };
+  return { teamA, teamB };
 }
 
 function createUsedTracker() {
@@ -590,10 +595,10 @@ function detectReasonableClaims(text, used) {
     function (s) {
       return hasSupportLanguage(s) && !hasExtremeLanguage(s) && !hasOpinionLanguage(s);
     },
-    2
+    1
   );
   if (!picked.length) return "-";
-  return picked.map(rewriteGrounded).join(" | ");
+  return rewriteGrounded(picked[0]);
 }
 
 function detectWeakClaims(text, used) {
@@ -604,10 +609,10 @@ function detectWeakClaims(text, used) {
     function (s) {
       return hasExtremeLanguage(s) || hasOverclaimLanguage(s);
     },
-    2
+    1
   );
   if (!picked.length) return "-";
-  return picked.map(rewriteWeak).join(" | ");
+  return rewriteWeak(picked[0]);
 }
 
 function detectOpinion(text, used) {
@@ -618,10 +623,10 @@ function detectOpinion(text, used) {
     function (s) {
       return hasOpinionLanguage(s);
     },
-    2
+    1
   );
   if (!picked.length) return "-";
-  return picked.map(rewriteOpinion).join(" | ");
+  return rewriteOpinion(picked[0]);
 }
 
 function detectLala(text, used) {
@@ -632,17 +637,17 @@ function detectLala(text, used) {
     function (s) {
       return hasLalaLanguage(s);
     },
-    2
+    1
   );
   if (!picked.length) return "-";
-  return picked.map(rewriteLala).join(" | ");
+  return rewriteLala(picked[0]);
 }
 
 function splitSentences(text) {
   return String(text)
     .split(/(?<=[.!?])\s+|\n+/)
     .map(function (s) {
-      return s.trim();
+      return hardScrubText(s.trim());
     })
     .filter(function (s) {
       return s.length > 12;
@@ -654,7 +659,7 @@ function pickUnused(sentences, used, predicate) {
     const s = sentences[i];
     if (!used[s] && predicate(s)) {
       used[s] = true;
-      return shorten(s, 180);
+      return shorten(s, 140);
     }
   }
   return "";
@@ -775,14 +780,14 @@ function clampScore(raw) {
   return raw;
 }
 
-function pickStrongestArgument(teamA, teamB, teamAName, teamBName) {
+function pickStrongestArgument(teamA, teamB) {
   const a = detectBestSupportedSentence(teamA);
   const b = detectBestSupportedSentence(teamB);
 
   if (!a && !b) {
     return {
       side: "Team A",
-      text: "Makes the slightly clearer core claim."
+      text: "Makes the clearer core claim."
     };
   }
 
@@ -811,28 +816,21 @@ function detectBestSupportedSentence(text) {
     }
   }
 
-  return best ? shorten(best, 220) : "";
+  return best ? shorten(best, 90) : "";
 }
 
 function buildWhyStrongest(side, teamAName, teamBName) {
   if (side === "Team A") {
-    return "It is clearer, more grounded, and better supported than " + teamBName + "'s best point.";
+    return "Clearer support and better reasoning than " + teamBName + ".";
   }
-  return "It is clearer, more grounded, and better supported than " + teamAName + "'s best point.";
+  return "Clearer support and better reasoning than " + teamAName + ".";
 }
 
-function buildFailedResponse(side, teamA, teamB, teamAName, teamBName) {
+function buildFailedResponse(side, teamAName, teamBName) {
   if (side === "Team A") {
-    const weak = detectWeakClaims(teamB, createUsedTracker());
-    return weak !== "-"
-      ? teamBName + " failed to fully answer or support its weaker claim."
-      : teamBName + " did not clearly answer the stronger support-based point.";
+    return teamBName + " failed to answer the stronger grounded point.";
   }
-
-  const weak = detectWeakClaims(teamA, createUsedTracker());
-  return weak !== "-"
-    ? teamAName + " failed to fully answer or support its weaker claim."
-    : teamAName + " did not clearly answer the stronger support-based point.";
+  return teamAName + " failed to answer the stronger grounded point.";
 }
 
 function buildBsMeter(weakA, weakB) {
@@ -841,26 +839,20 @@ function buildBsMeter(weakA, weakB) {
   return "Team B is reaching more";
 }
 
-function buildWeakestOverall(teamA, teamB, teamAName, teamBName) {
-  const a = detectWeakClaims(teamA, createUsedTracker());
-  const b = detectWeakClaims(teamB, createUsedTracker());
-
-  if (a === "-" && b === "-") return "-";
-  if (a !== "-" && b === "-") return teamAName + ": weakest claim relied on overreach.";
-  if (b !== "-" && a === "-") return teamBName + ": weakest claim relied on overreach.";
-  return a.length >= b.length
-    ? teamAName + ": weakest claim relied on overreach."
-    : teamBName + ": weakest claim relied on overreach.";
+function buildWeakestOverall(weakA, weakB, teamAName, teamBName) {
+  if (Math.abs(weakA - weakB) <= 1) return "No clearly terrible argument.";
+  if (weakA > weakB) return teamAName + ": weaker case relied on overreach.";
+  return teamBName + ": weaker case relied on overreach.";
 }
 
-function buildWhy(winner, teamAScore, teamBScore, teamAName, teamBName) {
+function buildWhy(winner, teamAName, teamBName) {
   if (winner === "Team A") {
-    return teamAName + " built the stronger case and avoided as much weak overreach.";
+    return teamAName + " created the stronger overall case.";
   }
   if (winner === "Team B") {
-    return teamBName + " built the stronger case and avoided as much weak overreach.";
+    return teamBName + " created the stronger overall case.";
   }
-  return "Both sides had real strengths, but neither side created a decisive edge.";
+  return "Both sides showed strengths, but neither gained a decisive edge.";
 }
 
 function buildManipulation(teamA, teamB) {
@@ -871,7 +863,7 @@ function buildManipulation(teamA, teamB) {
     text.includes("that’s ridiculous") ||
     text.includes("be honest")
   ) {
-    return "Dismissive or pressuring rhetoric appears in the exchange.";
+    return "Dismissive or pressuring rhetoric appears.";
   }
   return "-";
 }
@@ -983,10 +975,22 @@ function cleanSimpleName(value) {
 }
 
 function cleanTranscript(text) {
+  return hardScrubText(String(text).replace(/\r/g, "\n"))
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function hardScrubText(text) {
   return String(text)
-    .replace(/\r/g, "\n")
     .replace(/https?:\/\/\S+/gi, " ")
     .replace(/www\.\S+/gi, " ")
+    .replace(/>>\s*[^:\n]{1,40}:\s*/g, " ")
+    .replace(/^\s*[^:\n]{1,30}:\s+/gm, " ")
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+    .replace(/\b\d+\s*seconds?\b/gi, " ")
+    .replace(/\b\d+\s*minutes?\b/gi, " ")
+    .replace(/\b\d+\s*hours?\b/gi, " ")
+    .replace(/\b\d+:\d+\s*minutes?,?\s*\d+\s*seconds?\b/gi, " ")
     .replace(/^\s*sync to video time\s*$/gim, " ")
     .replace(/^\s*show transcript\s*$/gim, " ")
     .replace(/^\s*transcript\s*$/gim, " ")
@@ -1004,14 +1008,13 @@ function cleanTranscript(text) {
       /^\s*\d+\s+(seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago\s*$/gim,
       " "
     )
-    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
-    .replace(/\b\d+:\d+(?:\d+)?\s*(?:minutes?|minute|seconds?|second)\b/gi, " ")
-    .replace(/^\s*\[[^\]]*\]\s*$/gm, " ")
-    .replace(/^\s*\([^)]*\)\s*$/gm, " ")
     .replace(/[A-Za-z0-9_-]{25,}/g, " ")
     .replace(/[ \t]+/g, " ")
     .replace(/\n[ \t]+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\s+,/g, ",")
+    .replace(/,+/g, ",")
+    .replace(/\s+\./g, ".")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -1086,58 +1089,59 @@ function sleep(ms) {
 
 function cleanAnalystField(value) {
   let text = safeString(value, "-");
-
   if (text === "-") return text;
 
-  text = String(text)
-    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
-    .replace(/\b\d+:\d+(?:\d+)?\s*(?:minutes?|minute|seconds?|second)\b/gi, " ")
-    .replace(/\b(?:um|uh|you know|i mean|basically|sort of)\b/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  text = text
+  text = hardScrubText(text)
+    .replace(/^grounded claim:\s*/i, "Grounded point: ")
+    .replace(/^unsupported or overstated claim:\s*/i, "Overstates: ")
+    .replace(/^subjective framing:\s*/i, "Subjective framing: ")
+    .replace(/^speculative leap:\s*/i, "Unsupported leap: ")
     .replace(/^and that'?s why\s*/i, "")
     .replace(/^so\s+/i, "")
     .replace(/^well\s+/i, "")
     .replace(/^okay\s+/i, "")
     .replace(/^look\s+/i, "")
-    .replace(/^here'?s my take\s*/i, "");
-
-  text = shorten(text, 180);
+    .replace(/^here'?s my take\s*/i, "")
+    .replace(/^claim:\s*/i, "")
+    .replace(/^reason:\s*/i, "")
+    .trim();
 
   if (!text) return "-";
-  return text;
+  return shorten(text, 140);
 }
 
 function rewriteAsClaim(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten(s.replace(/\.$/, ""), 160);
+  return shorten("Argues that " + stripTerminalPunctuation(s).toLowerCase() + ".", 90);
 }
 
 function rewriteGrounded(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten("Grounded claim: " + s.replace(/\.$/, ""), 180);
+  return shorten("Grounded point: " + stripTerminalPunctuation(s) + ".", 100);
 }
 
 function rewriteWeak(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten("Unsupported or overstated claim: " + s.replace(/\.$/, ""), 180);
+  return shorten("Overstates: " + stripTerminalPunctuation(s) + ".", 90);
 }
 
 function rewriteOpinion(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten("Subjective framing: " + s.replace(/\.$/, ""), 180);
+  return shorten("Subjective framing: " + stripTerminalPunctuation(s) + ".", 100);
 }
 
 function rewriteLala(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten("Speculative leap: " + s.replace(/\.$/, ""), 180);
+  return shorten("Unsupported leap: " + stripTerminalPunctuation(s) + ".", 90);
+}
+
+function stripTerminalPunctuation(text) {
+  return String(text).replace(/[.!,;:]+$/g, "").trim();
 }
 
 function buildFallbackResponse(args) {
@@ -1159,8 +1163,8 @@ function buildFallbackResponse(args) {
       opinion: "-",
       lala: "-"
     },
-    teamAScore: 5,
-    teamBScore: 5,
+    teamAScore: 6,
+    teamBScore: 6,
     winner: "Mixed",
     strongestArgumentSide: "Team A",
     strongestArgument: "-",
