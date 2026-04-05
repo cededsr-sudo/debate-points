@@ -1,491 +1,274 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Debate Points</title>
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-  <style>
-    * {
-      box-sizing: border-box;
+  try {
+    const { teamAName, teamBName, transcriptText, videoLink } = req.body || {};
+
+    if (!transcriptText || !transcriptText.trim()) {
+      return res.status(400).json({ error: "Transcript is required" });
     }
 
-    body {
-      margin: 0;
-      font-family: system-ui, Arial, sans-serif;
-      color: #f5f7fa;
-      background:
-        radial-gradient(circle at top right, rgba(0, 255, 170, 0.08), transparent 25%),
-        radial-gradient(circle at bottom left, rgba(0, 128, 255, 0.08), transparent 30%),
-        linear-gradient(180deg, #05070b 0%, #0a0f16 100%);
-      min-height: 100vh;
+    function cleanTranscript(text) {
+      return text
+        // urls
+        .replace(/https?:\/\/\S+/gi, " ")
+        .replace(/www\.\S+/gi, " ")
+
+        // youtube / page junk
+        .replace(/^\s*\d+\s+views\s*$/gim, " ")
+        .replace(/^\s*\d+\s+(day|days|week|weeks|month|months|year|years)\s+ago\s*$/gim, " ")
+        .replace(/^\s*sync to video time\s*$/gim, " ")
+        .replace(/^\s*show transcript\s*$/gim, " ")
+        .replace(/^\s*transcript\s*$/gim, " ")
+        .replace(/^\s*up next\s*$/gim, " ")
+        .replace(/^\s*autoplay\s*$/gim, " ")
+        .replace(/^\s*subscribe\s*$/gim, " ")
+        .replace(/^\s*closing remarks.*$/gim, " ")
+        .replace(/^\s*invitation.*$/gim, " ")
+        .replace(/^\s*chapter\s+\d+.*$/gim, " ")
+        .replace(/^\s*epic exchange:.*$/gim, " ")
+        .replace(/^\s*dr\.\s.*$/gim, " ")
+        .replace(/^\s*[•·]\s*$/gim, " ")
+
+        // timestamps
+        .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+        .replace(/\b\d+\s*hour,\s*\d+\s*minutes?,\s*\d+\s*seconds?\b/gi, " ")
+        .replace(/\b\d+\s*minutes?,\s*\d+\s*seconds?\b/gi, " ")
+
+        // encoded / junk blobs
+        .replace(/\b[A-Za-z0-9_\-%]{25,}\b/g, " ")
+
+        // normalize whitespace
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
     }
 
-    .bg-grid {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image:
-        linear-gradient(rgba(0,255,170,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,255,170,0.04) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: linear-gradient(to bottom, rgba(255,255,255,0.8), rgba(255,255,255,0.15));
-      z-index: 0;
+    const cleanedTranscript = cleanTranscript(transcriptText);
+    const wordCount = cleanedTranscript.split(/\s+/).filter(Boolean).length;
+    const lineCount = cleanedTranscript.split("\n").filter(line => line.trim()).length;
+
+    if (wordCount < 80 || lineCount < 4) {
+      return res.status(400).json({
+        error: "This does not look like a usable debate transcript yet. Paste the actual spoken exchange, not metadata, timestamps, titles, or outro junk."
+      });
     }
 
-    .wrap {
-      position: relative;
-      z-index: 1;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
-    }
+    const prompt = `
+You are a ruthless debate analyst.
 
-    .hero,
-    .panel {
-      background: rgba(10, 15, 22, 0.9);
-      border: 1px solid #1d2938;
-      border-radius: 18px;
-      box-shadow: 0 0 30px rgba(0, 255, 170, 0.04);
-    }
+IMPORTANT:
+The transcript may contain metadata such as:
+- video title
+- channel name
+- views
+- months ago / years ago
+- chapter labels
+- sync to video time
+- timestamps
+- closing remarks
+- invitations
+- subscribe prompts
+- uploader notes
 
-    .hero {
-      padding: 18px;
-      margin-bottom: 18px;
-    }
+You must IGNORE all metadata, timestamps, labels, title text, and outro junk.
+Analyze ONLY the actual spoken exchange and argumentative content.
 
-    .panel {
-      padding: 16px;
-      margin-top: 16px;
-    }
+Optional Team A Name: ${teamAName || "Team A"}
+Optional Team B Name: ${teamBName || "Team B"}
+Optional Link: ${videoLink || "No link provided"}
 
-    h1 {
-      margin: 0 0 8px;
-      font-size: 38px;
-      line-height: 1.05;
-      letter-spacing: 0.5px;
-    }
+Transcript:
+${cleanedTranscript}
 
-    .subtext {
-      margin: 0;
-      color: #a8b3c2;
-      font-size: 16px;
-    }
+Return ONLY valid JSON in this exact format:
 
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
+{
+  "teamAName": "",
+  "teamBName": "",
+  "teamA": {
+    "main_position": "",
+    "truth": "",
+    "lies": "",
+    "opinion": "",
+    "lala": ""
+  },
+  "teamB": {
+    "main_position": "",
+    "truth": "",
+    "lies": "",
+    "opinion": "",
+    "lala": ""
+  },
+  "winner": "",
+  "bsMeter": "",
+  "strongestOverall": "",
+  "weakestOverall": "",
+  "why": "",
+  "manipulation": "",
+  "fluff": "",
+  "sources": [
+    {
+      "claim": "",
+      "type": "",
+      "likely_source": "",
+      "confidence": ""
     }
+  ]
+}
 
-    .full {
-      grid-column: 1 / -1;
-    }
+Rules:
+- Ignore metadata and non-debate filler completely.
+- Be decisive.
+- Do NOT use filler like "could not be isolated cleanly" unless the debate content is genuinely too weak.
+- "winner" must be exactly "Team A", "Team B", or "Mixed".
+- "truth" = grounded, supported, reasonable claims by that side.
+- "lies" = false, exaggerated, unsupported, or overconfident claims by that side.
+- "opinion" = subjective framing by that side.
+- "lala" = fantasy leaps, absurd overreach, reality disconnect, nonsense by that side.
+- "bsMeter" must plainly say who is bluffing or reaching more and why.
+- "strongestOverall" must identify one specific point from the exchange.
+- "weakestOverall" must identify one specific bad point from the exchange.
+- "why" must explain the edge plainly.
+- "manipulation" should describe rhetorical pressure or emotional steering if present.
+- "fluff" should describe actual spoken filler or repetition, not page metadata.
+- "sources" should list 2 to 4 claims that require support.
+`;
 
-    label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 700;
-      color: #dbe7f2;
-    }
-
-    input,
-    textarea {
-      width: 100%;
-      background: #05080d;
-      color: #f5f7fa;
-      border: 1px solid #263445;
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 15px;
-      outline: none;
-    }
-
-    input:focus,
-    textarea:focus {
-      border-color: #00d38d;
-      box-shadow: 0 0 0 2px rgba(0, 211, 141, 0.15);
-    }
-
-    textarea {
-      min-height: 320px;
-      resize: vertical;
-    }
-
-    .btn {
-      background: linear-gradient(135deg, #ffe600, #ffbf00);
-      color: #101010;
-      border: none;
-      border-radius: 12px;
-      padding: 14px 20px;
-      font-size: 15px;
-      font-weight: 800;
-      cursor: pointer;
-      margin-top: 6px;
-    }
-
-    .btn:hover {
-      filter: brightness(1.03);
-    }
-
-    .small-note {
-      margin-top: 8px;
-      color: #8fa1b4;
-      font-size: 13px;
-    }
-
-    .preview-wrap {
-      margin-top: 12px;
-    }
-
-    video {
-      width: 100%;
-      max-height: 360px;
-      border-radius: 14px;
-      border: 1px solid #263445;
-      background: #000;
-    }
-
-    .result-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 14px;
-      flex-wrap: wrap;
-    }
-
-    .badge {
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: #131d29;
-      border: 1px solid #294056;
-      color: #d7f6ea;
-      font-weight: 700;
-      font-size: 14px;
-    }
-
-    .results-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .card {
-      background: linear-gradient(180deg, rgba(14,20,29,0.96), rgba(9,13,19,0.96));
-      border: 1px solid #233142;
-      border-radius: 16px;
-      padding: 16px;
-      overflow: auto;
-    }
-
-    .team-a {
-      border-left: 5px solid #00d38d;
-    }
-
-    .team-b {
-      border-left: 5px solid #ff5050;
-    }
-
-    .neutral {
-      border-left: 5px solid #5f8cff;
-    }
-
-    .meta-card {
-      border-left: 5px solid #b46cff;
-    }
-
-    .card h3 {
-      margin: 0 0 12px;
-      font-size: 24px;
-    }
-
-    .section-title {
-      margin: 14px 0 6px;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #8fb3cf;
-      font-weight: 800;
-    }
-
-    .block {
-      background: #0a1017;
-      border: 1px solid #1e2a39;
-      border-radius: 12px;
-      padding: 12px;
-      line-height: 1.45;
-    }
-
-    .scroll-box {
-      max-height: 220px;
-      overflow: auto;
-    }
-
-    ul {
-      margin: 8px 0 0 18px;
-      padding: 0;
-    }
-
-    li {
-      margin-bottom: 10px;
-    }
-
-    .source-item {
-      line-height: 1.45;
-    }
-
-    .footer-note {
-      margin-top: 14px;
-      color: #8293a6;
-      font-size: 13px;
-    }
-
-    @media (max-width: 900px) {
-      .grid,
-      .results-grid {
-        grid-template-columns: 1fr;
+    const schema = {
+      name: "debate_analysis",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          teamAName: { type: "string" },
+          teamBName: { type: "string" },
+          teamA: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              main_position: { type: "string" },
+              truth: { type: "string" },
+              lies: { type: "string" },
+              opinion: { type: "string" },
+              lala: { type: "string" }
+            },
+            required: ["main_position", "truth", "lies", "opinion", "lala"]
+          },
+          teamB: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              main_position: { type: "string" },
+              truth: { type: "string" },
+              lies: { type: "string" },
+              opinion: { type: "string" },
+              lala: { type: "string" }
+            },
+            required: ["main_position", "truth", "lies", "opinion", "lala"]
+          },
+          winner: { type: "string" },
+          bsMeter: { type: "string" },
+          strongestOverall: { type: "string" },
+          weakestOverall: { type: "string" },
+          why: { type: "string" },
+          manipulation: { type: "string" },
+          fluff: { type: "string" },
+          sources: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                claim: { type: "string" },
+                type: { type: "string" },
+                likely_source: { type: "string" },
+                confidence: { type: "string" }
+              },
+              required: ["claim", "type", "likely_source", "confidence"]
+            }
+          }
+        },
+        required: [
+          "teamAName",
+          "teamBName",
+          "teamA",
+          "teamB",
+          "winner",
+          "bsMeter",
+          "strongestOverall",
+          "weakestOverall",
+          "why",
+          "manipulation",
+          "fluff",
+          "sources"
+        ]
       }
+    };
 
-      textarea {
-        min-height: 240px;
-      }
-
-      h1 {
-        font-size: 32px;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="bg-grid"></div>
-
-  <div class="wrap">
-    <div class="hero">
-      <h1>Debate Points</h1>
-      <p class="subtext">Paste the whole transcript. Let the app sort out who’s grounded, who’s bluffing, and who drifted into lala land.</p>
-    </div>
-
-    <div class="panel">
-      <div class="grid">
-        <div>
-          <label for="teamAName">Team A Name (optional)</label>
-          <input id="teamAName" placeholder="Example: Host / Christian / Me / Team A" />
-        </div>
-
-        <div>
-          <label for="teamBName">Team B Name (optional)</label>
-          <input id="teamBName" placeholder="Example: Guest / Atheist / Opponent / Team B" />
-        </div>
-
-        <div class="full">
-          <label for="transcriptText">Transcript / Debate Text</label>
-          <textarea id="transcriptText" placeholder="Paste the full transcript here..."></textarea>
-        </div>
-
-        <div class="full">
-          <label for="videoLink">Video Link (optional)</label>
-          <input id="videoLink" placeholder="Paste YouTube, TikTok, or debate link..." />
-        </div>
-
-        <div class="full">
-          <label for="videoUpload">Video Upload (optional preview only)</label>
-          <input type="file" id="videoUpload" accept="video/*" />
-          <div class="small-note">Video can be previewed here, but the actual grading still comes from the transcript text unless transcription gets added later.</div>
-          <div class="preview-wrap" id="videoPreview"></div>
-        </div>
-
-        <div class="full">
-          <button class="btn" onclick="analyzeDebate()">Analyze Debate</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="resultsPanel" class="panel" style="display:none;">
-      <div class="result-header">
-        <h2 style="margin:0;">Results</h2>
-        <div class="badge" id="winnerBadge">Current Edge: -</div>
-      </div>
-
-      <div class="results-grid">
-        <div class="card team-a">
-          <h3 id="outTeamAName">Team A</h3>
-
-          <div class="section-title">Main Position</div>
-          <div class="block scroll-box" id="outTeamAPosition">-</div>
-
-          <div class="section-title">Truth</div>
-          <div class="block scroll-box" id="outTeamATruth">-</div>
-
-          <div class="section-title">Lies</div>
-          <div class="block scroll-box" id="outTeamALies">-</div>
-
-          <div class="section-title">Opinion</div>
-          <div class="block scroll-box" id="outTeamAOpinion">-</div>
-
-          <div class="section-title">Lala Land</div>
-          <div class="block scroll-box" id="outTeamALala">-</div>
-        </div>
-
-        <div class="card team-b">
-          <h3 id="outTeamBName">Team B</h3>
-
-          <div class="section-title">Main Position</div>
-          <div class="block scroll-box" id="outTeamBPosition">-</div>
-
-          <div class="section-title">Truth</div>
-          <div class="block scroll-box" id="outTeamBTruth">-</div>
-
-          <div class="section-title">Lies</div>
-          <div class="block scroll-box" id="outTeamBLies">-</div>
-
-          <div class="section-title">Opinion</div>
-          <div class="block scroll-box" id="outTeamBOpinion">-</div>
-
-          <div class="section-title">Lala Land</div>
-          <div class="block scroll-box" id="outTeamBLala">-</div>
-        </div>
-
-        <div class="card neutral">
-          <h3>Who’s BS-ing More?</h3>
-          <div class="block" id="outBSMeter">-</div>
-
-          <div class="section-title">Strongest Point Overall</div>
-          <div class="block scroll-box" id="outStrongestOverall">-</div>
-
-          <div class="section-title">Weakest Point Overall</div>
-          <div class="block scroll-box" id="outWeakestOverall">-</div>
-
-          <div class="section-title">Why</div>
-          <div class="block scroll-box" id="outWhy">-</div>
-        </div>
-
-        <div class="card meta-card">
-          <h3>Readout</h3>
-
-          <div class="section-title">Manipulation</div>
-          <div class="block scroll-box" id="outManipulation">-</div>
-
-          <div class="section-title">Fluff</div>
-          <div class="block scroll-box" id="outFluff">-</div>
-
-          <div class="section-title">Sources</div>
-          <div class="block scroll-box">
-            <ul id="outSources">
-              <li>No sources listed</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <div class="footer-note">
-        This version reads the whole transcript and infers the sides. Optional team names help it stay oriented. Sources should show claims, likely source type, and confidence once the backend is updated to provide them.
-      </div>
-    </div>
-  </div>
-
-  <script>
-    document.getElementById("videoUpload").addEventListener("change", function (e) {
-      const file = e.target.files[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        document.getElementById("videoPreview").innerHTML =
-          '<video controls src="' + url + '"></video>';
-      } else {
-        document.getElementById("videoPreview").innerHTML = "";
-      }
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.1,
+        response_format: {
+          type: "json_schema",
+          json_schema: schema
+        },
+        messages: [
+          {
+            role: "developer",
+            content: "Return only schema-valid JSON."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ]
+      })
     });
 
-    function renderSources(sources) {
-      const el = document.getElementById("outSources");
+    const rawResponse = await response.json();
 
-      if (!Array.isArray(sources) || !sources.length) {
-        el.innerHTML = "<li>No sources listed</li>";
-        return;
-      }
-
-      const looksStructured = typeof sources[0] === "object" && sources[0] !== null;
-
-      if (looksStructured) {
-        el.innerHTML = sources.map(item => `
-          <li class="source-item">
-            <strong>Claim:</strong> ${item.claim || "-"}<br>
-            <strong>Type:</strong> ${item.type || "-"}<br>
-            <strong>Source:</strong> ${item.source || "-"}<br>
-            <strong>Confidence:</strong> ${item.confidence || "-"}
-          </li>
-        `).join("");
-      } else {
-        el.innerHTML = sources.map(s => `<li>${s}</li>`).join("");
-      }
+    if (!response.ok) {
+      return res.status(500).json({
+        error: rawResponse?.error?.message || "OpenAI request failed"
+      });
     }
 
-    async function analyzeDebate() {
-      const teamAName = document.getElementById("teamAName").value.trim() || "Team A";
-      const teamBName = document.getElementById("teamBName").value.trim() || "Team B";
-      const transcriptText = document.getElementById("transcriptText").value.trim();
-      const videoLink = document.getElementById("videoLink").value.trim();
+    let parsed;
+    try {
+      parsed = JSON.parse(rawResponse.choices[0].message.content);
+    } catch (e) {
+      return res.status(500).json({
+        error: "Structured output parsing failed"
+      });
+    }
 
-      if (!transcriptText) {
-        alert("Put the transcript in.");
-        return;
-      }
+    parsed.teamAName = parsed.teamAName || teamAName || "Team A";
+    parsed.teamBName = parsed.teamBName || teamBName || "Team B";
 
-      document.getElementById("resultsPanel").style.display = "block";
-      document.getElementById("winnerBadge").innerText = "Current Edge: Working...";
-
-      try {
-        const res = await fetch("/api/analyze2", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            teamAName,
-            teamBName,
-            transcriptText,
-            videoLink
-          })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          document.getElementById("winnerBadge").innerText = "Current Edge: Error";
-          document.getElementById("outWhy").innerText = data.error || "Analysis failed";
-          return;
+    if (!Array.isArray(parsed.sources) || !parsed.sources.length) {
+      parsed.sources = [
+        {
+          claim: "No explicit source claims extracted",
+          type: "general",
+          likely_source: "No direct source — requires verification",
+          confidence: "low"
         }
-
-        document.getElementById("outTeamAName").innerText = data.teamAName || teamAName;
-        document.getElementById("outTeamBName").innerText = data.teamBName || teamBName;
-
-        document.getElementById("outTeamAPosition").innerText = data.teamA?.position || "-";
-        document.getElementById("outTeamATruth").innerText = data.teamA?.truth || "-";
-        document.getElementById("outTeamALies").innerText = data.teamA?.lies || "-";
-        document.getElementById("outTeamAOpinion").innerText = data.teamA?.opinion || "-";
-        document.getElementById("outTeamALala").innerText = data.teamA?.lalaLand || "-";
-
-        document.getElementById("outTeamBPosition").innerText = data.teamB?.position || "-";
-        document.getElementById("outTeamBTruth").innerText = data.teamB?.truth || "-";
-        document.getElementById("outTeamBLies").innerText = data.teamB?.lies || "-";
-        document.getElementById("outTeamBOpinion").innerText = data.teamB?.opinion || "-";
-        document.getElementById("outTeamBLala").innerText = data.teamB?.lalaLand || "-";
-
-        document.getElementById("winnerBadge").innerText = "Current Edge: " + (data.winner || "-");
-        document.getElementById("outBSMeter").innerText = data.bsMeter || "-";
-        document.getElementById("outStrongestOverall").innerText = data.strongestOverall || "-";
-        document.getElementById("outWeakestOverall").innerText = data.weakestOverall || "-";
-        document.getElementById("outWhy").innerText = data.why || "-";
-        document.getElementById("outManipulation").innerText = data.manipulation || "-";
-        document.getElementById("outFluff").innerText = data.fluff || "-";
-
-        renderSources(data.sources);
-
-      } catch (err) {
-        document.getElementById("winnerBadge").innerText = "Current Edge: Error";
-        document.getElementById("outWhy").innerText = "Request failed";
-      }
+      ];
     }
-  </script>
-</body>
-</html>
+
+    return res.status(200).json(parsed);
+
+  } catch (err) {
+    return res.status(500).json({ error: "Analysis failed" });
+  }
+}
