@@ -11,34 +11,34 @@ export default async function handler(req, res) {
     }
 
     function cleanTranscript(text) {
-      return text
+      return String(text)
         // urls
         .replace(/https?:\/\/\S+/gi, " ")
         .replace(/www\.\S+/gi, " ")
 
-        // youtube / page junk
-        .replace(/^\s*\d+\s+views\s*$/gim, " ")
-        .replace(/^\s*\d+\s+(day|days|week|weeks|month|months|year|years)\s+ago\s*$/gim, " ")
-        .replace(/^\s*sync to video time\s*$/gim, " ")
-        .replace(/^\s*show transcript\s*$/gim, " ")
-        .replace(/^\s*transcript\s*$/gim, " ")
-        .replace(/^\s*up next\s*$/gim, " ")
-        .replace(/^\s*autoplay\s*$/gim, " ")
-        .replace(/^\s*subscribe\s*$/gim, " ")
-        .replace(/^\s*closing remarks.*$/gim, " ")
-        .replace(/^\s*invitation.*$/gim, " ")
-        .replace(/^\s*chapter\s+\d+.*$/gim, " ")
-        .replace(/^\s*epic exchange:.*$/gim, " ")
-        .replace(/^\s*dr\.\s.*$/gim, " ")
-        .replace(/^\s*[•·]\s*$/gim, " ")
+        // common platform junk
+        .replace(/\b\d+\s+views?\b/gi, " ")
+        .replace(/\b\d+\s+(seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago\b/gi, " ")
+        .replace(/\bsync to video time\s*/gi, " ")
+        .replace(/\bshow transcript\s*/gi, " ")
+        .replace(/\btranscript\s*/gi, " ")
+        .replace(/\bautoplay\s*/gi, " ")
+        .replace(/\bsubscribe\s*/gi, " ")
+        .replace(/\bclosing remarks\s*/gi, " ")
+        .replace(/\binvitation\s*/gi, " ")
+        .replace(/\bepic exchange\s*/gi, " ")
 
-        // timestamps
+        // chapter labels / timestamps
+        .replace(/\bchapter\s+\d+\b.*$/gim, " ")
+        .replace(/^\s*\d{1,2}:\d{2}(?::\d{2})?\s*$/gm, " ")
         .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
-        .replace(/\b\d+\s*hour,\s*\d+\s*minutes?,\s*\d+\s*seconds?\b/gi, " ")
-        .replace(/\b\d+\s*minutes?,\s*\d+\s*seconds?\b/gi, " ")
 
-        // encoded / junk blobs
-        .replace(/\b[A-Za-z0-9_\-%]{25,}\b/g, " ")
+        // uploader junk / bracket junk
+        .replace(/^\s*\[.*?\]\s*$/gm, " ")
+        .replace(/^\s*\(.*?\)\s*$/gm, " ")
+
+        // encoded blobs / obvious nonsense chunks
+        .replace(/[A-Za-z0-9\-_]{25,}/g, " ")
 
         // normalize whitespace
         .replace(/[ \t]+/g, " ")
@@ -83,7 +83,7 @@ Optional Link: ${videoLink || "No link provided"}
 Transcript:
 ${cleanedTranscript}
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON in this exact shape:
 
 {
   "teamAName": "",
@@ -212,7 +212,7 @@ Rules:
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -246,7 +246,7 @@ Rules:
     let parsed;
     try {
       parsed = JSON.parse(rawResponse.choices[0].message.content);
-    } catch (e) {
+    } catch (err) {
       return res.status(500).json({
         error: "Structured output parsing failed"
       });
@@ -267,7 +267,6 @@ Rules:
     }
 
     return res.status(200).json(parsed);
-
   } catch (err) {
     return res.status(500).json({ error: "Analysis failed" });
   }
