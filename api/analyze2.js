@@ -96,7 +96,9 @@ module.exports = async function handler(req, res) {
         teamBName
       });
 
-      return res.status(200).json(withMode(enforceConsistency(mergeLocalAndAi(localResult, aiResult)), "Hybrid"));
+      return res.status(200).json(
+        withMode(enforceConsistency(mergeLocalAndAi(localResult, aiResult)), "Hybrid")
+      );
     } catch (err) {
       return res.status(200).json(withMode(localResult, "Local"));
     }
@@ -662,6 +664,7 @@ function pickUnused(sentences, used, predicate) {
       return shorten(s, 140);
     }
   }
+
   return "";
 }
 
@@ -931,55 +934,6 @@ function safeArray(value) {
     .slice(0, 6);
 }
 
-function chunkTranscript(text, maxChars) {
-  const paragraphs = text
-    .split(/\n{2,}/)
-    .map(function (p) {
-      return p.trim();
-    })
-    .filter(Boolean);
-
-  const chunks = [];
-  let current = "";
-
-  for (let i = 0; i < paragraphs.length; i += 1) {
-    const para = paragraphs[i];
-
-    if (!current) {
-      current = para;
-      continue;
-    }
-
-    if ((current + "\n\n" + para).length <= maxChars) {
-      current += "\n\n" + para;
-    } else {
-      chunks.push(current);
-      current = para;
-    }
-  }
-
-  if (current) {
-    chunks.push(current);
-  }
-
-  if (!chunks.length) {
-    return [text.slice(0, maxChars)];
-  }
-
-  return chunks;
-}
-
-function cleanSimpleName(value) {
-  if (typeof value !== "string") return "";
-  return value.replace(/\s+/g, " ").trim().slice(0, 80);
-}
-
-function cleanTranscript(text) {
-  return hardScrubText(String(text).replace(/\r/g, "\n"))
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
 function hardScrubText(text) {
   return String(text)
     .replace(/https?:\/\/\S+/gi, " ")
@@ -1011,11 +965,20 @@ function hardScrubText(text) {
     .replace(/[A-Za-z0-9_-]{25,}/g, " ")
     .replace(/[ \t]+/g, " ")
     .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .replace(/\s+,/g, ",")
     .replace(/,+/g, ",")
     .replace(/\s+\./g, ".")
-    .replace(/\s+/g, " ")
     .trim();
+}
+
+function cleanSimpleName(value) {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+function cleanTranscript(text) {
+  return hardScrubText(String(text).replace(/\r/g, "\n")).trim();
 }
 
 function getTranscriptStats(text) {
@@ -1092,10 +1055,10 @@ function cleanAnalystField(value) {
   if (text === "-") return text;
 
   text = hardScrubText(text)
-    .replace(/^grounded claim:\s*/i, "Grounded point: ")
-    .replace(/^unsupported or overstated claim:\s*/i, "Overstates: ")
+    .replace(/^grounded point:\s*/i, "Grounded point: ")
+    .replace(/^overstates:\s*/i, "Overstates: ")
     .replace(/^subjective framing:\s*/i, "Subjective framing: ")
-    .replace(/^speculative leap:\s*/i, "Unsupported leap: ")
+    .replace(/^unsupported leap:\s*/i, "Unsupported leap: ")
     .replace(/^and that'?s why\s*/i, "")
     .replace(/^so\s+/i, "")
     .replace(/^well\s+/i, "")
