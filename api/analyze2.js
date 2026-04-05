@@ -140,10 +140,10 @@ async function callGroqJson(prompt) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama3-70b-8192",
+        model: model: "openai/gpt-oss-20b",
         temperature: 0.1,
         response_format: { type: "json_object" },
-        max_tokens: 1800,
+        max_completion_tokens: 1800,
         messages: [
           {
             role: "user",
