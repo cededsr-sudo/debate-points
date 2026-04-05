@@ -10,69 +10,69 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Transcript is required" });
     }
 
-    const cleanedTranscript = transcriptText
-      .replace(/https?:\/\/\S+/gi, " ")
-      .replace(/www\.\S+/gi, " ")
-      .replace(/[A-Za-z0-9_\-]+%[A-Za-z0-9%\-_]*/g, " ")
-      .replace(/\b[a-zA-Z0-9]{25,}\b/g, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim();
+    function cleanTranscript(text) {
+      return text
+        // remove urls
+        .replace(/https?:\/\/\S+/gi, " ")
+        .replace(/www\.\S+/gi, " ")
 
-    if (cleanedTranscript.length < 80) {
+        // remove common youtube metadata / junk lines
+        .replace(/^\s*\d+\s+views\s*$/gim, " ")
+        .replace(/^\s*\d+\s+(day|days|week|weeks|month|months|year|years)\s+ago\s*$/gim, " ")
+        .replace(/^\s*sync to video time\s*$/gim, " ")
+        .replace(/^\s*show transcript\s*$/gim, " ")
+        .replace(/^\s*transcript\s*$/gim, " ")
+        .replace(/^\s*up next\s*$/gim, " ")
+        .replace(/^\s*autoplay\s*$/gim, " ")
+        .replace(/^\s*subscribe\s*$/gim, " ")
+        .replace(/^\s*closing remarks.*$/gim, " ")
+        .replace(/^\s*invitation.*$/gim, " ")
+        .replace(/^\s*chapter\s+\d+.*$/gim, " ")
+
+        // remove timestamps like 1:28:02 or 28:02
+        .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+
+        // remove "hour, minute, second" junk
+        .replace(/\b\d+\s*hour,\s*\d+\s*minutes?,\s*\d+\s*seconds?\b/gi, " ")
+        .replace(/\b\d+\s*minutes?,\s*\d+\s*seconds?\b/gi, " ")
+
+        // remove repeated broken encoded blobs / long garbage tokens
+        .replace(/\b[A-Za-z0-9_\-%]{25,}\b/g, " ")
+
+        // remove isolated metadata bullets
+        .replace(/^\s*•\s*$/gim, " ")
+
+        // normalize whitespace
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+    }
+
+    const cleanedTranscript = cleanTranscript(transcriptText);
+
+    // crude quality check
+    const lineCount = cleanedTranscript.split("\n").filter(Boolean).length;
+    const wordCount = cleanedTranscript.split(/\s+/).filter(Boolean).length;
+
+    if (wordCount < 80 || lineCount < 4) {
       return res.status(400).json({
-        error: "Input is not a usable debate transcript yet. Paste readable dialogue, not tracking links or broken text."
+        error: "This still does not look like a usable debate transcript. Paste the actual spoken exchange, not title/views/timestamps/outro junk."
       });
     }
 
     const prompt = `
 You are a ruthless debate analyst.
 
-Your job is to judge the debate sharply, not politely.
+You are given one cleaned debate transcript blob.
+Your job is to infer the two sides and make hard calls.
 
-You are given:
-- one full debate transcript blob
-- optional Team A and Team B names
-- optional video link
+Use optional names when helpful:
+- Team A Name: ${teamAName || "Team A"}
+- Team B Name: ${teamBName || "Team B"}
+- Optional Link: ${videoLink || "No link provided"}
 
-Your tasks:
-1. Infer the two main sides from the transcript.
-2. Use the optional team names when helpful.
-3. For each side, identify:
-   - main_position
-   - truth
-   - lies
-   - opinion
-   - lala
-4. Decide who has the edge.
-5. Explain who is BS-ing more.
-6. Extract the strongest overall point.
-7. Extract the weakest overall point.
-8. Describe manipulation and fluff.
-9. Build a useful source section.
-
-Important rules:
-- If the input is mostly broken links, encoded junk, tracking garbage, or unreadable fragments, say that directly.
-- Do NOT fake a serious analysis from garbage.
-- Be decisive.
-- Do NOT use vague filler like "not clearly developed."
-- Do NOT say "some may appear" unless absolutely necessary.
-- Winner must be exactly: "Team A", "Team B", or "Mixed".
-- "truth" = grounded, reasonable, supported points.
-- "lies" = false, exaggerated, unsupported, or overconfident claims.
-- "opinion" = subjective framing or personal perspective.
-- "lala" = fantasy leaps, wild overreach, reality disconnect, nonsense.
-- "bsMeter" must plainly say who is bluffing, stretching, or BS-ing more.
-- "strongestOverall" and "weakestOverall" must be specific and useful.
-- "why" must explain the edge in plain language.
-- "manipulation" should describe emotional steering, loaded framing, or rhetorical pressure.
-- "fluff" should describe filler, repetition, or low-substance wording.
-- "sources" should contain claims that need support.
-- For each source item:
-  - "claim" = the claim being checked
-  - "type" = biblical, historical, scientific, general, political, etc.
-  - "likely_source" = the likely source if known, otherwise "No direct source — requires verification"
-  - "confidence" = high, medium, or low
-- Give at least 2 source items when possible.
+Transcript:
+${cleanedTranscript}
 
 Return ONLY valid JSON in this exact format:
 
@@ -110,12 +110,28 @@ Return ONLY valid JSON in this exact format:
   ]
 }
 
-Optional Team A Name: ${teamAName || "Team A"}
-Optional Team B Name: ${teamBName || "Team B"}
-Optional Link: ${videoLink || "No link provided"}
-
-Transcript:
-${cleanedTranscript}
+Rules:
+- Be decisive.
+- Do NOT use filler like "some may be present" unless evidence is truly thin.
+- Do NOT say "not clearly developed."
+- "winner" must be exactly "Team A", "Team B", or "Mixed".
+- "truth" = grounded, supported, reasonable claims made by that side.
+- "lies" = false, exaggerated, unsupported, or overconfident claims made by that side.
+- "opinion" = subjective framing by that side.
+- "lala" = fantasy leaps, absurd overreach, reality disconnect, nonsense by that side.
+- "bsMeter" must plainly say who is bluffing/reaching more and why.
+- "strongestOverall" must identify one specific point from the exchange.
+- "weakestOverall" must identify one specific bad point from the exchange.
+- "why" must explain the edge plainly.
+- "manipulation" should describe rhetorical pressure / emotional steering if present.
+- "fluff" should describe filler / repetition if present.
+- "sources" should list 2-4 claims that require support.
+- For each source:
+  - "claim" = the actual claim needing support
+  - "type" = biblical, historical, scientific, philosophical, general, etc.
+  - "likely_source" = likely source if known, otherwise "No direct source — requires verification"
+  - "confidence" = high, medium, or low
+- If the transcript is mostly one-sided and not a true exchange, say that plainly in "why" and set winner based on available content.
 `;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -126,11 +142,11 @@ ${cleanedTranscript}
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.2,
+        temperature: 0.15,
         messages: [
           {
             role: "developer",
-            content: "Return only valid JSON. No markdown. No explanation outside the JSON."
+            content: "Return only valid JSON. No markdown. No explanation outside JSON."
           },
           {
             role: "user",
@@ -151,26 +167,26 @@ ${cleanedTranscript}
         teamAName: teamAName || "Team A",
         teamBName: teamBName || "Team B",
         teamA: {
-          main_position: "Could not cleanly isolate Team A's full position from the transcript.",
-          truth: "Some grounded content may be present on Team A's side.",
-          lies: "Some unsupported or exaggerated claims may be present on Team A's side.",
-          opinion: "Some subjective framing may be present on Team A's side.",
-          lala: "Some overreach or reality-disconnect may be present on Team A's side."
+          main_position: "Could not cleanly isolate Team A's full position.",
+          truth: "Grounded content could not be isolated cleanly.",
+          lies: "Unsupported claims could not be isolated cleanly.",
+          opinion: "Subjective framing could not be isolated cleanly.",
+          lala: "Overreach could not be isolated cleanly."
         },
         teamB: {
-          main_position: "Could not cleanly isolate Team B's full position from the transcript.",
-          truth: "Some grounded content may be present on Team B's side.",
-          lies: "Some unsupported or exaggerated claims may be present on Team B's side.",
-          opinion: "Some subjective framing may be present on Team B's side.",
-          lala: "Some overreach or reality-disconnect may be present on Team B's side."
+          main_position: "Could not cleanly isolate Team B's full position.",
+          truth: "Grounded content could not be isolated cleanly.",
+          lies: "Unsupported claims could not be isolated cleanly.",
+          opinion: "Subjective framing could not be isolated cleanly.",
+          lala: "Overreach could not be isolated cleanly."
         },
         winner: "Mixed",
-        bsMeter: "Both sides may be stretching in different ways.",
-        strongestOverall: "Could not isolate the strongest overall point cleanly.",
-        weakestOverall: "Could not isolate the weakest overall point cleanly.",
+        bsMeter: "Could not judge BS level cleanly from the current input.",
+        strongestOverall: "Could not isolate strongest overall point cleanly.",
+        weakestOverall: "Could not isolate weakest overall point cleanly.",
         why: rawContent || "The AI response could not be parsed cleanly.",
-        manipulation: "Some emotional framing or loaded wording may be present.",
-        fluff: "Some filler, repetition, or low-substance wording may be present.",
+        manipulation: "Could not judge manipulation cleanly.",
+        fluff: "Could not judge fluff cleanly.",
         sources: [
           {
             claim: "Could not reliably parse source claims from response",
@@ -182,46 +198,32 @@ ${cleanedTranscript}
       };
     }
 
+    // normalize missing fields
     if (!parsed.teamAName) parsed.teamAName = teamAName || "Team A";
     if (!parsed.teamBName) parsed.teamBName = teamBName || "Team B";
 
     if (!parsed.teamA) parsed.teamA = {};
     if (!parsed.teamB) parsed.teamB = {};
 
-    parsed.teamA.main_position =
-      parsed.teamA.main_position || "Team A presents one side of the debate.";
-    parsed.teamA.truth =
-      parsed.teamA.truth || "Some grounded content appears on Team A's side.";
-    parsed.teamA.lies =
-      parsed.teamA.lies || "Some unsupported or exaggerated claims appear on Team A's side.";
-    parsed.teamA.opinion =
-      parsed.teamA.opinion || "Some subjective framing appears on Team A's side.";
-    parsed.teamA.lala =
-      parsed.teamA.lala || "Some fantasy leap or bad overreach appears on Team A's side.";
+    parsed.teamA.main_position = parsed.teamA.main_position || "-";
+    parsed.teamA.truth = parsed.teamA.truth || "-";
+    parsed.teamA.lies = parsed.teamA.lies || "-";
+    parsed.teamA.opinion = parsed.teamA.opinion || "-";
+    parsed.teamA.lala = parsed.teamA.lala || "-";
 
-    parsed.teamB.main_position =
-      parsed.teamB.main_position || "Team B presents the opposing side of the debate.";
-    parsed.teamB.truth =
-      parsed.teamB.truth || "Some grounded content appears on Team B's side.";
-    parsed.teamB.lies =
-      parsed.teamB.lies || "Some unsupported or exaggerated claims appear on Team B's side.";
-    parsed.teamB.opinion =
-      parsed.teamB.opinion || "Some subjective framing appears on Team B's side.";
-    parsed.teamB.lala =
-      parsed.teamB.lala || "Some fantasy leap or bad overreach appears on Team B's side.";
+    parsed.teamB.main_position = parsed.teamB.main_position || "-";
+    parsed.teamB.truth = parsed.teamB.truth || "-";
+    parsed.teamB.lies = parsed.teamB.lies || "-";
+    parsed.teamB.opinion = parsed.teamB.opinion || "-";
+    parsed.teamB.lala = parsed.teamB.lala || "-";
 
     parsed.winner = parsed.winner || "Mixed";
-    parsed.bsMeter = parsed.bsMeter || "Both sides may be stretching in different ways.";
-    parsed.strongestOverall =
-      parsed.strongestOverall || "Could not isolate strongest overall point.";
-    parsed.weakestOverall =
-      parsed.weakestOverall || "Could not isolate weakest overall point.";
-    parsed.why =
-      parsed.why || "Neither side clearly dominates from the available transcript.";
-    parsed.manipulation =
-      parsed.manipulation || "Some emotional framing or loaded wording may be present.";
-    parsed.fluff =
-      parsed.fluff || "Some filler, repetition, or low-substance wording may be present.";
+    parsed.bsMeter = parsed.bsMeter || "-";
+    parsed.strongestOverall = parsed.strongestOverall || "-";
+    parsed.weakestOverall = parsed.weakestOverall || "-";
+    parsed.why = parsed.why || "-";
+    parsed.manipulation = parsed.manipulation || "-";
+    parsed.fluff = parsed.fluff || "-";
 
     if (!Array.isArray(parsed.sources) || !parsed.sources.length) {
       parsed.sources = [
@@ -237,8 +239,7 @@ ${cleanedTranscript}
     parsed.sources = parsed.sources.map((item) => ({
       claim: item?.claim || "Unspecified claim",
       type: item?.type || "general",
-      likely_source:
-        item?.likely_source || item?.source || "No direct source — requires verification",
+      likely_source: item?.likely_source || "No direct source — requires verification",
       confidence: item?.confidence || "low"
     }));
 
