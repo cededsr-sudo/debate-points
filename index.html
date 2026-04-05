@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Debate Points</title>
+
   <style>
     * {
       box-sizing: border-box;
@@ -28,7 +29,7 @@
         linear-gradient(rgba(0,255,170,0.04) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0,255,170,0.04) 1px, transparent 1px);
       background-size: 28px 28px;
-      mask-image: linear-gradient(to bottom, rgba(255,255,255,0.7), rgba(255,255,255,0.15));
+      mask-image: linear-gradient(to bottom, rgba(255,255,255,0.8), rgba(255,255,255,0.15));
       z-index: 0;
     }
 
@@ -40,13 +41,22 @@
       padding: 20px;
     }
 
-    .hero {
-      margin-bottom: 18px;
-      padding: 18px;
+    .hero,
+    .panel {
+      background: rgba(10, 15, 22, 0.9);
       border: 1px solid #1d2938;
       border-radius: 18px;
-      background: rgba(10, 15, 22, 0.86);
-      box-shadow: 0 0 40px rgba(0, 255, 170, 0.05);
+      box-shadow: 0 0 30px rgba(0, 255, 170, 0.04);
+    }
+
+    .hero {
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+
+    .panel {
+      padding: 16px;
+      margin-top: 16px;
     }
 
     h1 {
@@ -60,15 +70,6 @@
       margin: 0;
       color: #a8b3c2;
       font-size: 16px;
-    }
-
-    .panel {
-      background: rgba(10, 15, 22, 0.88);
-      border: 1px solid #1d2938;
-      border-radius: 18px;
-      padding: 16px;
-      margin-top: 16px;
-      box-shadow: 0 0 28px rgba(0, 0, 0, 0.35);
     }
 
     .grid {
@@ -107,7 +108,7 @@
     }
 
     textarea {
-      min-height: 240px;
+      min-height: 320px;
       resize: vertical;
     }
 
@@ -186,11 +187,11 @@
       border-left: 5px solid #ff5050;
     }
 
-    .meta-card {
+    .neutral {
       border-left: 5px solid #5f8cff;
     }
 
-    .grade-card {
+    .meta-card {
       border-left: 5px solid #b46cff;
     }
 
@@ -216,18 +217,22 @@
       line-height: 1.45;
     }
 
+    .scroll-box {
+      max-height: 220px;
+      overflow: auto;
+    }
+
     ul {
-      margin: 10px 0 0 18px;
+      margin: 8px 0 0 18px;
       padding: 0;
     }
 
     li {
-      margin-bottom: 6px;
+      margin-bottom: 10px;
     }
 
-    .scroll-box {
-      max-height: 260px;
-      overflow: auto;
+    .source-item {
+      line-height: 1.45;
     }
 
     .footer-note {
@@ -243,7 +248,7 @@
       }
 
       textarea {
-        min-height: 200px;
+        min-height: 240px;
       }
 
       h1 {
@@ -258,40 +263,35 @@
   <div class="wrap">
     <div class="hero">
       <h1>Debate Points</h1>
-      <p class="subtext">Type both sides clearly. See who’s grounded, who’s bluffing, and who drifted into lala land.</p>
+      <p class="subtext">Paste the whole transcript. Let the app sort out who’s grounded, who’s bluffing, and who drifted into lala land.</p>
     </div>
 
     <div class="panel">
       <div class="grid">
         <div>
           <label for="teamAName">Team A Name (optional)</label>
-          <input id="teamAName" placeholder="Example: Me / Host / Christian / Team A" />
+          <input id="teamAName" placeholder="Example: Host / Christian / Me / Team A" />
         </div>
 
         <div>
           <label for="teamBName">Team B Name (optional)</label>
-          <input id="teamBName" placeholder="Example: Opponent / Guest / Atheist / Team B" />
+          <input id="teamBName" placeholder="Example: Guest / Atheist / Opponent / Team B" />
         </div>
 
-        <div>
-          <label for="teamAText">Team A Points</label>
-          <textarea id="teamAText" placeholder="Paste Team A's points here..."></textarea>
-        </div>
-
-        <div>
-          <label for="teamBText">Team B Points</label>
-          <textarea id="teamBText" placeholder="Paste Team B's points here..."></textarea>
+        <div class="full">
+          <label for="transcriptText">Transcript / Debate Text</label>
+          <textarea id="transcriptText" placeholder="Paste the full transcript here..."></textarea>
         </div>
 
         <div class="full">
           <label for="videoLink">Video Link (optional)</label>
-          <input id="videoLink" placeholder="Paste YouTube, TikTok, or other debate link..." />
+          <input id="videoLink" placeholder="Paste YouTube, TikTok, or debate link..." />
         </div>
 
         <div class="full">
           <label for="videoUpload">Video Upload (optional preview only)</label>
           <input type="file" id="videoUpload" accept="video/*" />
-          <div class="small-note">Upload helps preview the file, but the actual judgment still comes from the text you paste unless you later add transcription.</div>
+          <div class="small-note">Video can be previewed here, but the actual grading still comes from the transcript text unless transcription gets added later.</div>
           <div class="preview-wrap" id="videoPreview"></div>
         </div>
 
@@ -346,7 +346,7 @@
           <div class="block scroll-box" id="outTeamBLala">-</div>
         </div>
 
-        <div class="card meta-card">
+        <div class="card neutral">
           <h3>Who’s BS-ing More?</h3>
           <div class="block" id="outBSMeter">-</div>
 
@@ -360,7 +360,7 @@
           <div class="block scroll-box" id="outWhy">-</div>
         </div>
 
-        <div class="card grade-card">
+        <div class="card meta-card">
           <h3>Readout</h3>
 
           <div class="section-title">Manipulation</div>
@@ -379,7 +379,7 @@
       </div>
 
       <div class="footer-note">
-        This version judges the pasted arguments directly side-by-side. It stops making the app guess who belongs to what point.
+        This version reads the whole transcript and infers the sides. Optional team names help it stay oriented. Sources should show claims, likely source type, and confidence once the backend is updated to provide them.
       </div>
     </div>
   </div>
@@ -396,15 +396,38 @@
       }
     });
 
+    function renderSources(sources) {
+      const el = document.getElementById("outSources");
+
+      if (!Array.isArray(sources) || !sources.length) {
+        el.innerHTML = "<li>No sources listed</li>";
+        return;
+      }
+
+      const looksStructured = typeof sources[0] === "object" && sources[0] !== null;
+
+      if (looksStructured) {
+        el.innerHTML = sources.map(item => `
+          <li class="source-item">
+            <strong>Claim:</strong> ${item.claim || "-"}<br>
+            <strong>Type:</strong> ${item.type || "-"}<br>
+            <strong>Source:</strong> ${item.source || "-"}<br>
+            <strong>Confidence:</strong> ${item.confidence || "-"}
+          </li>
+        `).join("");
+      } else {
+        el.innerHTML = sources.map(s => `<li>${s}</li>`).join("");
+      }
+    }
+
     async function analyzeDebate() {
       const teamAName = document.getElementById("teamAName").value.trim() || "Team A";
       const teamBName = document.getElementById("teamBName").value.trim() || "Team B";
-      const teamAText = document.getElementById("teamAText").value.trim();
-      const teamBText = document.getElementById("teamBText").value.trim();
+      const transcriptText = document.getElementById("transcriptText").value.trim();
       const videoLink = document.getElementById("videoLink").value.trim();
 
-      if (!teamAText || !teamBText) {
-        alert("Put both teams' points in.");
+      if (!transcriptText) {
+        alert("Put the transcript in.");
         return;
       }
 
@@ -420,8 +443,7 @@
           body: JSON.stringify({
             teamAName,
             teamBName,
-            teamAText,
-            teamBText,
+            transcriptText,
             videoLink
           })
         });
@@ -457,10 +479,7 @@
         document.getElementById("outManipulation").innerText = data.manipulation || "-";
         document.getElementById("outFluff").innerText = data.fluff || "-";
 
-        document.getElementById("outSources").innerHTML =
-          Array.isArray(data.sources) && data.sources.length
-            ? data.sources.map(s => "<li>" + s + "</li>").join("")
-            : "<li>No sources listed</li>";
+        renderSources(data.sources);
 
       } catch (err) {
         document.getElementById("winnerBadge").innerText = "Current Edge: Error";
