@@ -55,8 +55,20 @@ module.exports = async function handler(req, res) {
       extracted
     });
 
+    const factCheck = await runFactCheckLayer({
+      teamAName,
+      teamBName,
+      extracted,
+      localResult
+    });
+
+    const factAdjustedLocal = applyFactCheckToResult(localResult, factCheck, {
+      teamAName,
+      teamBName
+    });
+
     if (!process.env.GROQ_API_KEY) {
-      return res.status(200).json(withMode(localResult, "Local"));
+      return res.status(200).json(withMode(factAdjustedLocal, factCheck.mode));
     }
 
     try {
@@ -65,13 +77,15 @@ module.exports = async function handler(req, res) {
         teamBName,
         videoLink,
         extracted,
-        localResult
+        localResult: factAdjustedLocal,
+        factCheck
       });
 
-      const merged = mergeLocalAndAi(localResult, aiResult);
-      return res.status(200).json(withMode(enforceConsistency(merged), "Hybrid"));
+      const merged = mergeLocalAndAi(factAdjustedLocal, aiResult);
+      const consistent = enforceConsistency(merged);
+      return res.status(200).json(withMode(consistent, factCheck.mode === "Fact-Checked Local" ? "Fact-Checked Hybrid" : "Hybrid"));
     } catch (err) {
-      return res.status(200).json(withMode(localResult, "Local"));
+      return res.status(200).json(withMode(factAdjustedLocal, factCheck.mode));
     }
   } catch (err) {
     return res.status(200).json(
@@ -117,7 +131,7 @@ async function callGroq(prompt) {
       body: JSON.stringify({
         model: "openai/gpt-oss-20b",
         temperature: 0.1,
-        max_completion_tokens: 1100,
+        max_completion_tokens: 1400,
         messages: [
           {
             role: "user",
@@ -164,11 +178,10 @@ function buildJudgePrompt(args) {
     "No text before JSON.",
     "No text after JSON.",
     "",
-    "You are judging a debate using already-cleaned side extractions.",
-    "Do not reward credentials, style, aggression, or popularity by themselves.",
-    "Do not invent evidence not present in the text.",
-    "Do not confuse confidence with support.",
-    "Use clean analyst language.",
+    "You are judging a debate using cleaned side extractions plus fact-check results.",
+    "Do not reward credentials, confidence, eloquence, aggression, or popularity by themselves.",
+    "Do not invent evidence not present in the text or fact-check report.",
+    "Treat fact-checking as one input, not the entire winner logic.",
     "",
     "WORLDVIEW LANES:",
     "- empirical / scientific",
@@ -226,6 +239,9 @@ function buildJudgePrompt(args) {
     "CLEAN SIDE EXTRACTION:",
     JSON.stringify(args.extracted, null, 2),
     "",
+    "FACT CHECK REPORT:",
+    JSON.stringify(args.factCheck, null, 2),
+    "",
     "LOCAL BASELINE ANALYSIS:",
     JSON.stringify(
       {
@@ -246,6 +262,585 @@ function buildJudgePrompt(args) {
       2
     )
   ].join("\n");
+}
+
+/* =========================
+   FACT CHECK LAYER
+========================= */
+
+async function runFactCheckLayer(args) {
+  const claims = dedupeClaims(
+    [
+      ...extractCheckableClaims(args.extracted.teamA.text, "Team A"),
+      ...extractCheckableClaims(args.extracted.teamB.text, "Team B")
+    ],
+    12
+  );
+
+  if (!claims.length) {
+    return {
+      mode: "Local",
+      available: false,
+      summary: "No clearly checkable claims were extracted.",
+      claims: [],
+      teamA: {
+        supported: 0,
+        contradicted: 0,
+        unclear: 0,
+        tooBroad: 0,
+        unverified: 0
+      },
+      teamB: {
+        supported: 0,
+        contradicted: 0,
+        unclear: 0,
+        tooBroad: 0,
+        unverified: 0
+      }
+    };
+  }
+
+  if (!process.env.TAVILY_API_KEY) {
+    const unverified = claims.map((claim) => ({
+      ...claim,
+      status: "unverified",
+      reason: "No fact-check search provider configured.",
+      evidence: []
+    }));
+
+    return summarizeFactChecks(unverified, "Local");
+  }
+
+  const checked = [];
+  for (const claim of claims) {
+    try {
+      const result = await verifyClaimWithTavily(claim);
+      checked.push(result);
+      await sleep(300);
+    } catch (err) {
+      checked.push({
+        ...claim,
+        status: "unverified",
+        reason: "Fact-check request failed.",
+        evidence: []
+      });
+    }
+  }
+
+  return summarizeFactChecks(checked, "Fact-Checked Local");
+}
+
+function extractCheckableClaims(text, side) {
+  const sentences = splitSentences(text);
+  const claims = [];
+
+  for (const sentence of sentences) {
+    const type = classifyClaimType(sentence);
+    if (!type) continue;
+
+    claims.push({
+      side,
+      claim: cleanAnalystField(sentence),
+      type,
+      query: buildFactQuery(sentence, type)
+    });
+  }
+
+  return claims;
+}
+
+function classifyClaimType(sentence) {
+  const s = sentence.toLowerCase();
+
+  if (countWords(s) < 7) return "";
+  if (hasAttackLanguage(s)) return "";
+  if (hasOpinionLanguage(s)) return "";
+  if (hasLalaLanguage(s)) return "";
+
+  if (
+    /\b(19|20)\d{2}\b/.test(s) ||
+    /\bpublished\b/.test(s) ||
+    /\bwon the nobel prize\b/.test(s) ||
+    /\bfellow of the royal society\b/.test(s) ||
+    /\bphd\b/.test(s) ||
+    /\bpeer-reviewed\b/.test(s) ||
+    /\bpapers\b/.test(s) ||
+    /\bbook\b/.test(s) ||
+    /\bdebate\b/.test(s)
+  ) {
+    return "historical / bibliographic";
+  }
+
+  if (
+    /\bthere are\b/.test(s) ||
+    /\bwe observe\b/.test(s) ||
+    /\bobserved\b/.test(s) ||
+    /\bexample of\b/.test(s) ||
+    /\bspeciation\b/.test(s) ||
+    /\bmutation\b/.test(s) ||
+    /\bnatural selection\b/.test(s) ||
+    /\bcommon ancestry\b/.test(s)
+  ) {
+    return "empirical / scientific";
+  }
+
+  if (
+    /\bnobody in the field\b/.test(s) ||
+    /\bzero\b/.test(s) ||
+    /\ball biologists\b/.test(s) ||
+    /\beveryone\b/.test(s) ||
+    /\bprecisely zero\b/.test(s)
+  ) {
+    return "broad quantitative";
+  }
+
+  return "";
+}
+
+function buildFactQuery(sentence, type) {
+  const cleaned = cleanAnalystField(sentence)
+    .replace(/[.?!]+$/, "")
+    .slice(0, 220);
+
+  if (type === "historical / bibliographic") {
+    return cleaned + " publication date biography source";
+  }
+
+  if (type === "empirical / scientific") {
+    return cleaned + " scientific evidence source";
+  }
+
+  if (type === "broad quantitative") {
+    return cleaned + " evidence source";
+  }
+
+  return cleaned;
+}
+
+function dedupeClaims(claims, maxClaims) {
+  const seen = new Set();
+  const out = [];
+
+  for (const claim of claims) {
+    const key = normalizeDedupKey(claim.claim);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(claim);
+    if (out.length >= maxClaims) break;
+  }
+
+  return out;
+}
+
+function normalizeDedupKey(text) {
+  return String(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function verifyClaimWithTavily(claim) {
+  const results = await tavilySearch(claim.query, 5);
+
+  if (!results.length) {
+    return {
+      ...claim,
+      status: "unverified",
+      reason: "Search returned no usable evidence.",
+      evidence: []
+    };
+  }
+
+  const scored = scoreEvidenceAgainstClaim(claim, results);
+  return {
+    ...claim,
+    status: scored.status,
+    reason: scored.reason,
+    evidence: scored.evidence
+  };
+}
+
+async function tavilySearch(query, maxResults) {
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + process.env.TAVILY_API_KEY
+    },
+    body: JSON.stringify({
+      query,
+      search_depth: "advanced",
+      include_answer: false,
+      include_raw_content: false,
+      max_results: maxResults,
+      topic: "general"
+    })
+  });
+
+  const raw = await safeJson(response);
+  if (!response.ok) {
+    throw new Error(
+      (raw && raw.error) || (raw && raw.message) || "Tavily request failed"
+    );
+  }
+
+  const results = (raw && raw.results) || [];
+  return results.map((r) => ({
+    title: safeString(r.title, ""),
+    url: safeString(r.url, ""),
+    content: safeString(r.content, ""),
+    domain: extractDomain(safeString(r.url, ""))
+  }));
+}
+
+function scoreEvidenceAgainstClaim(claim, results) {
+  const claimText = claim.claim.toLowerCase();
+
+  const evidence = results.slice(0, 3).map((r) => ({
+    title: r.title,
+    url: r.url,
+    domain: r.domain,
+    snippet: truncate(cleanAnalystField(r.content), 220)
+  }));
+
+  if (claim.type === "broad quantitative") {
+    return {
+      status: "too_broad",
+      reason: "This claim is framed too broadly for high-confidence automatic verification.",
+      evidence
+    };
+  }
+
+  let supportHits = 0;
+  let contradictionHits = 0;
+
+  for (const r of results) {
+    const text = (r.title + " " + r.content).toLowerCase();
+
+    if (claim.type === "historical / bibliographic") {
+      if (historicalSupportMatch(claimText, text)) supportHits += 1;
+      if (historicalContradictionMatch(claimText, text)) contradictionHits += 1;
+    }
+
+    if (claim.type === "empirical / scientific") {
+      if (scienceSupportMatch(claimText, text)) supportHits += 1;
+      if (scienceContradictionMatch(claimText, text)) contradictionHits += 1;
+    }
+  }
+
+  if (supportHits >= 2 && contradictionHits === 0) {
+    return {
+      status: "supported",
+      reason: "Multiple search results align with the claim.",
+      evidence
+    };
+  }
+
+  if (contradictionHits >= 2 && supportHits === 0) {
+    return {
+      status: "contradicted",
+      reason: "Multiple search results conflict with the claim.",
+      evidence
+    };
+  }
+
+  if (supportHits >= 1 && contradictionHits >= 1) {
+    return {
+      status: "unclear",
+      reason: "Search evidence is mixed or ambiguous.",
+      evidence
+    };
+  }
+
+  if (supportHits === 1 && contradictionHits === 0) {
+    return {
+      status: "unclear",
+      reason: "There is partial support, but not enough for high-confidence verification.",
+      evidence
+    };
+  }
+
+  return {
+    status: "unverified",
+    reason: "Automatic verification did not find enough reliable matching evidence.",
+    evidence
+  };
+}
+
+function historicalSupportMatch(claim, text) {
+  const yearMatch = claim.match(/\b(19|20)\d{2}\b/);
+  const hasYear = yearMatch ? text.includes(yearMatch[0]) : true;
+
+  const nameTokens = extractImportantTokens(claim);
+  const tokenHits = nameTokens.filter((t) => text.includes(t)).length;
+
+  return hasYear && tokenHits >= Math.min(3, nameTokens.length);
+}
+
+function historicalContradictionMatch(claim, text) {
+  const yearMatch = claim.match(/\b(19|20)\d{2}\b/);
+  if (!yearMatch) return false;
+
+  const claimYear = yearMatch[0];
+  const textYears = text.match(/\b(18|19|20)\d{2}\b/g) || [];
+  if (!textYears.length) return false;
+
+  const importantTokens = extractImportantTokens(claim);
+  const tokenHits = importantTokens.filter((t) => text.includes(t)).length;
+  if (tokenHits < Math.min(2, importantTokens.length)) return false;
+
+  return !text.includes(claimYear) && textYears.length > 0;
+}
+
+function scienceSupportMatch(claim, text) {
+  const tokens = extractImportantTokens(claim);
+  const tokenHits = tokens.filter((t) => text.includes(t)).length;
+  return tokenHits >= Math.min(3, tokens.length);
+}
+
+function scienceContradictionMatch(claim, text) {
+  if (!/\b(no evidence|not observed|disputed|incorrect|false)\b/.test(text)) {
+    return false;
+  }
+
+  const tokens = extractImportantTokens(claim);
+  const tokenHits = tokens.filter((t) => text.includes(t)).length;
+  return tokenHits >= Math.min(2, tokens.length);
+}
+
+function extractImportantTokens(text) {
+  return String(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((t) => t.length >= 4)
+    .filter((t) => !STOPWORDS.has(t))
+    .slice(0, 8);
+}
+
+function summarizeFactChecks(checkedClaims, mode) {
+  const summary = {
+    mode,
+    available: mode !== "Local" || checkedClaims.some((c) => c.status !== "unverified"),
+    summary: "",
+    claims: checkedClaims,
+    teamA: makeFactTally(),
+    teamB: makeFactTally()
+  };
+
+  for (const claim of checkedClaims) {
+    const bucket = claim.side === "Team A" ? summary.teamA : summary.teamB;
+    if (claim.status === "supported") bucket.supported += 1;
+    else if (claim.status === "contradicted") bucket.contradicted += 1;
+    else if (claim.status === "unclear") bucket.unclear += 1;
+    else if (claim.status === "too_broad") bucket.tooBroad += 1;
+    else bucket.unverified += 1;
+  }
+
+  summary.summary =
+    "Fact check summary - Team A: " +
+    factTallyText(summary.teamA) +
+    " | Team B: " +
+    factTallyText(summary.teamB);
+
+  return summary;
+}
+
+function makeFactTally() {
+  return {
+    supported: 0,
+    contradicted: 0,
+    unclear: 0,
+    tooBroad: 0,
+    unverified: 0
+  };
+}
+
+function factTallyText(tally) {
+  return [
+    tally.supported + " supported",
+    tally.contradicted + " contradicted",
+    tally.unclear + " unclear",
+    tally.tooBroad + " too broad",
+    tally.unverified + " unverified"
+  ].join(", ");
+}
+
+function applyFactCheckToResult(result, factCheck, context) {
+  const out = JSON.parse(JSON.stringify(result));
+
+  const aDelta =
+    factCheck.teamA.supported -
+    factCheck.teamA.contradicted -
+    Math.round(factCheck.teamA.tooBroad * 0.5);
+
+  const bDelta =
+    factCheck.teamB.supported -
+    factCheck.teamB.contradicted -
+    Math.round(factCheck.teamB.tooBroad * 0.5);
+
+  out.teamAScore = clampScore(out.teamAScore + clampDelta(aDelta));
+  out.teamBScore = clampScore(out.teamBScore + clampDelta(bDelta));
+
+  const totalSupported =
+    factCheck.teamA.supported + factCheck.teamB.supported;
+  const totalContradicted =
+    factCheck.teamA.contradicted + factCheck.teamB.contradicted;
+
+  if (totalSupported > 0) {
+    out.confidence = clampConfidence(out.confidence + Math.min(12, totalSupported * 3));
+  }
+
+  if (totalContradicted > 0) {
+    out.confidence = clampConfidence(out.confidence - Math.min(10, totalContradicted * 2));
+  }
+
+  out.teamA.truth = buildTruthField(out.teamA.truth, factCheck.claims, "Team A");
+  out.teamB.truth = buildTruthField(out.teamB.truth, factCheck.claims, "Team B");
+  out.teamA.lies = buildLiesField(out.teamA.lies, factCheck.claims, "Team A");
+  out.teamB.lies = buildLiesField(out.teamB.lies, factCheck.claims, "Team B");
+
+  out.teamA_reasoning = appendFactSummary(
+    out.teamA_reasoning,
+    factCheck.teamA,
+    context.teamAName
+  );
+  out.teamB_reasoning = appendFactSummary(
+    out.teamB_reasoning,
+    factCheck.teamB,
+    context.teamBName
+  );
+
+  out.why = appendOverallFactWhy(out.why, factCheck, context);
+
+  out.sources = buildFactSources(factCheck);
+
+  if (Math.abs(out.teamAScore - out.teamBScore) >= 2) {
+    out.winner = out.teamAScore > out.teamBScore ? "Team A" : "Team B";
+  }
+
+  return enforceConsistency(out);
+}
+
+function clampDelta(n) {
+  if (n > 2) return 2;
+  if (n < -2) return -2;
+  return n;
+}
+
+function buildTruthField(existing, claims, side) {
+  const supported = claims.filter(
+    (c) => c.side === side && c.status === "supported"
+  );
+
+  if (!supported.length) return existing;
+
+  const best = supported[0];
+  return cleanAnalystField(
+    "Fact-checked support: " + best.claim + " Supported. " + best.reason
+  );
+}
+
+function buildLiesField(existing, claims, side) {
+  const contradicted = claims.filter(
+    (c) => c.side === side && c.status === "contradicted"
+  );
+  const tooBroad = claims.filter(
+    (c) => c.side === side && c.status === "too_broad"
+  );
+
+  if (contradicted.length) {
+    return cleanAnalystField(
+      "Fact-check issue: " +
+        contradicted[0].claim +
+        " Contradicted. " +
+        contradicted[0].reason
+    );
+  }
+
+  if (tooBroad.length) {
+    return cleanAnalystField(
+      "Overreach / too broad to verify automatically: " +
+        tooBroad[0].claim
+    );
+  }
+
+  return existing;
+}
+
+function appendFactSummary(existing, tally, name) {
+  if (
+    tally.supported === 0 &&
+    tally.contradicted === 0 &&
+    tally.tooBroad === 0
+  ) {
+    return existing;
+  }
+
+  return cleanAnalystField(
+    existing +
+      " Fact-check impact for " +
+      name +
+      ": " +
+      factTallyText(tally) +
+      "."
+  );
+}
+
+function appendOverallFactWhy(existing, factCheck, context) {
+  const aNet = factCheck.teamA.supported - factCheck.teamA.contradicted;
+  const bNet = factCheck.teamB.supported - factCheck.teamB.contradicted;
+
+  if (aNet === 0 && bNet === 0) return existing;
+
+  if (aNet > bNet) {
+    return cleanAnalystField(
+      existing +
+        " Fact-checking slightly favors " +
+        context.teamAName +
+        " on checkable claims."
+    );
+  }
+
+  if (bNet > aNet) {
+    return cleanAnalystField(
+      existing +
+        " Fact-checking slightly favors " +
+        context.teamBName +
+        " on checkable claims."
+    );
+  }
+
+  return cleanAnalystField(existing + " Fact-checking is roughly even.");
+}
+
+function buildFactSources(factCheck) {
+  const sources = [];
+  for (const claim of factCheck.claims || []) {
+    for (const ev of claim.evidence || []) {
+      sources.push({
+        claim: claim.claim,
+        type: claim.type,
+        likely_source: ev.url || ev.domain || ev.title || "Unknown source",
+        confidence: claim.status
+      });
+    }
+  }
+
+  if (!sources.length) {
+    return [
+      {
+        claim: "No fact-check sources were available",
+        type: "general",
+        likely_source: "Requires manual review",
+        confidence: "low"
+      }
+    ];
+  }
+
+  return sources.slice(0, 10);
 }
 
 /* =========================
@@ -379,15 +974,11 @@ function dropIntroAndModeratorBlocks(blocks, args) {
   let seenSubstantiveStart = false;
 
   for (const block of blocks) {
-    const lower = block.toLowerCase();
-
     const moderatorLike = isModeratorBlock(block, args);
     const speakerBioLike = isSpeakerBioBlock(block, args);
 
     if (!seenSubstantiveStart) {
-      if (moderatorLike || speakerBioLike) {
-        continue;
-      }
+      if (moderatorLike || speakerBioLike) continue;
 
       if (looksLikeOpeningArgument(block)) {
         seenSubstantiveStart = true;
@@ -402,9 +993,7 @@ function dropIntroAndModeratorBlocks(blocks, args) {
       continue;
     }
 
-    if (!speakerBioLike) {
-      out.push(block);
-    }
+    if (!speakerBioLike) out.push(block);
   }
 
   return collapseTurnBreaks(out);
@@ -445,7 +1034,7 @@ function isModeratorBlock(block, args) {
     /\bwe now have\b/.test(t) ||
     /\bminutes of rebuttal\b/.test(t) ||
     /\bclosing remarks\b/.test(t) ||
-    /\bmoderated discussion\b/.test(t)
+    /\bmoderator discussion\b/.test(t)
   ) {
     return true;
   }
@@ -533,11 +1122,8 @@ function assignBlocksToSides(blocks, args) {
 
     const target = chooseSideForBlock(block, currentSide, args);
 
-    if (target === "A") {
-      teamA.push(block);
-    } else {
-      teamB.push(block);
-    }
+    if (target === "A") teamA.push(block);
+    else teamB.push(block);
 
     currentSide = target;
   }
@@ -627,7 +1213,7 @@ function buildDeterministicResult(args) {
       (winner === "Mixed" ? 12 : 0)
   );
 
-  const result = {
+  return enforceConsistency({
     teamAName: args.teamAName,
     teamBName: args.teamBName,
     analysisMode: "Local",
@@ -692,9 +1278,7 @@ function buildDeterministicResult(args) {
         confidence: "medium"
       }
     ]
-  };
-
-  return enforceConsistency(result);
+  });
 }
 
 function analyzeSide(text, windows) {
@@ -895,6 +1479,7 @@ function scoreOverreach(text) {
   score += countMatches(t, /\bclown\b/g) * 1.2;
   score += countMatches(t, /\bcoward\b/g) * 1.2;
   score += countMatches(t, /\bincompetent\b/g) * 0.8;
+  score += countMatches(t, /\bprecisely zero\b/g) * 1.0;
 
   return Math.min(10, score);
 }
@@ -997,7 +1582,8 @@ function hasExtremeLanguage(text) {
     /\beveryone\b/.test(text) ||
     /\bnobody\b/.test(text) ||
     /\ball of them\b/.test(text) ||
-    /\bcompletely\b/.test(text)
+    /\bcompletely\b/.test(text) ||
+    /\bprecisely zero\b/.test(text)
   );
 }
 
@@ -1347,7 +1933,7 @@ function mergeLocalAndAi(localResult, aiResult) {
     fluff: pickBetter(aiResult.fluff, localResult.fluff),
     bsMeter: normalizeBsMeter(pickBetter(aiResult.bsMeter, localResult.bsMeter)),
     why: pickBetter(aiResult.why, localResult.why),
-    sources: localResult.sources
+    sources: Array.isArray(aiResult.sources) && aiResult.sources.length ? aiResult.sources : localResult.sources
   };
 }
 
@@ -1390,7 +1976,8 @@ function normalizeAiJudgeResult(parsed, context) {
     manipulation: safeString(parsed && parsed.manipulation, "-"),
     fluff: safeString(parsed && parsed.fluff, "-"),
     bsMeter: normalizeBsMeter(parsed && parsed.bsMeter),
-    why: safeString(parsed && parsed.why, "-")
+    why: safeString(parsed && parsed.why, "-"),
+    sources: []
   };
 }
 
@@ -1498,7 +2085,15 @@ function buildFallbackResponse(args) {
     manipulation: "-",
     fluff: "-",
     bsMeter: "Neither side is reaching significantly",
-    why: args.reason || "Not enough clean argument content."
+    why: args.reason || "Not enough clean argument content.",
+    sources: [
+      {
+        claim: "No fact-check sources were available",
+        type: "general",
+        likely_source: "Requires manual review",
+        confidence: "low"
+      }
+    ]
   });
 }
 
@@ -1547,8 +2142,8 @@ function hardScrubText(text) {
     .replace(/[‘’]/g, "'")
     .replace(/[‐-‒–—]/g, "-")
     .replace(/\u00A0/g, " ")
-    .replace(/\s+/g, " ")
     .replace(/\s*\n\s*/g, "\n")
+    .replace(/[ \t]+/g, " ")
     .trim();
 }
 
@@ -1608,6 +2203,20 @@ function countWords(text) {
 function countMatches(text, regex) {
   const matches = text.match(regex);
   return matches ? matches.length : 0;
+}
+
+function truncate(text, maxLen) {
+  const s = safeString(text, "");
+  if (s.length <= maxLen) return s;
+  return s.slice(0, maxLen - 1).trim() + "…";
+}
+
+function extractDomain(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch (e) {
+    return "";
+  }
 }
 
 /* =========================
@@ -1694,3 +2303,58 @@ function clampConfidence(n) {
   if (n > 100) return 100;
   return Math.round(n);
 }
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/* =========================
+   STOPWORDS
+========================= */
+
+const STOPWORDS = new Set([
+  "that",
+  "this",
+  "with",
+  "have",
+  "from",
+  "they",
+  "them",
+  "their",
+  "there",
+  "would",
+  "could",
+  "should",
+  "about",
+  "because",
+  "which",
+  "while",
+  "where",
+  "when",
+  "what",
+  "your",
+  "into",
+  "these",
+  "those",
+  "being",
+  "through",
+  "after",
+  "before",
+  "against",
+  "according",
+  "under",
+  "over",
+  "between",
+  "today",
+  "says",
+  "said",
+  "just",
+  "really",
+  "very",
+  "more",
+  "most",
+  "also",
+  "than",
+  "such",
+  "then"
+]);
