@@ -178,15 +178,26 @@ function buildChunkPrompt(args) {
     "Return ONLY valid JSON.",
     "No markdown.",
     "No code fences.",
-    "No text before or after JSON.",
+    "No text before JSON.",
+    "No text after JSON.",
     "",
-    "Analyze this debate chunk.",
+    "You are analyzing one chunk of a debate transcript.",
+    "",
+    "DO NOT copy transcript text.",
+    "DO NOT quote transcript wording.",
+    "DO NOT include timestamps.",
+    "DO NOT include filler phrases.",
+    "DO NOT include partial sentences.",
+    "",
+    "Rewrite all outputs into clean analytical statements.",
+    "Each item must be short, clear, and claim-style.",
+    "Each item should be under 16 words.",
     "",
     "Team A label: " + args.teamAName,
     "Team B label: " + args.teamBName,
     "Chunk: " + args.chunkNumber + " of " + args.totalChunks,
     "",
-    "Return exactly:",
+    "Return exactly this JSON shape:",
     "{",
     '  "teamA": {',
     '    "main_points": [],',
@@ -209,15 +220,14 @@ function buildChunkPrompt(args) {
     '  "fluff": ""',
     "}",
     "",
-    "Rules:",
-    '- winnerLean must be exactly "Team A", "Team B", or "Mixed".',
+    "Category rules:",
     "- main_points = side's core claims in this chunk.",
-    "- truth_points = grounded or supported points from this chunk.",
-    "- lie_points = unsupported, exaggerated, or overconfident points from this chunk.",
-    "- opinion_points = subjective preference or framing from this chunk.",
-    "- lala_points = absurd leap, fantasy reach, or disconnected overreach from this chunk.",
-    "- Keep every item short.",
-    "- No extra keys.",
+    "- truth_points = grounded or supported claims.",
+    "- lie_points = unsupported, exaggerated, or misleading claims.",
+    "- opinion_points = subjective framing or preference.",
+    "- lala_points = speculative leap or absurd overreach.",
+    "",
+    "Return ONLY JSON. No explanations.",
     "",
     "Chunk text:",
     args.chunkText
@@ -230,12 +240,21 @@ function buildJudgePrompt(args) {
     "Return ONLY valid JSON.",
     "No markdown.",
     "No code fences.",
-    "No text before or after JSON.",
+    "No text before JSON.",
+    "No text after JSON.",
     "",
     "You are the final judge for a debate.",
+    "",
+    "DO NOT copy transcript text.",
+    "DO NOT quote transcript wording.",
+    "DO NOT include timestamps.",
+    "DO NOT include filler phrases.",
+    "Rewrite all outputs into clean analytical statements.",
+    "",
     "You MUST make a decision.",
-    'Do NOT return "Mixed" unless both sides are truly close.',
-    "You MUST identify the strongest argument and explain why it wins.",
+    'Use "Mixed" ONLY if both sides are truly close and equally weak.',
+    "Scores MUST reflect the winner.",
+    "If there is a winner, that side must have the higher score.",
     "",
     "Team A label: " + args.teamAName,
     "Team B label: " + args.teamBName,
@@ -270,17 +289,23 @@ function buildJudgePrompt(args) {
     '  "fluff": ""',
     "}",
     "",
-    "Rules:",
+    "Formatting rules:",
     '- winner must be exactly "Team A", "Team B", or "Mixed".',
     '- strongestArgumentSide must be exactly "Team A" or "Team B".',
     "- teamAScore and teamBScore must be integers from 1 to 10.",
-    "- strongestArgument must be one specific argument, not vague summary.",
-    "- whyStrongest must explain why that argument beats the other side's best point.",
-    "- failedResponseByOtherSide must identify what the losing side failed to answer or failed to support.",
-    "- Keep each field short and direct.",
+    "- Every field must be short and direct.",
     "- No arrays.",
     "- No nested objects.",
     "- No extra keys.",
+    "",
+    "Specific field rules:",
+    "- strongestArgument = one specific argument rewritten cleanly, not transcript wording.",
+    "- whyStrongest = directly contrast why it beats the other side's best point.",
+    "- failedResponseByOtherSide = what the weaker side failed to answer or support.",
+    "- weakestOverall = the weakest argument made, even if it was addressed.",
+    '- bsMeter must be exactly one of: "Team A is reaching more", "Team B is reaching more", or "Neither side is reaching significantly".',
+    "",
+    "Return ONLY JSON. No explanations.",
     "",
     "Chunk analyses:",
     JSON.stringify(args.chunkResults, null, 2)
@@ -343,9 +368,6 @@ function buildDeterministicResult(args) {
   const strongestArgument = strongest.text;
   const whyStrongest = buildWhyStrongest(
     strongest.side,
-    strongest.text,
-    teamAJoined,
-    teamBJoined,
     args.teamAName,
     args.teamBName
   );
@@ -359,15 +381,18 @@ function buildDeterministicResult(args) {
   );
 
   const bsMeter = buildBsMeter(weakA, weakB);
-  const strongestOverall = strongest.side === "Team A"
-    ? args.teamAName + ": " + strongest.text
-    : args.teamBName + ": " + strongest.text;
+  const strongestOverall =
+    strongest.side === "Team A"
+      ? args.teamAName + ": " + strongest.text
+      : args.teamBName + ": " + strongest.text;
+
   const weakestOverall = buildWeakestOverall(
     teamAJoined,
     teamBJoined,
     args.teamAName,
     args.teamBName
   );
+
   const why = buildWhy(
     winner,
     teamAScore,
@@ -375,6 +400,7 @@ function buildDeterministicResult(args) {
     args.teamAName,
     args.teamBName
   );
+
   const manipulation = buildManipulation(teamAJoined, teamBJoined);
   const fluff = buildFluff(fluffA, fluffB);
 
@@ -383,32 +409,32 @@ function buildDeterministicResult(args) {
     teamBName: args.teamBName,
     analysisMode: "Local",
     teamA: {
-      main_position: teamAMain,
-      truth: teamATruth,
-      lies: teamALies,
-      opinion: teamAOpinion,
-      lala: teamALala
+      main_position: cleanAnalystField(teamAMain),
+      truth: cleanAnalystField(teamATruth),
+      lies: cleanAnalystField(teamALies),
+      opinion: cleanAnalystField(teamAOpinion),
+      lala: cleanAnalystField(teamALala)
     },
     teamB: {
-      main_position: teamBMain,
-      truth: teamBTruth,
-      lies: teamBLies,
-      opinion: teamBOpinion,
-      lala: teamBLala
+      main_position: cleanAnalystField(teamBMain),
+      truth: cleanAnalystField(teamBTruth),
+      lies: cleanAnalystField(teamBLies),
+      opinion: cleanAnalystField(teamBOpinion),
+      lala: cleanAnalystField(teamBLala)
     },
     teamAScore: teamAScore,
     teamBScore: teamBScore,
     winner: winner,
     strongestArgumentSide: strongestArgumentSide,
-    strongestArgument: strongestArgument,
-    whyStrongest: whyStrongest,
-    failedResponseByOtherSide: failedResponseByOtherSide,
+    strongestArgument: cleanAnalystField(strongestArgument),
+    whyStrongest: cleanAnalystField(whyStrongest),
+    failedResponseByOtherSide: cleanAnalystField(failedResponseByOtherSide),
     bsMeter: bsMeter,
-    strongestOverall: strongestOverall,
-    weakestOverall: weakestOverall,
-    why: why,
-    manipulation: manipulation,
-    fluff: fluff,
+    strongestOverall: cleanAnalystField(strongestOverall),
+    weakestOverall: cleanAnalystField(weakestOverall),
+    why: cleanAnalystField(why),
+    manipulation: cleanAnalystField(manipulation),
+    fluff: cleanAnalystField(fluff),
     sources: [
       {
         claim: "Deterministic analysis uses transcript patterns, not outside fact-checking",
@@ -426,32 +452,32 @@ function mergeLocalAndAi(localResult, aiResult) {
     teamBName: aiResult.teamBName || localResult.teamBName,
     analysisMode: "Hybrid",
     teamA: {
-      main_position: pickBetter(aiResult.teamA.main_position, localResult.teamA.main_position),
-      truth: pickBetter(aiResult.teamA.truth, localResult.teamA.truth),
-      lies: pickBetter(aiResult.teamA.lies, localResult.teamA.lies),
-      opinion: pickBetter(aiResult.teamA.opinion, localResult.teamA.opinion),
-      lala: pickBetter(aiResult.teamA.lala, localResult.teamA.lala)
+      main_position: cleanAnalystField(pickBetter(aiResult.teamA.main_position, localResult.teamA.main_position)),
+      truth: cleanAnalystField(pickBetter(aiResult.teamA.truth, localResult.teamA.truth)),
+      lies: cleanAnalystField(pickBetter(aiResult.teamA.lies, localResult.teamA.lies)),
+      opinion: cleanAnalystField(pickBetter(aiResult.teamA.opinion, localResult.teamA.opinion)),
+      lala: cleanAnalystField(pickBetter(aiResult.teamA.lala, localResult.teamA.lala))
     },
     teamB: {
-      main_position: pickBetter(aiResult.teamB.main_position, localResult.teamB.main_position),
-      truth: pickBetter(aiResult.teamB.truth, localResult.teamB.truth),
-      lies: pickBetter(aiResult.teamB.lies, localResult.teamB.lies),
-      opinion: pickBetter(aiResult.teamB.opinion, localResult.teamB.opinion),
-      lala: pickBetter(aiResult.teamB.lala, localResult.teamB.lala)
+      main_position: cleanAnalystField(pickBetter(aiResult.teamB.main_position, localResult.teamB.main_position)),
+      truth: cleanAnalystField(pickBetter(aiResult.teamB.truth, localResult.teamB.truth)),
+      lies: cleanAnalystField(pickBetter(aiResult.teamB.lies, localResult.teamB.lies)),
+      opinion: cleanAnalystField(pickBetter(aiResult.teamB.opinion, localResult.teamB.opinion)),
+      lala: cleanAnalystField(pickBetter(aiResult.teamB.lala, localResult.teamB.lala))
     },
     teamAScore: isValidNumber(aiResult.teamAScore) ? aiResult.teamAScore : localResult.teamAScore,
     teamBScore: isValidNumber(aiResult.teamBScore) ? aiResult.teamBScore : localResult.teamBScore,
     winner: pickWinner(aiResult.winner, localResult.winner),
     strongestArgumentSide: pickStrongestSide(aiResult.strongestArgumentSide, localResult.strongestArgumentSide),
-    strongestArgument: pickBetter(aiResult.strongestArgument, localResult.strongestArgument),
-    whyStrongest: pickBetter(aiResult.whyStrongest, localResult.whyStrongest),
-    failedResponseByOtherSide: pickBetter(aiResult.failedResponseByOtherSide, localResult.failedResponseByOtherSide),
-    bsMeter: pickBetter(aiResult.bsMeter, localResult.bsMeter),
-    strongestOverall: pickBetter(aiResult.strongestOverall, localResult.strongestOverall),
-    weakestOverall: pickBetter(aiResult.weakestOverall, localResult.weakestOverall),
-    why: pickBetter(aiResult.why, localResult.why),
-    manipulation: pickBetter(aiResult.manipulation, localResult.manipulation),
-    fluff: pickBetter(aiResult.fluff, localResult.fluff),
+    strongestArgument: cleanAnalystField(pickBetter(aiResult.strongestArgument, localResult.strongestArgument)),
+    whyStrongest: cleanAnalystField(pickBetter(aiResult.whyStrongest, localResult.whyStrongest)),
+    failedResponseByOtherSide: cleanAnalystField(pickBetter(aiResult.failedResponseByOtherSide, localResult.failedResponseByOtherSide)),
+    bsMeter: normalizeBsMeter(pickBetter(aiResult.bsMeter, localResult.bsMeter)),
+    strongestOverall: cleanAnalystField(pickBetter(aiResult.strongestOverall, localResult.strongestOverall)),
+    weakestOverall: cleanAnalystField(pickBetter(aiResult.weakestOverall, localResult.weakestOverall)),
+    why: cleanAnalystField(pickBetter(aiResult.why, localResult.why)),
+    manipulation: cleanAnalystField(pickBetter(aiResult.manipulation, localResult.manipulation)),
+    fluff: cleanAnalystField(pickBetter(aiResult.fluff, localResult.fluff)),
     sources: localResult.sources
   };
 }
@@ -467,56 +493,56 @@ function normalizeAiJudgeResult(parsed, defaults) {
     teamAName: safeString(parsed && parsed.teamAName, defaults.teamAName),
     teamBName: safeString(parsed && parsed.teamBName, defaults.teamBName),
     teamA: {
-      main_position: safeString(parsed && parsed.teamA_main_position),
-      truth: safeString(parsed && parsed.teamA_truth),
-      lies: safeString(parsed && parsed.teamA_lies),
-      opinion: safeString(parsed && parsed.teamA_opinion),
-      lala: safeString(parsed && parsed.teamA_lala)
+      main_position: cleanAnalystField(parsed && parsed.teamA_main_position),
+      truth: cleanAnalystField(parsed && parsed.teamA_truth),
+      lies: cleanAnalystField(parsed && parsed.teamA_lies),
+      opinion: cleanAnalystField(parsed && parsed.teamA_opinion),
+      lala: cleanAnalystField(parsed && parsed.teamA_lala)
     },
     teamB: {
-      main_position: safeString(parsed && parsed.teamB_main_position),
-      truth: safeString(parsed && parsed.teamB_truth),
-      lies: safeString(parsed && parsed.teamB_lies),
-      opinion: safeString(parsed && parsed.teamB_opinion),
-      lala: safeString(parsed && parsed.teamB_lala)
+      main_position: cleanAnalystField(parsed && parsed.teamB_main_position),
+      truth: cleanAnalystField(parsed && parsed.teamB_truth),
+      lies: cleanAnalystField(parsed && parsed.teamB_lies),
+      opinion: cleanAnalystField(parsed && parsed.teamB_opinion),
+      lala: cleanAnalystField(parsed && parsed.teamB_lala)
     },
     teamAScore: toIntSafe(parsed && parsed.teamAScore),
     teamBScore: toIntSafe(parsed && parsed.teamBScore),
     winner: normalizeWinner(parsed && parsed.winner),
     strongestArgumentSide: normalizeStrongestSide(parsed && parsed.strongestArgumentSide),
-    strongestArgument: safeString(parsed && parsed.strongestArgument),
-    whyStrongest: safeString(parsed && parsed.whyStrongest),
-    failedResponseByOtherSide: safeString(parsed && parsed.failedResponseByOtherSide),
-    bsMeter: safeString(parsed && parsed.bsMeter),
-    strongestOverall: safeString(parsed && parsed.strongestOverall),
-    weakestOverall: safeString(parsed && parsed.weakestOverall),
-    why: safeString(parsed && parsed.why),
-    manipulation: safeString(parsed && parsed.manipulation),
-    fluff: safeString(parsed && parsed.fluff)
+    strongestArgument: cleanAnalystField(parsed && parsed.strongestArgument),
+    whyStrongest: cleanAnalystField(parsed && parsed.whyStrongest),
+    failedResponseByOtherSide: cleanAnalystField(parsed && parsed.failedResponseByOtherSide),
+    bsMeter: normalizeBsMeter(parsed && parsed.bsMeter),
+    strongestOverall: cleanAnalystField(parsed && parsed.strongestOverall),
+    weakestOverall: cleanAnalystField(parsed && parsed.weakestOverall),
+    why: cleanAnalystField(parsed && parsed.why),
+    manipulation: cleanAnalystField(parsed && parsed.manipulation),
+    fluff: cleanAnalystField(parsed && parsed.fluff)
   };
 }
 
 function normalizeChunkResult(parsed) {
   return {
     teamA: {
-      main_points: safeArray(parsed && parsed.teamA && parsed.teamA.main_points),
-      truth_points: safeArray(parsed && parsed.teamA && parsed.teamA.truth_points),
-      lie_points: safeArray(parsed && parsed.teamA && parsed.teamA.lie_points),
-      opinion_points: safeArray(parsed && parsed.teamA && parsed.teamA.opinion_points),
-      lala_points: safeArray(parsed && parsed.teamA && parsed.teamA.lala_points)
+      main_points: safeArray(parsed && parsed.teamA && parsed.teamA.main_points).map(cleanAnalystField),
+      truth_points: safeArray(parsed && parsed.teamA && parsed.teamA.truth_points).map(cleanAnalystField),
+      lie_points: safeArray(parsed && parsed.teamA && parsed.teamA.lie_points).map(cleanAnalystField),
+      opinion_points: safeArray(parsed && parsed.teamA && parsed.teamA.opinion_points).map(cleanAnalystField),
+      lala_points: safeArray(parsed && parsed.teamA && parsed.teamA.lala_points).map(cleanAnalystField)
     },
     teamB: {
-      main_points: safeArray(parsed && parsed.teamB && parsed.teamB.main_points),
-      truth_points: safeArray(parsed && parsed.teamB && parsed.teamB.truth_points),
-      lie_points: safeArray(parsed && parsed.teamB && parsed.teamB.lie_points),
-      opinion_points: safeArray(parsed && parsed.teamB && parsed.teamB.opinion_points),
-      lala_points: safeArray(parsed && parsed.teamB && parsed.teamB.lala_points)
+      main_points: safeArray(parsed && parsed.teamB && parsed.teamB.main_points).map(cleanAnalystField),
+      truth_points: safeArray(parsed && parsed.teamB && parsed.teamB.truth_points).map(cleanAnalystField),
+      lie_points: safeArray(parsed && parsed.teamB && parsed.teamB.lie_points).map(cleanAnalystField),
+      opinion_points: safeArray(parsed && parsed.teamB && parsed.teamB.opinion_points).map(cleanAnalystField),
+      lala_points: safeArray(parsed && parsed.teamB && parsed.teamB.lala_points).map(cleanAnalystField)
     },
     winnerLean: normalizeWinner(parsed && parsed.winnerLean),
-    bestPoint: safeString(parsed && parsed.bestPoint),
-    worstPoint: safeString(parsed && parsed.worstPoint),
-    manipulation: safeString(parsed && parsed.manipulation),
-    fluff: safeString(parsed && parsed.fluff)
+    bestPoint: cleanAnalystField(parsed && parsed.bestPoint),
+    worstPoint: cleanAnalystField(parsed && parsed.worstPoint),
+    manipulation: cleanAnalystField(parsed && parsed.manipulation),
+    fluff: cleanAnalystField(parsed && parsed.fluff)
   };
 }
 
@@ -553,7 +579,7 @@ function summarizeMainPosition(text, used) {
   const picked = pickUnused(sentences, used, function (s) {
     return s.length > 20;
   });
-  return picked || "-";
+  return rewriteAsClaim(picked || "-");
 }
 
 function detectReasonableClaims(text, used) {
@@ -566,7 +592,8 @@ function detectReasonableClaims(text, used) {
     },
     2
   );
-  return picked.length ? shorten(picked.join(" | "), 220) : "-";
+  if (!picked.length) return "-";
+  return picked.map(rewriteGrounded).join(" | ");
 }
 
 function detectWeakClaims(text, used) {
@@ -579,7 +606,8 @@ function detectWeakClaims(text, used) {
     },
     2
   );
-  return picked.length ? shorten(picked.join(" | "), 220) : "-";
+  if (!picked.length) return "-";
+  return picked.map(rewriteWeak).join(" | ");
 }
 
 function detectOpinion(text, used) {
@@ -592,7 +620,8 @@ function detectOpinion(text, used) {
     },
     2
   );
-  return picked.length ? shorten(picked.join(" | "), 220) : "-";
+  if (!picked.length) return "-";
+  return picked.map(rewriteOpinion).join(" | ");
 }
 
 function detectLala(text, used) {
@@ -605,7 +634,8 @@ function detectLala(text, used) {
     },
     2
   );
-  return picked.length ? shorten(picked.join(" | "), 220) : "-";
+  if (!picked.length) return "-";
+  return picked.map(rewriteLala).join(" | ");
 }
 
 function splitSentences(text) {
@@ -752,16 +782,16 @@ function pickStrongestArgument(teamA, teamB, teamAName, teamBName) {
   if (!a && !b) {
     return {
       side: "Team A",
-      text: teamAName + " made the slightly clearer claim structure."
+      text: "Makes the slightly clearer core claim."
     };
   }
 
-  if (a && !b) return { side: "Team A", text: a };
-  if (b && !a) return { side: "Team B", text: b };
+  if (a && !b) return { side: "Team A", text: rewriteAsClaim(a) };
+  if (b && !a) return { side: "Team B", text: rewriteAsClaim(b) };
 
   return a.length >= b.length
-    ? { side: "Team A", text: a }
-    : { side: "Team B", text: b };
+    ? { side: "Team A", text: rewriteAsClaim(a) }
+    : { side: "Team B", text: rewriteAsClaim(b) };
 }
 
 function detectBestSupportedSentence(text) {
@@ -784,30 +814,29 @@ function detectBestSupportedSentence(text) {
   return best ? shorten(best, 220) : "";
 }
 
-function buildWhyStrongest(side, argument, teamA, teamB, teamAName, teamBName) {
-  if (!argument || argument === "-") return "-";
+function buildWhyStrongest(side, teamAName, teamBName) {
   if (side === "Team A") {
-    return "It is more grounded and supported than " + teamBName + "'s best competing point.";
+    return "It is clearer, more grounded, and better supported than " + teamBName + "'s best point.";
   }
-  return "It is more grounded and supported than " + teamAName + "'s best competing point.";
+  return "It is clearer, more grounded, and better supported than " + teamAName + "'s best point.";
 }
 
 function buildFailedResponse(side, teamA, teamB, teamAName, teamBName) {
   if (side === "Team A") {
     const weak = detectWeakClaims(teamB, createUsedTracker());
     return weak !== "-"
-      ? teamBName + " failed to fully support or defend: " + weak
+      ? teamBName + " failed to fully answer or support its weaker claim."
       : teamBName + " did not clearly answer the stronger support-based point.";
   }
 
   const weak = detectWeakClaims(teamA, createUsedTracker());
   return weak !== "-"
-    ? teamAName + " failed to fully support or defend: " + weak
+    ? teamAName + " failed to fully answer or support its weaker claim."
     : teamAName + " did not clearly answer the stronger support-based point.";
 }
 
 function buildBsMeter(weakA, weakB) {
-  if (Math.abs(weakA - weakB) <= 1) return "50/50";
+  if (Math.abs(weakA - weakB) <= 1) return "Neither side is reaching significantly";
   if (weakA > weakB) return "Team A is reaching more";
   return "Team B is reaching more";
 }
@@ -817,19 +846,21 @@ function buildWeakestOverall(teamA, teamB, teamAName, teamBName) {
   const b = detectWeakClaims(teamB, createUsedTracker());
 
   if (a === "-" && b === "-") return "-";
-  if (a !== "-" && b === "-") return teamAName + ": " + a;
-  if (b !== "-" && a === "-") return teamBName + ": " + b;
-  return a.length >= b.length ? teamAName + ": " + a : teamBName + ": " + b;
+  if (a !== "-" && b === "-") return teamAName + ": weakest claim relied on overreach.";
+  if (b !== "-" && a === "-") return teamBName + ": weakest claim relied on overreach.";
+  return a.length >= b.length
+    ? teamAName + ": weakest claim relied on overreach."
+    : teamBName + ": weakest claim relied on overreach.";
 }
 
 function buildWhy(winner, teamAScore, teamBScore, teamAName, teamBName) {
   if (winner === "Team A") {
-    return teamAName + " had the stronger argument edge overall and fewer weak overreaches.";
+    return teamAName + " built the stronger case and avoided as much weak overreach.";
   }
   if (winner === "Team B") {
-    return teamBName + " had the stronger argument edge overall and fewer weak overreaches.";
+    return teamBName + " built the stronger case and avoided as much weak overreach.";
   }
-  return "Both sides had mixed strengths and weak spots, so neither side created a clear edge.";
+  return "Both sides had real strengths, but neither side created a decisive edge.";
 }
 
 function buildManipulation(teamA, teamB) {
@@ -840,7 +871,7 @@ function buildManipulation(teamA, teamB) {
     text.includes("that’s ridiculous") ||
     text.includes("be honest")
   ) {
-    return "Some rhetorical pressure or dismissive framing appears in the exchange.";
+    return "Dismissive or pressuring rhetoric appears in the exchange.";
   }
   return "-";
 }
@@ -882,6 +913,18 @@ function normalizeWinner(value) {
 function normalizeStrongestSide(value) {
   const text = safeString(value, "");
   return text === "Team A" || text === "Team B" ? text : "";
+}
+
+function normalizeBsMeter(value) {
+  const text = safeString(value, "Neither side is reaching significantly");
+  if (
+    text === "Team A is reaching more" ||
+    text === "Team B is reaching more" ||
+    text === "Neither side is reaching significantly"
+  ) {
+    return text;
+  }
+  return "Neither side is reaching significantly";
 }
 
 function safeArray(value) {
@@ -962,6 +1005,7 @@ function cleanTranscript(text) {
       " "
     )
     .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+    .replace(/\b\d+:\d+(?:\d+)?\s*(?:minutes?|minute|seconds?|second)\b/gi, " ")
     .replace(/^\s*\[[^\]]*\]\s*$/gm, " ")
     .replace(/^\s*\([^)]*\)\s*$/gm, " ")
     .replace(/[A-Za-z0-9_-]{25,}/g, " ")
@@ -1040,6 +1084,62 @@ function sleep(ms) {
   });
 }
 
+function cleanAnalystField(value) {
+  let text = safeString(value, "-");
+
+  if (text === "-") return text;
+
+  text = String(text)
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+    .replace(/\b\d+:\d+(?:\d+)?\s*(?:minutes?|minute|seconds?|second)\b/gi, " ")
+    .replace(/\b(?:um|uh|you know|i mean|basically|sort of)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  text = text
+    .replace(/^and that'?s why\s*/i, "")
+    .replace(/^so\s+/i, "")
+    .replace(/^well\s+/i, "")
+    .replace(/^okay\s+/i, "")
+    .replace(/^look\s+/i, "")
+    .replace(/^here'?s my take\s*/i, "");
+
+  text = shorten(text, 180);
+
+  if (!text) return "-";
+  return text;
+}
+
+function rewriteAsClaim(sentence) {
+  const s = cleanAnalystField(sentence);
+  if (s === "-") return s;
+  return shorten(s.replace(/\.$/, ""), 160);
+}
+
+function rewriteGrounded(sentence) {
+  const s = cleanAnalystField(sentence);
+  if (s === "-") return s;
+  return shorten("Grounded claim: " + s.replace(/\.$/, ""), 180);
+}
+
+function rewriteWeak(sentence) {
+  const s = cleanAnalystField(sentence);
+  if (s === "-") return s;
+  return shorten("Unsupported or overstated claim: " + s.replace(/\.$/, ""), 180);
+}
+
+function rewriteOpinion(sentence) {
+  const s = cleanAnalystField(sentence);
+  if (s === "-") return s;
+  return shorten("Subjective framing: " + s.replace(/\.$/, ""), 180);
+}
+
+function rewriteLala(sentence) {
+  const s = cleanAnalystField(sentence);
+  if (s === "-") return s;
+  return shorten("Speculative leap: " + s.replace(/\.$/, ""), 180);
+}
+
 function buildFallbackResponse(args) {
   return {
     teamAName: args.teamAName,
@@ -1066,7 +1166,7 @@ function buildFallbackResponse(args) {
     strongestArgument: "-",
     whyStrongest: "-",
     failedResponseByOtherSide: "-",
-    bsMeter: "No live AI judgment available",
+    bsMeter: "Neither side is reaching significantly",
     strongestOverall: "-",
     weakestOverall: "-",
     why: safeString(args.reason, "AI unavailable."),
