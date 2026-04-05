@@ -43,7 +43,7 @@ module.exports = async function handler(req, res) {
       const chunkResults = [];
 
       for (let i = 0; i < chunks.length; i += 1) {
-        await sleep(1800);
+        await sleep(1600);
 
         const chunkPrompt = buildChunkPrompt({
           teamAName,
@@ -69,7 +69,7 @@ module.exports = async function handler(req, res) {
         chunkResults.push(normalizeChunkResult(parsedChunk));
       }
 
-      await sleep(2200);
+      await sleep(2000);
 
       const judgePrompt = buildJudgePrompt({
         teamAName,
@@ -96,9 +96,9 @@ module.exports = async function handler(req, res) {
         teamBName
       });
 
-      return res.status(200).json(
-        withMode(enforceConsistency(mergeLocalAndAi(localResult, aiResult)), "Hybrid")
-      );
+      return res
+        .status(200)
+        .json(withMode(enforceConsistency(mergeLocalAndAi(localResult, aiResult)), "Hybrid"));
     } catch (err) {
       return res.status(200).json(withMode(localResult, "Local"));
     }
@@ -124,7 +124,7 @@ async function callGroq(prompt) {
       body: JSON.stringify({
         model: "openai/gpt-oss-20b",
         temperature: 0.1,
-        max_completion_tokens: 450,
+        max_completion_tokens: 420,
         messages: [
           {
             role: "user",
@@ -190,7 +190,7 @@ function buildChunkPrompt(args) {
     "DO NOT include timestamps.",
     "DO NOT include filler language.",
     "Rewrite every output as a short analytical statement.",
-    "Each item must be under 12 words.",
+    "Each item must be under 10 words.",
     "",
     "Team A label: " + args.teamAName,
     "Team B label: " + args.teamBName,
@@ -224,7 +224,7 @@ function buildChunkPrompt(args) {
     "- truth_points = grounded point only.",
     "- lie_points = unsupported claim only.",
     "- opinion_points = subjective framing only.",
-    "- lala_points = speculative leap only.",
+    "- lala_points = unsupported leap only.",
     "",
     "Return ONLY JSON.",
     "",
@@ -292,10 +292,10 @@ function buildJudgePrompt(args) {
     "- lies: one unsupported claim.",
     "- opinion: one subjective frame.",
     "- lala: one unsupported leap.",
-    "- strongestArgument: max 14 words.",
-    "- whyStrongest: max 18 words, direct contrast.",
-    "- failedResponseByOtherSide: max 16 words.",
-    "- weakestOverall: max 12 words.",
+    "- strongestArgument: max 10 words.",
+    "- whyStrongest: max 12 words.",
+    "- failedResponseByOtherSide: max 12 words.",
+    "- weakestOverall: max 8 words.",
     '- strongestArgumentSide must be exactly "Team A" or "Team B".',
     '- bsMeter must be exactly one of:',
     '  "Team A is reaching more"',
@@ -356,8 +356,12 @@ function buildDeterministicResult(args) {
     if (strongest.side === "Team B" && teamBScore >= teamAScore + 1) winner = "Team B";
   }
 
-  if (winner === "Team A" && teamAScore <= teamBScore) teamAScore = Math.min(10, teamBScore + 1);
-  if (winner === "Team B" && teamBScore <= teamAScore) teamBScore = Math.min(10, teamAScore + 1);
+  if (winner === "Team A" && teamAScore <= teamBScore) {
+    teamAScore = Math.min(10, teamBScore + 1);
+  }
+  if (winner === "Team B" && teamBScore <= teamAScore) {
+    teamBScore = Math.min(10, teamAScore + 1);
+  }
   if (winner === "Mixed") {
     const even = Math.max(Math.min(teamAScore, teamBScore), 6);
     teamAScore = even;
@@ -447,7 +451,9 @@ function mergeLocalAndAi(localResult, aiResult) {
     strongestArgumentSide: pickStrongestSide(aiResult.strongestArgumentSide, localResult.strongestArgumentSide),
     strongestArgument: cleanAnalystField(pickBetter(aiResult.strongestArgument, localResult.strongestArgument)),
     whyStrongest: cleanAnalystField(pickBetter(aiResult.whyStrongest, localResult.whyStrongest)),
-    failedResponseByOtherSide: cleanAnalystField(pickBetter(aiResult.failedResponseByOtherSide, localResult.failedResponseByOtherSide)),
+    failedResponseByOtherSide: cleanAnalystField(
+      pickBetter(aiResult.failedResponseByOtherSide, localResult.failedResponseByOtherSide)
+    ),
     bsMeter: normalizeBsMeter(pickBetter(aiResult.bsMeter, localResult.bsMeter)),
     strongestOverall: cleanAnalystField(pickBetter(aiResult.strongestOverall, localResult.strongestOverall)),
     weakestOverall: cleanAnalystField(pickBetter(aiResult.weakestOverall, localResult.weakestOverall)),
@@ -470,6 +476,28 @@ function enforceConsistency(result) {
 
   if (out.winner === "Team B" && out.teamBScore <= out.teamAScore) {
     out.teamBScore = Math.min(10, out.teamAScore + 1);
+  }
+
+  if (
+    out.winner === "Mixed" &&
+    out.strongestArgumentSide === "Team A" &&
+    out.bsMeter === "Team B is reaching more"
+  ) {
+    out.winner = "Team A";
+    if (out.teamAScore <= out.teamBScore) {
+      out.teamAScore = Math.min(10, out.teamBScore + 1);
+    }
+  }
+
+  if (
+    out.winner === "Mixed" &&
+    out.strongestArgumentSide === "Team B" &&
+    out.bsMeter === "Team A is reaching more"
+  ) {
+    out.winner = "Team B";
+    if (out.teamBScore <= out.teamAScore) {
+      out.teamBScore = Math.min(10, out.teamAScore + 1);
+    }
   }
 
   if (out.winner === "Mixed") {
@@ -584,7 +612,7 @@ function createUsedTracker() {
 function summarizeMainPosition(text, used) {
   const sentences = splitSentences(text);
   const picked = pickUnused(sentences, used, function (s) {
-    return s.length > 20;
+    return s.length > 18;
   });
   return rewriteAsClaim(picked || "-");
 }
@@ -661,10 +689,9 @@ function pickUnused(sentences, used, predicate) {
     const s = sentences[i];
     if (!used[s] && predicate(s)) {
       used[s] = true;
-      return shorten(s, 140);
+      return shorten(s, 120);
     }
   }
-
   return "";
 }
 
@@ -790,7 +817,7 @@ function pickStrongestArgument(teamA, teamB) {
   if (!a && !b) {
     return {
       side: "Team A",
-      text: "Makes the clearer core claim."
+      text: "Makes the clearer case."
     };
   }
 
@@ -819,21 +846,21 @@ function detectBestSupportedSentence(text) {
     }
   }
 
-  return best ? shorten(best, 90) : "";
+  return best ? shorten(best, 70) : "";
 }
 
 function buildWhyStrongest(side, teamAName, teamBName) {
   if (side === "Team A") {
-    return "Clearer support and better reasoning than " + teamBName + ".";
+    return "Better supported than " + teamBName + ".";
   }
-  return "Clearer support and better reasoning than " + teamAName + ".";
+  return "Better supported than " + teamAName + ".";
 }
 
 function buildFailedResponse(side, teamAName, teamBName) {
   if (side === "Team A") {
-    return teamBName + " failed to answer the stronger grounded point.";
+    return teamBName + " failed to answer the stronger point.";
   }
-  return teamAName + " failed to answer the stronger grounded point.";
+  return teamAName + " failed to answer the stronger point.";
 }
 
 function buildBsMeter(weakA, weakB) {
@@ -844,8 +871,8 @@ function buildBsMeter(weakA, weakB) {
 
 function buildWeakestOverall(weakA, weakB, teamAName, teamBName) {
   if (Math.abs(weakA - weakB) <= 1) return "No clearly terrible argument.";
-  if (weakA > weakB) return teamAName + ": weaker case relied on overreach.";
-  return teamBName + ": weaker case relied on overreach.";
+  if (weakA > weakB) return teamAName + ": overstates claims.";
+  return teamBName + ": overstates claims.";
 }
 
 function buildWhy(winner, teamAName, teamBName) {
@@ -940,11 +967,16 @@ function hardScrubText(text) {
     .replace(/www\.\S+/gi, " ")
     .replace(/>>\s*[^:\n]{1,40}:\s*/g, " ")
     .replace(/^\s*[^:\n]{1,30}:\s+/gm, " ")
+    .replace(/\b\d+\s*[:,;.-]\s*\d+\s*seconds?\b/gi, " ")
+    .replace(/\b\d+\s*[:,;.-]\s*\d+\s*minutes?\b/gi, " ")
+    .replace(/\b\d+\s*[:,;.-]\s*\d+\s*hours?\b/gi, " ")
+    .replace(/\b\d+\s*[:,;.-]\s*\d+\s*secondsthe\b/gi, " the ")
+    .replace(/\b\d+\s*[:,;.-]\s*\d+\s*minutes?the\b/gi, " the ")
+    .replace(/\b\d+\s*[:,;.-]\s*\d+\b/g, " ")
     .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
     .replace(/\b\d+\s*seconds?\b/gi, " ")
     .replace(/\b\d+\s*minutes?\b/gi, " ")
     .replace(/\b\d+\s*hours?\b/gi, " ")
-    .replace(/\b\d+:\d+\s*minutes?,?\s*\d+\s*seconds?\b/gi, " ")
     .replace(/^\s*sync to video time\s*$/gim, " ")
     .replace(/^\s*show transcript\s*$/gim, " ")
     .replace(/^\s*transcript\s*$/gim, " ")
@@ -967,8 +999,11 @@ function hardScrubText(text) {
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/\s+,/g, ",")
-    .replace(/,+/g, ",")
+    .replace(/\s+;/g, ";")
+    .replace(/\s+:/g, ":")
     .replace(/\s+\./g, ".")
+    .replace(/,+/g, ",")
+    .replace(/;+/g, ";")
     .trim();
 }
 
@@ -1059,6 +1094,7 @@ function cleanAnalystField(value) {
     .replace(/^overstates:\s*/i, "Overstates: ")
     .replace(/^subjective framing:\s*/i, "Subjective framing: ")
     .replace(/^unsupported leap:\s*/i, "Unsupported leap: ")
+    .replace(/^argues that\s*/i, "")
     .replace(/^and that'?s why\s*/i, "")
     .replace(/^so\s+/i, "")
     .replace(/^well\s+/i, "")
@@ -1070,37 +1106,37 @@ function cleanAnalystField(value) {
     .trim();
 
   if (!text) return "-";
-  return shorten(text, 140);
+  return shorten(text, 110);
 }
 
 function rewriteAsClaim(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten("Argues that " + stripTerminalPunctuation(s).toLowerCase() + ".", 90);
+  return shorten(stripTerminalPunctuation(s) + ".", 55);
 }
 
 function rewriteGrounded(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten("Grounded point: " + stripTerminalPunctuation(s) + ".", 100);
+  return shorten("Grounded point: " + stripTerminalPunctuation(s) + ".", 70);
 }
 
 function rewriteWeak(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten("Overstates: " + stripTerminalPunctuation(s) + ".", 90);
+  return shorten("Overstates: " + stripTerminalPunctuation(s) + ".", 65);
 }
 
 function rewriteOpinion(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten("Subjective framing: " + stripTerminalPunctuation(s) + ".", 100);
+  return shorten("Subjective framing: " + stripTerminalPunctuation(s) + ".", 75);
 }
 
 function rewriteLala(sentence) {
   const s = cleanAnalystField(sentence);
   if (s === "-") return s;
-  return shorten("Unsupported leap: " + stripTerminalPunctuation(s) + ".", 90);
+  return shorten("Unsupported leap: " + stripTerminalPunctuation(s) + ".", 65);
 }
 
 function stripTerminalPunctuation(text) {
