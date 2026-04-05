@@ -29,13 +29,13 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GROQ_API_KEY) {
       return res.status(200).json(
         buildFallbackResponse({
           teamAName,
           teamBName,
           reason:
-            "Missing OPENAI_API_KEY. The app is wired, but no server API key is available."
+            "Missing GROQ_API_KEY. The app is wired, but no Groq server key is available."
         })
       );
     }
@@ -49,14 +49,14 @@ export default async function handler(req, res) {
 
     const schema = buildSchema();
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "openai/gpt-oss-20b",
         temperature: 0.1,
         response_format: {
           type: "json_schema",
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
         },
         messages: [
           {
-            role: "developer",
+            role: "system",
             content:
               "Return only schema-valid JSON. Ignore transcript metadata, timestamps, labels, title text, category text, and platform filler."
           },
@@ -82,28 +82,28 @@ export default async function handler(req, res) {
       const providerMessage =
         rawResponse?.error?.message ||
         rawResponse?.message ||
-        "OpenAI request failed";
+        "Groq request failed";
 
       const lowered = String(providerMessage).toLowerCase();
 
-      if (lowered.includes("quota") || lowered.includes("billing")) {
+      if (lowered.includes("rate")) {
         return res.status(200).json(
           buildFallbackResponse({
             teamAName,
             teamBName,
             reason:
-              "OpenAI quota/billing issue. The app is wired correctly, but the API key currently cannot run requests."
+              "Groq rate-limit issue. The app is wired correctly, but the provider is refusing requests right now."
           })
         );
       }
 
-      if (lowered.includes("api key") || lowered.includes("authentication")) {
+      if (lowered.includes("api key") || lowered.includes("authentication") || lowered.includes("unauthorized")) {
         return res.status(200).json(
           buildFallbackResponse({
             teamAName,
             teamBName,
             reason:
-              "OpenAI API key issue. Check the key stored in Vercel."
+              "Groq API key issue. Check the key stored in Vercel."
           })
         );
       }
@@ -124,7 +124,7 @@ export default async function handler(req, res) {
         buildFallbackResponse({
           teamAName,
           teamBName,
-          reason: "OpenAI returned no message content."
+          reason: "Groq returned no message content."
         })
       );
     }
@@ -191,7 +191,7 @@ function cleanTranscript(text) {
     // inline timestamp junk
     .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
 
-    // remove lines that are mostly timestamp + junk
+    // lines that begin with timestamp sludge
     .replace(
       /^\s*\d{1,2}:\d{2}(?::\d{2})?\s*(minutes?,?\s*\d+\s*seconds?)?.*$/gim,
       function (line) {
