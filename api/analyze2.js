@@ -66,7 +66,7 @@ module.exports = async function handler(req, res) {
 
       let parsedChunk;
       try {
-        parsedChunk = JSON.parse(chunkResponse.content);
+        parsedChunk = safeParseJson(chunkResponse.content);
       } catch (err) {
         return res.status(200).json(
           buildFallbackResponse({
@@ -103,7 +103,7 @@ module.exports = async function handler(req, res) {
 
     let parsedFinal;
     try {
-      parsedFinal = JSON.parse(synthesisResponse.content);
+      parsedFinal = safeParseJson(synthesisResponse.content);
     } catch (err) {
       return res.status(200).json(
         buildFallbackResponse({
@@ -195,10 +195,14 @@ async function callGroqJson(prompt) {
 
 function buildChunkPrompt(args) {
   return [
-    "Return ONLY valid JSON.",
-    "No markdown.",
-    "No code fences.",
-    "No commentary before or after the JSON.",
+    "STRICT MODE:",
+    "You MUST return ONLY valid JSON.",
+    "NO text before JSON.",
+    "NO text after JSON.",
+    "NO markdown.",
+    "NO explanations.",
+    "NO comments.",
+    "If you break this, the system fails.",
     "",
     "You are analyzing one chunk of a larger debate transcript.",
     "",
@@ -247,7 +251,8 @@ function buildChunkPrompt(args) {
     '- winnerLean must be exactly "Team A", "Team B", or "Mixed".',
     "- bestPoint must be one specific strong point from this chunk.",
     "- worstPoint must be one specific weak point from this chunk.",
-    "- Keep the points short and direct.",
+    "- Keep each point short and direct.",
+    "- No extra keys.",
     "",
     "Transcript chunk:",
     args.chunkText
@@ -256,10 +261,14 @@ function buildChunkPrompt(args) {
 
 function buildSynthesisPrompt(args) {
   return [
-    "Return ONLY valid JSON.",
-    "No markdown.",
-    "No code fences.",
-    "No commentary before or after the JSON.",
+    "STRICT MODE:",
+    "You MUST return ONLY valid JSON.",
+    "NO text before JSON.",
+    "NO text after JSON.",
+    "NO markdown.",
+    "NO explanations.",
+    "NO comments.",
+    "If you break this, the system fails.",
     "",
     "You are synthesizing chunk-level debate analyses into one final result.",
     "",
@@ -478,6 +487,19 @@ async function safeJson(response) {
     return await response.json();
   } catch (err) {
     return null;
+  }
+}
+
+function safeParseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      return JSON.parse(text.slice(start, end + 1));
+    }
+    throw new Error("Invalid JSON from model");
   }
 }
 
