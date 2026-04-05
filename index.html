@@ -6,47 +6,107 @@
   <title>Debate Points</title>
   <style>
     :root{
-      --bg:#07111f;
-      --bg2:#0b1630;
-      --panel:#091426;
-      --line:#18365f;
-      --cyan:#17f1c7;
-      --red:#ff6275;
-      --yellow:#ffd84d;
-      --text:#eaf2ff;
-      --muted:#9eb6d3;
+      --bg:#1c120a;
+      --bg2:#28180d;
+      --panel:#2f1d10;
+      --panel2:#3a2413;
+      --line:#8d5a2b;
+      --line-soft:#5e3a1d;
+      --stone1:#7a4c22;
+      --stone2:#a6632b;
+      --stone3:#d08b42;
+      --stone4:#f0b15f;
+      --text:#fff2df;
+      --muted:#e5bb8b;
+      --accent:#ffbf66;
+      --danger:#ff7b5f;
+      --shadow:rgba(0,0,0,.35);
     }
 
     *{box-sizing:border-box}
+
     html,body{
       margin:0;
       padding:0;
-      background:
-        linear-gradient(180deg, rgba(12,30,58,.92), rgba(4,10,21,.98)),
-        repeating-linear-gradient(to right, rgba(26,89,140,.12) 0, rgba(26,89,140,.12) 1px, transparent 1px, transparent 40px),
-        repeating-linear-gradient(to bottom, rgba(26,89,140,.12) 0, rgba(26,89,140,.12) 1px, transparent 1px, transparent 40px),
-        #06101d;
       color:var(--text);
       font-family:Inter,system-ui,Arial,sans-serif;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(255,180,90,.08), transparent 22%),
+        radial-gradient(circle at 80% 10%, rgba(255,220,140,.05), transparent 18%),
+        radial-gradient(circle at 30% 80%, rgba(255,130,60,.06), transparent 24%),
+        linear-gradient(180deg, #1b1109 0%, #140c07 100%);
+      min-height:100vh;
+    }
+
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      opacity:.16;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(255,185,90,.65) 0 2px, transparent 3px),
+        radial-gradient(circle at 26% 54%, rgba(255,160,75,.5) 0 3px, transparent 4px),
+        radial-gradient(circle at 61% 22%, rgba(255,210,140,.35) 0 2px, transparent 3px),
+        radial-gradient(circle at 78% 66%, rgba(255,145,65,.45) 0 3px, transparent 4px),
+        radial-gradient(circle at 88% 32%, rgba(255,210,140,.25) 0 2px, transparent 3px);
+      mix-blend-mode:screen;
     }
 
     .wrap{
-      width:min(1400px, 94vw);
+      width:min(1450px, 94vw);
       margin:20px auto 48px;
     }
 
     .title{
-      font-size: clamp(28px, 4vw, 46px);
-      font-weight: 900;
-      margin: 8px 0 18px;
+      font-size:clamp(30px, 4vw, 52px);
+      font-weight:1000;
+      letter-spacing:.03em;
+      margin:4px 0 18px;
+      color:#ffd39a;
+      text-shadow:
+        0 2px 0 rgba(0,0,0,.35),
+        0 0 18px rgba(255,174,74,.18);
     }
 
     .panel{
-      background:linear-gradient(180deg, rgba(7,18,35,.92), rgba(7,18,35,.84));
+      position:relative;
+      background:
+        linear-gradient(180deg, rgba(72,42,20,.94), rgba(45,27,14,.96)),
+        repeating-linear-gradient(
+          135deg,
+          rgba(255,196,112,.04) 0 6px,
+          rgba(255,196,112,.01) 6px 12px
+        );
       border:1px solid var(--line);
-      border-radius:24px;
+      border-radius:26px;
       padding:20px;
       margin-bottom:20px;
+      box-shadow:
+        0 16px 28px var(--shadow),
+        inset 0 1px 0 rgba(255,220,160,.12),
+        inset 0 -1px 0 rgba(0,0,0,.25);
+      overflow:hidden;
+    }
+
+    .panel::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity:.14;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(255,190,110,.6) 0 3px, transparent 4px),
+        radial-gradient(circle at 28% 72%, rgba(255,160,80,.55) 0 4px, transparent 5px),
+        radial-gradient(circle at 62% 24%, rgba(255,215,150,.35) 0 3px, transparent 4px),
+        radial-gradient(circle at 82% 58%, rgba(255,145,65,.45) 0 4px, transparent 5px);
+    }
+
+    .section-title{
+      font-size:clamp(22px, 2.8vw, 40px);
+      font-weight:950;
+      margin:0 0 14px;
+      color:#ffd39a;
     }
 
     .grid-2{
@@ -55,11 +115,17 @@
       gap:18px;
     }
 
+    .grid-3{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:18px;
+    }
+
     .field label{
       display:block;
-      font-size:13px;
-      font-weight:800;
-      letter-spacing:.12em;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.14em;
       color:var(--muted);
       margin:0 0 8px;
       text-transform:uppercase;
@@ -67,19 +133,26 @@
 
     input[type="text"], textarea{
       width:100%;
-      background:#08111f;
       color:var(--text);
+      background:
+        linear-gradient(180deg, rgba(40,23,12,.95), rgba(27,15,8,.98));
       border:1px solid var(--line);
       border-radius:18px;
       padding:14px 16px;
       font-size:16px;
       outline:none;
+      box-shadow: inset 0 1px 0 rgba(255,220,180,.06);
+    }
+
+    input[type="text"]::placeholder,
+    textarea::placeholder{
+      color:#c39161;
     }
 
     textarea{
       min-height:260px;
       resize:vertical;
-      line-height:1.45;
+      line-height:1.5;
     }
 
     .actions{
@@ -95,18 +168,34 @@
       border-radius:18px;
       padding:14px 22px;
       font-size:16px;
-      font-weight:900;
+      font-weight:1000;
       cursor:pointer;
+      transition:transform .12s ease, opacity .12s ease;
+    }
+
+    button:hover{
+      transform:translateY(-1px);
+    }
+
+    button:disabled{
+      opacity:.7;
+      cursor:not-allowed;
+      transform:none;
     }
 
     .primary{
-      background:var(--yellow);
-      color:#111;
+      color:#2a1607;
+      background:
+        linear-gradient(180deg, #ffcb78, #f29b45);
+      box-shadow:
+        0 10px 18px rgba(0,0,0,.22),
+        inset 0 1px 0 rgba(255,255,255,.22);
     }
 
     .secondary{
-      background:#10223d;
       color:var(--text);
+      background:
+        linear-gradient(180deg, #5a341a, #3b2211);
       border:1px solid var(--line);
     }
 
@@ -116,57 +205,88 @@
       min-height:44px;
       border-radius:999px;
       border:1px solid var(--line);
-      background:#0a172b;
+      background:
+        linear-gradient(180deg, rgba(79,47,23,.95), rgba(50,29,14,.98));
       color:var(--text);
       padding:0 16px;
-      font-weight:800;
+      font-weight:900;
+      box-shadow: inset 0 1px 0 rgba(255,220,180,.08);
     }
 
     .error{
       margin-top:14px;
-      border:1px solid rgba(255,98,117,.4);
-      background:rgba(100,20,30,.35);
-      color:#ffd7dc;
+      border:1px solid rgba(255,123,95,.45);
+      background:rgba(94,24,12,.45);
+      color:#ffe0d7;
       border-radius:18px;
       padding:14px 16px;
       display:none;
     }
 
-    .results-title{
-      font-size: clamp(24px, 3vw, 42px);
-      font-weight: 900;
-      margin: 0 0 12px;
-    }
-
     .team-card{
-      background:rgba(8,18,34,.8);
+      position:relative;
+      background:
+        linear-gradient(180deg, rgba(72,44,21,.96), rgba(44,26,13,.98));
       border:1px solid var(--line);
       border-radius:28px;
       padding:18px;
-      min-height:100%;
+      box-shadow:
+        0 14px 24px rgba(0,0,0,.22),
+        inset 0 1px 0 rgba(255,220,180,.08);
+      overflow:hidden;
     }
 
-    .team-card.a{box-shadow:inset 4px 0 0 var(--cyan)}
-    .team-card.b{box-shadow:inset 4px 0 0 var(--red)}
+    .team-card::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity:.18;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(255,194,119,.6) 0 4px, transparent 5px),
+        radial-gradient(circle at 30% 66%, rgba(255,144,66,.5) 0 5px, transparent 6px),
+        radial-gradient(circle at 64% 26%, rgba(255,224,168,.25) 0 4px, transparent 5px),
+        radial-gradient(circle at 84% 62%, rgba(255,125,40,.38) 0 5px, transparent 6px);
+    }
+
+    .team-card.a{
+      box-shadow:
+        inset 4px 0 0 #ffb35c,
+        0 14px 24px rgba(0,0,0,.22);
+    }
+
+    .team-card.b{
+      box-shadow:
+        inset 4px 0 0 #ff8f52,
+        0 14px 24px rgba(0,0,0,.22);
+    }
 
     .team-name{
-      font-size: clamp(24px, 2.5vw, 44px);
-      font-weight: 900;
-      margin: 0 0 10px;
+      position:relative;
+      z-index:1;
+      font-size:clamp(24px, 2.5vw, 42px);
+      font-weight:1000;
+      margin:0 0 10px;
+      color:#ffd39a;
     }
 
     .mini-label{
+      position:relative;
+      z-index:1;
       font-size:12px;
-      font-weight:900;
+      font-weight:950;
       letter-spacing:.18em;
       color:var(--muted);
-      margin: 14px 0 8px;
+      margin:14px 0 8px;
       text-transform:uppercase;
     }
 
     .box{
-      background:#07111f;
-      border:1px solid var(--line);
+      position:relative;
+      z-index:1;
+      background:
+        linear-gradient(180deg, rgba(46,27,14,.96), rgba(30,18,10,.98));
+      border:1px solid var(--line-soft);
       border-radius:18px;
       padding:14px 16px;
       min-height:60px;
@@ -176,6 +296,9 @@
       white-space:pre-wrap;
       overflow:visible;
       text-overflow:unset;
+      box-shadow:
+        inset 0 1px 0 rgba(255,220,170,.06),
+        0 4px 10px rgba(0,0,0,.18);
     }
 
     .readout{
@@ -188,8 +311,15 @@
       grid-column:1 / -1;
     }
 
+    @media (max-width: 1100px){
+      .grid-3{
+        grid-template-columns:1fr;
+      }
+    }
+
     @media (max-width: 980px){
-      .grid-2,.readout{
+      .grid-2,
+      .readout{
         grid-template-columns:1fr;
       }
     }
@@ -200,6 +330,8 @@
     <div class="title">Debate Points</div>
 
     <div class="panel">
+      <div class="section-title">Input</div>
+
       <div class="grid-2">
         <div class="field">
           <label for="teamAName">Team A Name</label>
@@ -218,7 +350,7 @@
 
       <div class="field" style="margin-top:18px;">
         <label for="videoLink">Video Link (optional)</label>
-        <input id="videoLink" type="text" placeholder="Paste a YouTube, TikTok, or other video link..." />
+        <input id="videoLink" type="text" placeholder="Paste a video link..." />
       </div>
 
       <div class="actions">
@@ -231,7 +363,70 @@
     </div>
 
     <div class="panel">
-      <div class="results-title">Results</div>
+      <div class="section-title">Core Result</div>
+
+      <div class="readout">
+        <div>
+          <div class="mini-label">Winner</div>
+          <div class="box" id="winner">-</div>
+        </div>
+        <div>
+          <div class="mini-label">Confidence</div>
+          <div class="box" id="confidence">-</div>
+        </div>
+        <div>
+          <div class="mini-label">Team A Score</div>
+          <div class="box" id="teamAScore">-</div>
+        </div>
+        <div>
+          <div class="mini-label">Team B Score</div>
+          <div class="box" id="teamBScore">-</div>
+        </div>
+        <div>
+          <div class="mini-label">Team A Lane</div>
+          <div class="box" id="teamA_lane">-</div>
+        </div>
+        <div>
+          <div class="mini-label">Team B Lane</div>
+          <div class="box" id="teamB_lane">-</div>
+        </div>
+        <div class="readout-full">
+          <div class="mini-label">Core Disagreement</div>
+          <div class="box" id="core_disagreement">-</div>
+        </div>
+        <div>
+          <div class="mini-label">BS Meter</div>
+          <div class="box" id="bsMeter">-</div>
+        </div>
+        <div>
+          <div class="mini-label">Strongest Argument Side</div>
+          <div class="box" id="strongestArgumentSide">-</div>
+        </div>
+        <div class="readout-full">
+          <div class="mini-label">Strongest Argument</div>
+          <div class="box" id="strongestArgument">-</div>
+        </div>
+        <div class="readout-full">
+          <div class="mini-label">Why It Wins</div>
+          <div class="box" id="whyStrongest">-</div>
+        </div>
+        <div class="readout-full">
+          <div class="mini-label">Failed Response By Other Side</div>
+          <div class="box" id="failedResponseByOtherSide">-</div>
+        </div>
+        <div class="readout-full">
+          <div class="mini-label">Weakest Overall</div>
+          <div class="box" id="weakestOverall">-</div>
+        </div>
+        <div class="readout-full">
+          <div class="mini-label">Overall Why</div>
+          <div class="box" id="why">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">Team Analysis</div>
 
       <div class="grid-2">
         <div class="team-card a">
@@ -275,72 +470,53 @@
     </div>
 
     <div class="panel">
-      <div class="results-title">Readout</div>
+      <div class="section-title">Integrity and Reasoning</div>
 
-      <div class="readout">
+      <div class="grid-2">
         <div>
-          <div class="mini-label">Winner</div>
-          <div class="box" id="winner">-</div>
-        </div>
+          <div class="mini-label">Team A Integrity</div>
+          <div class="box" id="teamA_integrity">-</div>
 
-        <div>
-          <div class="mini-label">BS Meter</div>
-          <div class="box" id="bsMeter">-</div>
+          <div class="mini-label">Team A Reasoning</div>
+          <div class="box" id="teamA_reasoning">-</div>
         </div>
 
         <div>
-          <div class="mini-label">Team A Score</div>
-          <div class="box" id="teamAScore">-</div>
-        </div>
+          <div class="mini-label">Team B Integrity</div>
+          <div class="box" id="teamB_integrity">-</div>
 
+          <div class="mini-label">Team B Reasoning</div>
+          <div class="box" id="teamB_reasoning">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">Worldview Lane Check</div>
+
+      <div class="grid-2">
         <div>
-          <div class="mini-label">Team B Score</div>
-          <div class="box" id="teamBScore">-</div>
+          <div class="mini-label">Same Lane Engagement</div>
+          <div class="box" id="same_lane_engagement">-</div>
         </div>
-
         <div>
-          <div class="mini-label">Strongest Argument Side</div>
-          <div class="box" id="strongestArgumentSide">-</div>
+          <div class="mini-label">Lane Mismatch</div>
+          <div class="box" id="lane_mismatch">-</div>
         </div>
+      </div>
+    </div>
 
+    <div class="panel">
+      <div class="section-title">Pressure and Noise</div>
+
+      <div class="grid-2">
         <div>
-          <div class="mini-label">Strongest Overall</div>
-          <div class="box" id="strongestOverall">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Strongest Argument</div>
-          <div class="box" id="strongestArgument">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Why It Wins</div>
-          <div class="box" id="whyStrongest">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Failed Response By Other Side</div>
-          <div class="box" id="failedResponseByOtherSide">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Weakest Overall</div>
-          <div class="box" id="weakestOverall">-</div>
-        </div>
-
-        <div class="readout-full">
           <div class="mini-label">Manipulation</div>
           <div class="box" id="manipulation">-</div>
         </div>
-
-        <div class="readout-full">
+        <div>
           <div class="mini-label">Fluff</div>
           <div class="box" id="fluff">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Overall Why</div>
-          <div class="box" id="why">-</div>
         </div>
       </div>
     </div>
@@ -349,7 +525,21 @@
   <script>
     const $ = (id) => document.getElementById(id);
 
-    const ids = [
+    const fieldIds = [
+      "winner",
+      "confidence",
+      "teamAScore",
+      "teamBScore",
+      "teamA_lane",
+      "teamB_lane",
+      "core_disagreement",
+      "bsMeter",
+      "strongestArgumentSide",
+      "strongestArgument",
+      "whyStrongest",
+      "failedResponseByOtherSide",
+      "weakestOverall",
+      "why",
       "teamA_main_position",
       "teamA_truth",
       "teamA_lies",
@@ -360,19 +550,14 @@
       "teamB_lies",
       "teamB_opinion",
       "teamB_lala",
-      "winner",
-      "bsMeter",
-      "teamAScore",
-      "teamBScore",
-      "strongestArgumentSide",
-      "strongestArgument",
-      "whyStrongest",
-      "failedResponseByOtherSide",
-      "strongestOverall",
-      "weakestOverall",
+      "teamA_integrity",
+      "teamB_integrity",
+      "teamA_reasoning",
+      "teamB_reasoning",
+      "same_lane_engagement",
+      "lane_mismatch",
       "manipulation",
-      "fluff",
-      "why"
+      "fluff"
     ];
 
     function fillBox(id, value) {
@@ -383,7 +568,7 @@
       $("teamAHeader").textContent = "Team A";
       $("teamBHeader").textContent = "Team B";
       $("modePill").textContent = "Analysis Mode: -";
-      ids.forEach(id => fillBox(id, "-"));
+      fieldIds.forEach((id) => fillBox(id, "-"));
       hideError();
     }
 
@@ -406,6 +591,21 @@
       $("teamBHeader").textContent = data.teamBName || "Team B";
       $("modePill").textContent = "Analysis Mode: " + (data.analysisMode || "Unknown");
 
+      fillBox("winner", data.winner);
+      fillBox("confidence", data.confidence);
+      fillBox("teamAScore", data.teamAScore);
+      fillBox("teamBScore", data.teamBScore);
+      fillBox("teamA_lane", data.teamA_lane);
+      fillBox("teamB_lane", data.teamB_lane);
+      fillBox("core_disagreement", data.core_disagreement);
+      fillBox("bsMeter", data.bsMeter);
+      fillBox("strongestArgumentSide", data.strongestArgumentSide);
+      fillBox("strongestArgument", data.strongestArgument);
+      fillBox("whyStrongest", data.whyStrongest);
+      fillBox("failedResponseByOtherSide", data.failedResponseByOtherSide);
+      fillBox("weakestOverall", data.weakestOverall);
+      fillBox("why", data.why);
+
       fillBox("teamA_main_position", data.teamA && data.teamA.main_position);
       fillBox("teamA_truth", data.teamA && data.teamA.truth);
       fillBox("teamA_lies", data.teamA && data.teamA.lies);
@@ -418,19 +618,14 @@
       fillBox("teamB_opinion", data.teamB && data.teamB.opinion);
       fillBox("teamB_lala", data.teamB && data.teamB.lala);
 
-      fillBox("winner", data.winner);
-      fillBox("bsMeter", data.bsMeter);
-      fillBox("teamAScore", data.teamAScore);
-      fillBox("teamBScore", data.teamBScore);
-      fillBox("strongestArgumentSide", data.strongestArgumentSide);
-      fillBox("strongestArgument", data.strongestArgument);
-      fillBox("whyStrongest", data.whyStrongest);
-      fillBox("failedResponseByOtherSide", data.failedResponseByOtherSide);
-      fillBox("strongestOverall", data.strongestOverall);
-      fillBox("weakestOverall", data.weakestOverall);
+      fillBox("teamA_integrity", data.teamA_integrity);
+      fillBox("teamB_integrity", data.teamB_integrity);
+      fillBox("teamA_reasoning", data.teamA_reasoning);
+      fillBox("teamB_reasoning", data.teamB_reasoning);
+      fillBox("same_lane_engagement", data.same_lane_engagement);
+      fillBox("lane_mismatch", data.lane_mismatch);
       fillBox("manipulation", data.manipulation);
       fillBox("fluff", data.fluff);
-      fillBox("why", data.why);
     }
 
     async function analyze() {
