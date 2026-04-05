@@ -5,602 +5,700 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Debate Points</title>
   <style>
-    :root{
-      --bg:#1c120a;
-      --bg2:#28180d;
-      --panel:#2f1d10;
-      --panel2:#3a2413;
-      --line:#8d5a2b;
-      --line-soft:#5e3a1d;
-      --stone1:#7a4c22;
-      --stone2:#a6632b;
-      --stone3:#d08b42;
-      --stone4:#f0b15f;
-      --text:#fff2df;
-      --muted:#e5bb8b;
-      --accent:#ffbf66;
-      --danger:#ff7b5f;
-      --shadow:rgba(0,0,0,.35);
-      --success:#90d18a;
+    :root {
+      --bg: #0f0505;
+      --bg2: #1b0707;
+      --shell-red-1: #991a18;
+      --shell-red-2: #6c0f10;
+      --shell-red-3: #3d090a;
+      --gold-1: #ffcf73;
+      --gold-2: #d69a36;
+      --gold-3: #8b5e1d;
+      --cyan: #7ee9ff;
+      --cyan-soft: rgba(126, 233, 255, 0.16);
+      --panel: rgba(33, 10, 10, 0.92);
+      --panel-2: rgba(52, 14, 12, 0.96);
+      --line: rgba(255, 201, 101, 0.28);
+      --line-soft: rgba(255, 201, 101, 0.14);
+      --text: #fff2df;
+      --muted: #e7c089;
+      --danger: #ff8b73;
+      --shadow: rgba(0, 0, 0, 0.42);
+      --radius-xl: 34px;
+      --radius-lg: 24px;
+      --radius-md: 18px;
     }
 
-    *{box-sizing:border-box}
+    * { box-sizing: border-box; }
 
-    html,body{
-      margin:0;
-      padding:0;
-      color:var(--text);
-      font-family:Inter,system-ui,Arial,sans-serif;
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      color: var(--text);
+      font-family: Inter, system-ui, Arial, sans-serif;
       background:
-        radial-gradient(circle at 20% 20%, rgba(255,180,90,.08), transparent 22%),
-        radial-gradient(circle at 80% 10%, rgba(255,220,140,.05), transparent 18%),
-        radial-gradient(circle at 30% 80%, rgba(255,130,60,.06), transparent 24%),
-        linear-gradient(180deg, #1b1109 0%, #140c07 100%);
-      min-height:100vh;
+        radial-gradient(circle at 50% 8%, rgba(126,233,255,.08), transparent 18%),
+        radial-gradient(circle at 18% 18%, rgba(255,176,76,.07), transparent 22%),
+        radial-gradient(circle at 82% 22%, rgba(255,78,52,.10), transparent 24%),
+        linear-gradient(180deg, #130606 0%, #0c0303 100%);
     }
 
-    body::before{
-      content:"";
-      position:fixed;
-      inset:0;
-      pointer-events:none;
-      opacity:.16;
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .32;
       background:
-        radial-gradient(circle at 12% 18%, rgba(255,185,90,.65) 0 2px, transparent 3px),
-        radial-gradient(circle at 26% 54%, rgba(255,160,75,.5) 0 3px, transparent 4px),
-        radial-gradient(circle at 61% 22%, rgba(255,210,140,.35) 0 2px, transparent 3px),
-        radial-gradient(circle at 78% 66%, rgba(255,145,65,.45) 0 3px, transparent 4px),
-        radial-gradient(circle at 88% 32%, rgba(255,210,140,.25) 0 2px, transparent 3px);
-      mix-blend-mode:screen;
+        repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 4px),
+        linear-gradient(90deg, transparent 0%, rgba(126,233,255,.02) 50%, transparent 100%);
+      mix-blend-mode: screen;
     }
 
-    .wrap{
-      width:min(1450px, 94vw);
-      margin:20px auto 48px;
-    }
-
-    .title{
-      font-size:clamp(30px, 4vw, 52px);
-      font-weight:1000;
-      letter-spacing:.03em;
-      margin:4px 0 18px;
-      color:#ffd39a;
-      text-shadow:
-        0 2px 0 rgba(0,0,0,.35),
-        0 0 18px rgba(255,174,74,.18);
-    }
-
-    .panel{
-      position:relative;
+    .device {
+      width: min(1500px, 95vw);
+      margin: 18px auto 34px;
+      padding: 18px;
+      position: relative;
+      border-radius: 42px;
       background:
-        linear-gradient(180deg, rgba(72,42,20,.94), rgba(45,27,14,.96)),
-        repeating-linear-gradient(
-          135deg,
-          rgba(255,196,112,.04) 0 6px,
-          rgba(255,196,112,.01) 6px 12px
-        );
-      border:1px solid var(--line);
-      border-radius:26px;
-      padding:20px;
-      margin-bottom:20px;
+        linear-gradient(145deg, var(--shell-red-1) 0%, var(--shell-red-2) 34%, var(--shell-red-3) 100%);
+      border: 1px solid rgba(255, 209, 115, .22);
+      box-shadow:
+        0 28px 60px var(--shadow),
+        inset 0 1px 0 rgba(255,255,255,.08),
+        inset 0 -2px 0 rgba(0,0,0,.40),
+        0 0 0 1px rgba(126,233,255,.05);
+      overflow: hidden;
+    }
+
+    .device::before {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border-radius: 34px;
+      pointer-events: none;
+      border: 1px solid rgba(255, 207, 115, 0.10);
+      background:
+        radial-gradient(circle at 50% 0%, rgba(126,233,255,.10), transparent 16%),
+        linear-gradient(180deg, rgba(255,255,255,.04), transparent 12%, transparent 88%, rgba(0,0,0,.12));
+    }
+
+    .edge-bumps {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: 42px;
+      background:
+        radial-gradient(circle at 8% 1.5%, rgba(255,207,115,.26) 0 7px, transparent 8px),
+        radial-gradient(circle at 16% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 24% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 32% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 40% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 48% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 56% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 64% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 72% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 80% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 88% 1.5%, rgba(255,207,115,.26) 0 7px, transparent 8px),
+
+        radial-gradient(circle at 98.5% 12%, rgba(255,207,115,.22) 0 7px, transparent 8px),
+        radial-gradient(circle at 98.5% 24%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 98.5% 36%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 98.5% 48%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 98.5% 60%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 98.5% 72%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 98.5% 84%, rgba(255,207,115,.22) 0 7px, transparent 8px),
+
+        radial-gradient(circle at 88% 98.5%, rgba(255,207,115,.26) 0 7px, transparent 8px),
+        radial-gradient(circle at 80% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 72% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 64% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 56% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 48% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 40% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 32% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 24% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 16% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 8% 98.5%, rgba(255,207,115,.26) 0 7px, transparent 8px),
+
+        radial-gradient(circle at 1.5% 84%, rgba(255,207,115,.22) 0 7px, transparent 8px),
+        radial-gradient(circle at 1.5% 72%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 1.5% 60%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 1.5% 48%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 1.5% 36%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 1.5% 24%, rgba(255,207,115,.18) 0 7px, transparent 8px),
+        radial-gradient(circle at 1.5% 12%, rgba(255,207,115,.22) 0 7px, transparent 8px);
+      opacity: .95;
+    }
+
+    .screen {
+      position: relative;
+      z-index: 2;
+      min-height: calc(100vh - 90px);
+      padding: 18px;
+      border-radius: 30px;
+      background:
+        linear-gradient(180deg, rgba(15,15,18,.86), rgba(19,11,13,.94)),
+        radial-gradient(circle at 50% 0%, rgba(126,233,255,.05), transparent 16%);
+      border: 1px solid rgba(126,233,255,.14);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.05),
+        inset 0 -1px 0 rgba(0,0,0,.40);
+    }
+
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 8px 10px 16px;
+      border-bottom: 1px solid rgba(126,233,255,.12);
+      margin-bottom: 16px;
+    }
+
+    .title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .reactor {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      position: relative;
+      background:
+        radial-gradient(circle, rgba(126,233,255,.95) 0 24%, rgba(126,233,255,.28) 25% 44%, transparent 45%),
+        radial-gradient(circle, rgba(126,233,255,.35), transparent 72%);
+      box-shadow:
+        0 0 20px rgba(126,233,255,.28),
+        inset 0 0 16px rgba(255,255,255,.08);
+      border: 1px solid rgba(126,233,255,.28);
+    }
+
+    .reactor::before,
+    .reactor::after {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 208, 112, .35);
+    }
+
+    .title {
+      font-size: clamp(28px, 4vw, 52px);
+      font-weight: 1000;
+      letter-spacing: .04em;
+      color: var(--gold-1);
+      text-transform: uppercase;
+      text-shadow: 0 0 16px rgba(255,207,115,.16);
+      margin: 0;
+    }
+
+    .subhead {
+      font-size: 12px;
+      letter-spacing: .24em;
+      color: var(--cyan);
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .hud-readout {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .status-pill {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 16px;
+      border-radius: 999px;
+      font-size: 12px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      font-weight: 900;
+      color: var(--text);
+      background:
+        linear-gradient(180deg, rgba(74,16,16,.95), rgba(42,10,10,.96));
+      border: 1px solid rgba(255,207,115,.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .panel {
+      position: relative;
+      background:
+        linear-gradient(180deg, rgba(55,14,14,.94), rgba(26,9,10,.96));
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      overflow: hidden;
       box-shadow:
         0 16px 28px var(--shadow),
-        inset 0 1px 0 rgba(255,220,160,.12),
-        inset 0 -1px 0 rgba(0,0,0,.25);
-      overflow:hidden;
+        inset 0 1px 0 rgba(255,255,255,.05),
+        inset 0 -1px 0 rgba(0,0,0,.24),
+        0 0 0 1px rgba(126,233,255,.03);
     }
 
-    .panel::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      opacity:.14;
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .18;
       background:
-        radial-gradient(circle at 15% 20%, rgba(255,190,110,.6) 0 3px, transparent 4px),
-        radial-gradient(circle at 28% 72%, rgba(255,160,80,.55) 0 4px, transparent 5px),
-        radial-gradient(circle at 62% 24%, rgba(255,215,150,.35) 0 3px, transparent 4px),
-        radial-gradient(circle at 82% 58%, rgba(255,145,65,.45) 0 4px, transparent 5px);
+        radial-gradient(circle at 16% 18%, rgba(255,207,115,.20) 0 4px, transparent 5px),
+        radial-gradient(circle at 82% 24%, rgba(126,233,255,.14) 0 4px, transparent 5px),
+        radial-gradient(circle at 70% 72%, rgba(255,120,88,.16) 0 5px, transparent 6px);
     }
 
-    .section-title{
-      font-size:clamp(22px, 2.8vw, 40px);
-      font-weight:950;
-      margin:0 0 14px;
-      color:#ffd39a;
-      position:relative;
-      z-index:1;
+    .section-title {
+      position: relative;
+      z-index: 1;
+      margin: 0 0 14px;
+      font-size: clamp(22px, 2.5vw, 36px);
+      font-weight: 950;
+      color: var(--gold-1);
+      letter-spacing: .03em;
+      text-transform: uppercase;
     }
 
-    .grid-2{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:18px;
-      position:relative;
-      z-index:1;
+    .field,
+    .mini,
+    .box,
+    .team-card,
+    .sources-list {
+      position: relative;
+      z-index: 1;
     }
 
-    .grid-3{
-      display:grid;
-      grid-template-columns:1fr 1fr 1fr;
-      gap:18px;
-      position:relative;
-      z-index:1;
+    .field label,
+    .mini-label {
+      display: block;
+      margin: 0 0 8px;
+      font-size: 12px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      font-weight: 900;
+      color: var(--muted);
     }
 
-    .field{
-      position:relative;
-      z-index:1;
-    }
-
-    .field label{
-      display:block;
-      font-size:12px;
-      font-weight:900;
-      letter-spacing:.14em;
-      color:var(--muted);
-      margin:0 0 8px;
-      text-transform:uppercase;
-    }
-
-    input[type="text"], textarea{
-      width:100%;
-      color:var(--text);
+    input[type="text"],
+    textarea {
+      width: 100%;
+      border: 1px solid rgba(255,207,115,.18);
+      border-radius: 18px;
+      padding: 14px 16px;
+      font-size: 16px;
+      color: var(--text);
       background:
-        linear-gradient(180deg, rgba(40,23,12,.95), rgba(27,15,8,.98));
-      border:1px solid var(--line);
-      border-radius:18px;
-      padding:14px 16px;
-      font-size:16px;
-      outline:none;
-      box-shadow: inset 0 1px 0 rgba(255,220,180,.06);
+        linear-gradient(180deg, rgba(19,11,11,.94), rgba(12,8,8,.98));
+      outline: none;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.04),
+        0 0 0 1px rgba(126,233,255,.02);
     }
 
     input[type="text"]::placeholder,
-    textarea::placeholder{
-      color:#c39161;
+    textarea::placeholder {
+      color: #c8955c;
     }
 
-    textarea{
-      min-height:260px;
-      resize:vertical;
-      line-height:1.5;
-    }
-
-    .actions{
-      display:flex;
-      flex-wrap:wrap;
-      gap:12px;
-      align-items:center;
-      margin-top:18px;
-      position:relative;
-      z-index:1;
-    }
-
-    button{
-      border:0;
-      border-radius:18px;
-      padding:14px 22px;
-      font-size:16px;
-      font-weight:1000;
-      cursor:pointer;
-      transition:transform .12s ease, opacity .12s ease;
-    }
-
-    button:hover{
-      transform:translateY(-1px);
-    }
-
-    button:disabled{
-      opacity:.7;
-      cursor:not-allowed;
-      transform:none;
-    }
-
-    .primary{
-      color:#2a1607;
-      background:
-        linear-gradient(180deg, #ffcb78, #f29b45);
+    input[type="text"]:focus,
+    textarea:focus {
+      border-color: rgba(126,233,255,.28);
       box-shadow:
-        0 10px 18px rgba(0,0,0,.22),
-        inset 0 1px 0 rgba(255,255,255,.22);
+        0 0 0 2px rgba(126,233,255,.10),
+        inset 0 1px 0 rgba(255,255,255,.04);
     }
 
-    .secondary{
-      color:var(--text);
-      background:
-        linear-gradient(180deg, #5a341a, #3b2211);
-      border:1px solid var(--line);
+    textarea {
+      min-height: 250px;
+      resize: vertical;
+      line-height: 1.5;
     }
 
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      min-height:44px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:
-        linear-gradient(180deg, rgba(79,47,23,.95), rgba(50,29,14,.98));
-      color:var(--text);
-      padding:0 16px;
-      font-weight:900;
-      box-shadow: inset 0 1px 0 rgba(255,220,180,.08);
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 18px;
+      position: relative;
+      z-index: 1;
     }
 
-    .error{
-      margin-top:14px;
-      border:1px solid rgba(255,123,95,.45);
-      background:rgba(94,24,12,.45);
-      color:#ffe0d7;
-      border-radius:18px;
-      padding:14px 16px;
-      display:none;
-      position:relative;
-      z-index:1;
+    button {
+      border: 0;
+      border-radius: 18px;
+      padding: 14px 22px;
+      font-size: 15px;
+      font-weight: 1000;
+      letter-spacing: .03em;
+      cursor: pointer;
+      transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease;
     }
 
-    .team-card{
-      position:relative;
-      background:
-        linear-gradient(180deg, rgba(72,44,21,.96), rgba(44,26,13,.98));
-      border:1px solid var(--line);
-      border-radius:28px;
-      padding:18px;
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: .7; cursor: not-allowed; transform: none; }
+
+    .primary {
+      color: #2e1305;
+      background: linear-gradient(180deg, var(--gold-1), var(--gold-2));
       box-shadow:
-        0 14px 24px rgba(0,0,0,.22),
-        inset 0 1px 0 rgba(255,220,180,.08);
-      overflow:hidden;
+        0 10px 18px rgba(0,0,0,.24),
+        inset 0 1px 0 rgba(255,255,255,.28);
     }
 
-    .team-card::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      opacity:.18;
+    .secondary {
+      color: var(--text);
+      background: linear-gradient(180deg, rgba(88,19,18,.95), rgba(45,11,12,.98));
+      border: 1px solid rgba(255,207,115,.20);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      border-radius: 999px;
+      padding: 0 16px;
+      font-weight: 900;
+      font-size: 12px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--text);
       background:
-        radial-gradient(circle at 12% 18%, rgba(255,194,119,.6) 0 4px, transparent 5px),
-        radial-gradient(circle at 30% 66%, rgba(255,144,66,.5) 0 5px, transparent 6px),
-        radial-gradient(circle at 64% 26%, rgba(255,224,168,.25) 0 4px, transparent 5px),
-        radial-gradient(circle at 84% 62%, rgba(255,125,40,.38) 0 5px, transparent 6px);
+        linear-gradient(180deg, rgba(29,54,60,.80), rgba(15,28,30,.92));
+      border: 1px solid rgba(126,233,255,.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 18px rgba(126,233,255,.05);
     }
 
-    .team-card.a{
-      box-shadow:
-        inset 4px 0 0 #ffb35c,
-        0 14px 24px rgba(0,0,0,.22);
+    .error {
+      margin-top: 14px;
+      border: 1px solid rgba(255,139,115,.36);
+      background: rgba(110, 23, 18, .42);
+      color: #ffe1d7;
+      border-radius: 18px;
+      padding: 14px 16px;
+      display: none;
     }
 
-    .team-card.b{
-      box-shadow:
-        inset 4px 0 0 #ff8f52,
-        0 14px 24px rgba(0,0,0,.22);
+    .readout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
     }
 
-    .team-name{
-      position:relative;
-      z-index:1;
-      font-size:clamp(24px, 2.5vw, 42px);
-      font-weight:1000;
-      margin:0 0 10px;
-      color:#ffd39a;
-    }
+    .readout-full { grid-column: 1 / -1; }
 
-    .mini-label{
-      position:relative;
-      z-index:1;
-      font-size:12px;
-      font-weight:950;
-      letter-spacing:.18em;
-      color:var(--muted);
-      margin:14px 0 8px;
-      text-transform:uppercase;
-    }
-
-    .box{
-      position:relative;
-      z-index:1;
+    .box {
       background:
-        linear-gradient(180deg, rgba(46,27,14,.96), rgba(30,18,10,.98));
-      border:1px solid var(--line-soft);
-      border-radius:18px;
-      padding:14px 16px;
-      min-height:60px;
-      line-height:1.5;
-      font-size:15px;
-      word-break:break-word;
-      white-space:pre-wrap;
-      overflow:visible;
-      text-overflow:unset;
+        linear-gradient(180deg, rgba(24,13,13,.95), rgba(13,8,8,.98));
+      border: 1px solid var(--line-soft);
+      border-radius: 18px;
+      padding: 14px 16px;
+      min-height: 60px;
+      line-height: 1.5;
+      font-size: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
       box-shadow:
-        inset 0 1px 0 rgba(255,220,170,.06),
+        inset 0 1px 0 rgba(255,255,255,.04),
         0 4px 10px rgba(0,0,0,.18);
     }
 
-    .readout{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:18px;
-      position:relative;
-      z-index:1;
-    }
-
-    .readout-full{
-      grid-column:1 / -1;
-    }
-
-    .sources-list{
-      position:relative;
-      z-index:1;
-      display:grid;
-      gap:12px;
-    }
-
-    .source-item{
+    .team-card {
       background:
-        linear-gradient(180deg, rgba(46,27,14,.96), rgba(30,18,10,.98));
-      border:1px solid var(--line-soft);
-      border-radius:18px;
-      padding:14px 16px;
+        linear-gradient(180deg, rgba(56,15,14,.95), rgba(28,9,10,.98));
+      border: 1px solid rgba(255,207,115,.20);
+      border-radius: 28px;
+      padding: 18px;
       box-shadow:
-        inset 0 1px 0 rgba(255,220,170,.06),
+        inset 0 1px 0 rgba(255,255,255,.05),
+        0 14px 24px rgba(0,0,0,.22);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .team-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .16;
+      background:
+        radial-gradient(circle at 14% 18%, rgba(255,207,115,.25) 0 5px, transparent 6px),
+        radial-gradient(circle at 84% 28%, rgba(126,233,255,.12) 0 5px, transparent 6px),
+        radial-gradient(circle at 76% 72%, rgba(255,102,71,.18) 0 5px, transparent 6px);
+    }
+
+    .team-card.a { box-shadow: inset 4px 0 0 var(--gold-2), 0 14px 24px rgba(0,0,0,.22); }
+    .team-card.b { box-shadow: inset 4px 0 0 #ff8854, 0 14px 24px rgba(0,0,0,.22); }
+
+    .team-name {
+      font-size: clamp(24px, 2.4vw, 40px);
+      font-weight: 1000;
+      color: var(--gold-1);
+      margin: 0 0 10px;
+      text-transform: uppercase;
+    }
+
+    .sources-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .source-item {
+      background:
+        linear-gradient(180deg, rgba(24,13,13,.95), rgba(13,8,8,.98));
+      border: 1px solid var(--line-soft);
+      border-radius: 18px;
+      padding: 14px 16px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.04),
         0 4px 10px rgba(0,0,0,.18);
     }
 
-    .source-claim{
-      font-weight:900;
-      color:#ffe2b6;
-      margin-bottom:8px;
-      line-height:1.4;
+    .source-claim {
+      font-weight: 900;
+      color: #ffe5bb;
+      margin-bottom: 8px;
+      line-height: 1.4;
     }
 
-    .source-meta{
-      color:var(--muted);
-      font-size:14px;
-      line-height:1.45;
+    .source-meta {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
     }
 
-    .source-link{
-      color:#ffd39a;
-      text-decoration:none;
-      border-bottom:1px solid rgba(255,211,154,.35);
+    .source-link {
+      color: var(--gold-1);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,207,115,.35);
     }
 
-    .source-link:hover{
-      border-bottom-color:rgba(255,211,154,.9);
+    .source-link:hover {
+      border-bottom-color: rgba(255,207,115,.85);
     }
 
-    .muted-note{
-      position:relative;
-      z-index:1;
-      color:var(--muted);
-      font-size:14px;
-      line-height:1.5;
+    .muted-note {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
     }
 
-    @media (max-width: 1100px){
-      .grid-3{
-        grid-template-columns:1fr;
-      }
-    }
-
-    @media (max-width: 980px){
-      .grid-2,
-      .readout{
-        grid-template-columns:1fr;
-      }
+    @media (max-width: 1100px) {
+      .grid-2, .readout { grid-template-columns: 1fr; }
+      .hud-top { flex-direction: column; align-items: stretch; }
+      .hud-readout { justify-content: flex-start; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="title">Debate Points</div>
-
-    <div class="panel">
-      <div class="section-title">Input</div>
-
-      <div class="grid-2">
-        <div class="field">
-          <label for="teamAName">Team A Name</label>
-          <input id="teamAName" type="text" placeholder="Enter Team A name" />
+  <div class="device">
+    <div class="edge-bumps"></div>
+    <div class="screen">
+      <div class="hud-top">
+        <div class="title-wrap">
+          <div class="reactor"></div>
+          <div>
+            <h1 class="title">Debate Points</h1>
+            <div class="subhead">Argument Analysis Interface</div>
+          </div>
         </div>
-        <div class="field">
-          <label for="teamBName">Team B Name</label>
-          <input id="teamBName" type="text" placeholder="Enter Team B name" />
-        </div>
-      </div>
-
-      <div class="field" style="margin-top:18px;">
-        <label for="transcriptText">Transcript</label>
-        <textarea id="transcriptText" placeholder="Paste debate transcript here..."></textarea>
-      </div>
-
-      <div class="field" style="margin-top:18px;">
-        <label for="videoLink">Video Link (optional)</label>
-        <input id="videoLink" type="text" placeholder="Paste a video link..." />
-      </div>
-
-      <div class="actions">
-        <button class="primary" id="analyzeBtn">Analyze Debate</button>
-        <button class="secondary" id="clearBtn">Clear</button>
-        <div class="pill" id="modePill">Analysis Mode: -</div>
-      </div>
-
-      <div class="error" id="errorBox"></div>
-    </div>
-
-    <div class="panel">
-      <div class="section-title">Core Result</div>
-
-      <div class="readout">
-        <div>
-          <div class="mini-label">Winner</div>
-          <div class="box" id="winner">-</div>
-        </div>
-        <div>
-          <div class="mini-label">Confidence</div>
-          <div class="box" id="confidence">-</div>
-        </div>
-
-        <div>
-          <div class="mini-label">Team A Score</div>
-          <div class="box" id="teamAScore">-</div>
-        </div>
-        <div>
-          <div class="mini-label">Team B Score</div>
-          <div class="box" id="teamBScore">-</div>
-        </div>
-
-        <div>
-          <div class="mini-label">Team A Lane</div>
-          <div class="box" id="teamA_lane">-</div>
-        </div>
-        <div>
-          <div class="mini-label">Team B Lane</div>
-          <div class="box" id="teamB_lane">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Core Disagreement</div>
-          <div class="box" id="core_disagreement">-</div>
-        </div>
-
-        <div>
-          <div class="mini-label">BS Meter</div>
-          <div class="box" id="bsMeter">-</div>
-        </div>
-        <div>
-          <div class="mini-label">Strongest Argument Side</div>
-          <div class="box" id="strongestArgumentSide">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Strongest Argument</div>
-          <div class="box" id="strongestArgument">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Why It Stands Out</div>
-          <div class="box" id="whyStrongest">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Failed Response By Other Side</div>
-          <div class="box" id="failedResponseByOtherSide">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Weakest Overall</div>
-          <div class="box" id="weakestOverall">-</div>
-        </div>
-
-        <div class="readout-full">
-          <div class="mini-label">Overall Why</div>
-          <div class="box" id="why">-</div>
+        <div class="hud-readout">
+          <div class="status-pill">Handheld Mode</div>
+          <div class="status-pill" id="modePillTop">Analysis Mode: -</div>
         </div>
       </div>
-    </div>
 
-    <div class="panel">
-      <div class="section-title">Team Analysis</div>
+      <div class="grid">
+        <div class="panel">
+          <div class="section-title">Input</div>
 
-      <div class="grid-2">
-        <div class="team-card a">
-          <div class="team-name" id="teamAHeader">Team A</div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="teamAName">Team A Name</label>
+              <input id="teamAName" type="text" placeholder="Enter Team A name" />
+            </div>
+            <div class="field">
+              <label for="teamBName">Team B Name</label>
+              <input id="teamBName" type="text" placeholder="Enter Team B name" />
+            </div>
+          </div>
 
-          <div class="mini-label">Main Position</div>
-          <div class="box" id="teamA_main_position">-</div>
+          <div class="field" style="margin-top:18px;">
+            <label for="transcriptText">Transcript</label>
+            <textarea id="transcriptText" placeholder="Paste debate transcript here..."></textarea>
+          </div>
 
-          <div class="mini-label">Truth</div>
-          <div class="box" id="teamA_truth">-</div>
+          <div class="field" style="margin-top:18px;">
+            <label for="videoLink">Video Link (optional)</label>
+            <input id="videoLink" type="text" placeholder="Paste a video link..." />
+          </div>
 
-          <div class="mini-label">Overreach / Fact Check Issues</div>
-          <div class="box" id="teamA_lies">-</div>
+          <div class="actions">
+            <button class="primary" id="analyzeBtn">Analyze Debate</button>
+            <button class="secondary" id="clearBtn">Clear</button>
+            <div class="pill" id="modePill">Analysis Mode: -</div>
+          </div>
 
-          <div class="mini-label">Opinion</div>
-          <div class="box" id="teamA_opinion">-</div>
-
-          <div class="mini-label">Lala Land</div>
-          <div class="box" id="teamA_lala">-</div>
+          <div class="error" id="errorBox"></div>
         </div>
 
-        <div class="team-card b">
-          <div class="team-name" id="teamBHeader">Team B</div>
-
-          <div class="mini-label">Main Position</div>
-          <div class="box" id="teamB_main_position">-</div>
-
-          <div class="mini-label">Truth</div>
-          <div class="box" id="teamB_truth">-</div>
-
-          <div class="mini-label">Overreach / Fact Check Issues</div>
-          <div class="box" id="teamB_lies">-</div>
-
-          <div class="mini-label">Opinion</div>
-          <div class="box" id="teamB_opinion">-</div>
-
-          <div class="mini-label">Lala Land</div>
-          <div class="box" id="teamB_lala">-</div>
+        <div class="panel">
+          <div class="section-title">Core Result</div>
+          <div class="readout">
+            <div>
+              <div class="mini-label">Winner</div>
+              <div class="box" id="winner">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Confidence</div>
+              <div class="box" id="confidence">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Team A Score</div>
+              <div class="box" id="teamAScore">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Team B Score</div>
+              <div class="box" id="teamBScore">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Team A Lane</div>
+              <div class="box" id="teamA_lane">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Team B Lane</div>
+              <div class="box" id="teamB_lane">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Core Disagreement</div>
+              <div class="box" id="core_disagreement">-</div>
+            </div>
+            <div>
+              <div class="mini-label">BS Meter</div>
+              <div class="box" id="bsMeter">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Strongest Argument Side</div>
+              <div class="box" id="strongestArgumentSide">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Strongest Argument</div>
+              <div class="box" id="strongestArgument">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Why It Stands Out</div>
+              <div class="box" id="whyStrongest">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Failed Response By Other Side</div>
+              <div class="box" id="failedResponseByOtherSide">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Weakest Overall</div>
+              <div class="box" id="weakestOverall">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Overall Why</div>
+              <div class="box" id="why">-</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="panel">
-      <div class="section-title">Integrity and Reasoning</div>
+        <div class="panel">
+          <div class="section-title">Team Analysis</div>
+          <div class="grid-2">
+            <div class="team-card a">
+              <div class="team-name" id="teamAHeader">Team A</div>
+              <div class="mini-label">Main Position</div>
+              <div class="box" id="teamA_main_position">-</div>
+              <div class="mini-label">Truth</div>
+              <div class="box" id="teamA_truth">-</div>
+              <div class="mini-label">Overreach / Fact Check Issues</div>
+              <div class="box" id="teamA_lies">-</div>
+              <div class="mini-label">Opinion</div>
+              <div class="box" id="teamA_opinion">-</div>
+              <div class="mini-label">Lala Land</div>
+              <div class="box" id="teamA_lala">-</div>
+            </div>
 
-      <div class="grid-2">
-        <div>
-          <div class="mini-label">Team A Integrity</div>
-          <div class="box" id="teamA_integrity">-</div>
-
-          <div class="mini-label">Team A Reasoning</div>
-          <div class="box" id="teamA_reasoning">-</div>
+            <div class="team-card b">
+              <div class="team-name" id="teamBHeader">Team B</div>
+              <div class="mini-label">Main Position</div>
+              <div class="box" id="teamB_main_position">-</div>
+              <div class="mini-label">Truth</div>
+              <div class="box" id="teamB_truth">-</div>
+              <div class="mini-label">Overreach / Fact Check Issues</div>
+              <div class="box" id="teamB_lies">-</div>
+              <div class="mini-label">Opinion</div>
+              <div class="box" id="teamB_opinion">-</div>
+              <div class="mini-label">Lala Land</div>
+              <div class="box" id="teamB_lala">-</div>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <div class="mini-label">Team B Integrity</div>
-          <div class="box" id="teamB_integrity">-</div>
-
-          <div class="mini-label">Team B Reasoning</div>
-          <div class="box" id="teamB_reasoning">-</div>
+        <div class="panel">
+          <div class="section-title">Integrity and Reasoning</div>
+          <div class="grid-2">
+            <div>
+              <div class="mini-label">Team A Integrity</div>
+              <div class="box" id="teamA_integrity">-</div>
+              <div class="mini-label">Team A Reasoning</div>
+              <div class="box" id="teamA_reasoning">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Team B Integrity</div>
+              <div class="box" id="teamB_integrity">-</div>
+              <div class="mini-label">Team B Reasoning</div>
+              <div class="box" id="teamB_reasoning">-</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="panel">
-      <div class="section-title">Worldview Lane Check</div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="section-title">Worldview Lane Check</div>
+            <div class="mini-label">Same Lane Engagement</div>
+            <div class="box" id="same_lane_engagement">-</div>
+            <div class="mini-label" style="margin-top:14px;">Lane Mismatch</div>
+            <div class="box" id="lane_mismatch">-</div>
+          </div>
 
-      <div class="grid-2">
-        <div>
-          <div class="mini-label">Same Lane Engagement</div>
-          <div class="box" id="same_lane_engagement">-</div>
+          <div class="panel">
+            <div class="section-title">Pressure and Noise</div>
+            <div class="mini-label">Manipulation</div>
+            <div class="box" id="manipulation">-</div>
+            <div class="mini-label" style="margin-top:14px;">Fluff</div>
+            <div class="box" id="fluff">-</div>
+          </div>
         </div>
-        <div>
-          <div class="mini-label">Lane Mismatch</div>
-          <div class="box" id="lane_mismatch">-</div>
-        </div>
-      </div>
-    </div>
 
-    <div class="panel">
-      <div class="section-title">Pressure and Noise</div>
-
-      <div class="grid-2">
-        <div>
-          <div class="mini-label">Manipulation</div>
-          <div class="box" id="manipulation">-</div>
+        <div class="panel">
+          <div class="section-title">Fact Check Sources</div>
+          <div id="sourcesList" class="sources-list">
+            <div class="muted-note">No sources yet.</div>
+          </div>
         </div>
-        <div>
-          <div class="mini-label">Fluff</div>
-          <div class="box" id="fluff">-</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="section-title">Fact Check Sources</div>
-      <div id="sourcesList" class="sources-list">
-        <div class="muted-note">No sources yet.</div>
       </div>
     </div>
   </div>
@@ -647,13 +745,14 @@
       let text = value == null ? "" : String(value);
 
       text = text
-        .replace(/\b\d{1,2}:\d{2}\b/g, " ")
-        .replace(/\b\d+\s*minutes?\b/gi, " ")
-        .replace(/\b\d+\s*seconds?\b/gi, " ")
-        .replace(/\bseconds([A-Za-z])/g, " $1")
-        .replace(/\bminutes([A-Za-z])/g, " $1")
-        .replace(/\bsecond([A-Za-z])/g, " $1")
-        .replace(/\bminute([A-Za-z])/g, " $1")
+        .replace(/\b\d{1,3}:\d{2,3}(?::\d{2})?\b/g, " ")
+        .replace(/\b\d+\s*(minutes?|seconds?|mins?|secs?)\b/gi, " ")
+        .replace(/\|\s*/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/\bseconds([A-Z])/g, " $1")
+        .replace(/\bminutes([A-Z])/g, " $1")
+        .replace(/\bsecond([A-Z])/g, " $1")
+        .replace(/\bminute([A-Z])/g, " $1")
         .replace(/\s+,/g, ",")
         .replace(/\s+\./g, ".")
         .replace(/[ \t]{2,}/g, " ")
@@ -662,12 +761,24 @@
       return text || "-";
     }
 
+    function cleanWhy(value) {
+      const text = sanitizeDisplayText(value);
+      if (/request too large|provider error|tpm|token limit/i.test(text)) {
+        return "Live AI skipped. Showing local analysis.";
+      }
+      return text;
+    }
+
     function formatBoxValue(id, value) {
       if (value == null || String(value).trim() === "") return "-";
 
       if (id === "confidence") {
-        const num = Number(value);
-        if (!Number.isNaN(num)) return num + "%";
+        const str = String(value).trim();
+        return str.includes("%") ? str : str + "%";
+      }
+
+      if (id === "why") {
+        return cleanWhy(value);
       }
 
       return sanitizeDisplayText(value);
@@ -694,6 +805,8 @@
       }
 
       sources.forEach((source) => {
+        if (!source) return;
+
         const item = document.createElement("div");
         item.className = "source-item";
 
@@ -712,12 +825,12 @@
           meta.innerHTML =
             'Type: ' + escapeHtml(type) +
             '<br>Confidence: ' + escapeHtml(confidence) +
-            '<br>Source: <a class="source-link" href="' + escapeAttr(likely) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(likely) + "</a>";
+            '<br>Source: <a class="source-link" href="' + escapeAttr(likely) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(likely) + '</a>';
         } else {
           meta.innerHTML =
-            "Type: " + escapeHtml(type) +
-            "<br>Confidence: " + escapeHtml(confidence) +
-            "<br>Source: " + escapeHtml(sanitizeDisplayText(likely || "Requires manual review"));
+            'Type: ' + escapeHtml(type) +
+            '<br>Confidence: ' + escapeHtml(confidence) +
+            '<br>Source: ' + escapeHtml(sanitizeDisplayText(likely || 'Requires manual review'));
         }
 
         item.appendChild(claim);
@@ -730,6 +843,7 @@
       $("teamAHeader").textContent = "Team A";
       $("teamBHeader").textContent = "Team B";
       $("modePill").textContent = "Analysis Mode: -";
+      $("modePillTop").textContent = "Analysis Mode: -";
       fieldIds.forEach((id) => fillBox(id, "-"));
       resetSources();
       hideError();
@@ -750,9 +864,12 @@
     function renderResult(data) {
       hideError();
 
+      const modeText = "Analysis Mode: " + sanitizeDisplayText(data.analysisMode || "Unknown");
+
       $("teamAHeader").textContent = sanitizeDisplayText(data.teamAName || "Team A");
       $("teamBHeader").textContent = sanitizeDisplayText(data.teamBName || "Team B");
-      $("modePill").textContent = "Analysis Mode: " + sanitizeDisplayText(data.analysisMode || "Unknown");
+      $("modePill").textContent = modeText;
+      $("modePillTop").textContent = modeText;
 
       fillBox("winner", data.winner);
       fillBox("confidence", data.confidence);
@@ -814,9 +931,7 @@
       try {
         const response = await fetch("/api/analyze2", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
 
@@ -854,12 +969,12 @@
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
+        .replace(/\"/g, "&quot;")
         .replace(/'/g, "&#39;");
     }
 
     function escapeAttr(value) {
-      return String(value).replace(/"/g, "&quot;");
+      return String(value).replace(/\"/g, "&quot;");
     }
 
     $("analyzeBtn").addEventListener("click", analyze);
