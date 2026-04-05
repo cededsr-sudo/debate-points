@@ -56,18 +56,14 @@ module.exports = async function handler(req, res) {
         const chunkResponse = await callGroq(chunkPrompt);
 
         if (!chunkResponse.ok) {
-          return res.status(200).json(
-            withAiNote(localResult, "AI chunk step failed. Showing local analysis.")
-          );
+          return res.status(200).json(withMode(localResult, "Local"));
         }
 
         let parsedChunk;
         try {
           parsedChunk = safeParseJson(chunkResponse.content);
         } catch (err) {
-          return res.status(200).json(
-            withAiNote(localResult, "AI chunk JSON failed. Showing local analysis.")
-          );
+          return res.status(200).json(withMode(localResult, "Local"));
         }
 
         chunkResults.push(normalizeChunkResult(parsedChunk));
@@ -85,18 +81,14 @@ module.exports = async function handler(req, res) {
       const judgeResponse = await callGroq(judgePrompt);
 
       if (!judgeResponse.ok) {
-        return res.status(200).json(
-          withAiNote(localResult, "AI judge step failed. Showing local analysis.")
-        );
+        return res.status(200).json(withMode(localResult, "Local"));
       }
 
       let parsedJudge;
       try {
         parsedJudge = safeParseJson(judgeResponse.content);
       } catch (err) {
-        return res.status(200).json(
-          withAiNote(localResult, "AI judge JSON failed. Showing local analysis.")
-        );
+        return res.status(200).json(withMode(localResult, "Local"));
       }
 
       const aiResult = normalizeAiJudgeResult(parsedJudge, {
@@ -104,11 +96,9 @@ module.exports = async function handler(req, res) {
         teamBName: teamBName
       });
 
-      return res.status(200).json(mergeLocalAndAi(localResult, aiResult));
+      return res.status(200).json(withMode(mergeLocalAndAi(localResult, aiResult), "Hybrid"));
     } catch (err) {
-      return res.status(200).json(
-        withAiNote(localResult, "AI enhancement failed. Showing local analysis.")
-      );
+      return res.status(200).json(withMode(localResult, "Local"));
     }
   } catch (err) {
     return res.status(200).json(
@@ -344,6 +334,11 @@ function buildDeterministicResult(args) {
     args.teamBName
   );
 
+  if (winner === "Mixed") {
+    if (strongest.side === "Team A" && teamAScore >= teamBScore + 1) winner = "Team A";
+    if (strongest.side === "Team B" && teamBScore >= teamAScore + 1) winner = "Team B";
+  }
+
   const strongestArgumentSide = strongest.side;
   const strongestArgument = strongest.text;
   const whyStrongest = buildWhyStrongest(
@@ -386,6 +381,7 @@ function buildDeterministicResult(args) {
   return {
     teamAName: args.teamAName,
     teamBName: args.teamBName,
+    analysisMode: "Local",
     teamA: {
       main_position: teamAMain,
       truth: teamATruth,
@@ -428,6 +424,7 @@ function mergeLocalAndAi(localResult, aiResult) {
   return {
     teamAName: aiResult.teamAName || localResult.teamAName,
     teamBName: aiResult.teamBName || localResult.teamBName,
+    analysisMode: "Hybrid",
     teamA: {
       main_position: pickBetter(aiResult.teamA.main_position, localResult.teamA.main_position),
       truth: pickBetter(aiResult.teamA.truth, localResult.teamA.truth),
@@ -459,27 +456,10 @@ function mergeLocalAndAi(localResult, aiResult) {
   };
 }
 
-function withAiNote(result, note) {
-  return {
-    teamAName: result.teamAName,
-    teamBName: result.teamBName,
-    teamA: result.teamA,
-    teamB: result.teamB,
-    teamAScore: result.teamAScore,
-    teamBScore: result.teamBScore,
-    winner: result.winner,
-    strongestArgumentSide: result.strongestArgumentSide,
-    strongestArgument: result.strongestArgument,
-    whyStrongest: result.whyStrongest,
-    failedResponseByOtherSide: result.failedResponseByOtherSide,
-    bsMeter: result.bsMeter,
-    strongestOverall: result.strongestOverall,
-    weakestOverall: result.weakestOverall,
-    why: result.why + " " + note,
-    manipulation: result.manipulation,
-    fluff: result.fluff,
-    sources: result.sources
-  };
+function withMode(result, mode) {
+  const clone = JSON.parse(JSON.stringify(result));
+  clone.analysisMode = mode;
+  return clone;
 }
 
 function normalizeAiJudgeResult(parsed, defaults) {
@@ -578,33 +558,53 @@ function summarizeMainPosition(text, used) {
 
 function detectReasonableClaims(text, used) {
   const sentences = splitSentences(text);
-  const picked = collectUnused(sentences, used, function (s) {
-    return hasSupportLanguage(s) && !hasExtremeLanguage(s) && !hasOpinionLanguage(s);
-  }, 2);
+  const picked = collectUnused(
+    sentences,
+    used,
+    function (s) {
+      return hasSupportLanguage(s) && !hasExtremeLanguage(s) && !hasOpinionLanguage(s);
+    },
+    2
+  );
   return picked.length ? shorten(picked.join(" | "), 220) : "-";
 }
 
 function detectWeakClaims(text, used) {
   const sentences = splitSentences(text);
-  const picked = collectUnused(sentences, used, function (s) {
-    return hasExtremeLanguage(s) || hasOverclaimLanguage(s);
-  }, 2);
+  const picked = collectUnused(
+    sentences,
+    used,
+    function (s) {
+      return hasExtremeLanguage(s) || hasOverclaimLanguage(s);
+    },
+    2
+  );
   return picked.length ? shorten(picked.join(" | "), 220) : "-";
 }
 
 function detectOpinion(text, used) {
   const sentences = splitSentences(text);
-  const picked = collectUnused(sentences, used, function (s) {
-    return hasOpinionLanguage(s);
-  }, 2);
+  const picked = collectUnused(
+    sentences,
+    used,
+    function (s) {
+      return hasOpinionLanguage(s);
+    },
+    2
+  );
   return picked.length ? shorten(picked.join(" | "), 220) : "-";
 }
 
 function detectLala(text, used) {
   const sentences = splitSentences(text);
-  const picked = collectUnused(sentences, used, function (s) {
-    return hasLalaLanguage(s);
-  }, 2);
+  const picked = collectUnused(
+    sentences,
+    used,
+    function (s) {
+      return hasLalaLanguage(s);
+    },
+    2
+  );
   return picked.length ? shorten(picked.join(" | "), 220) : "-";
 }
 
@@ -1044,6 +1044,7 @@ function buildFallbackResponse(args) {
   return {
     teamAName: args.teamAName,
     teamBName: args.teamBName,
+    analysisMode: "Local",
     teamA: {
       main_position: "Fallback mode: AI unavailable",
       truth: "-",
