@@ -4,673 +4,510 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Debate Points</title>
-
   <style>
-    * {
-      box-sizing: border-box;
+    :root{
+      --bg:#07111f;
+      --bg2:#0b1630;
+      --panel:#091426;
+      --line:#18365f;
+      --cyan:#17f1c7;
+      --red:#ff6275;
+      --yellow:#ffd84d;
+      --text:#eaf2ff;
+      --muted:#9eb6d3;
+      --soft:#10203a;
     }
 
-    :root {
-      --bg-1: #05070b;
-      --bg-2: #0a0f16;
-      --panel: rgba(10, 15, 22, 0.92);
-      --panel-2: rgba(7, 11, 17, 0.96);
-      --line: #1e2d3d;
-      --line-soft: #25384b;
-      --text: #f5f7fa;
-      --muted: #9db0c3;
-      --accent: #00d38d;
-      --accent-2: #5f8cff;
-      --warn: #ffcc00;
-      --danger: #ff5d5d;
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:
+      linear-gradient(180deg, rgba(12,30,58,.92), rgba(4,10,21,.98)),
+      repeating-linear-gradient(
+        to right,
+        rgba(26,89,140,.12) 0,
+        rgba(26,89,140,.12) 1px,
+        transparent 1px,
+        transparent 40px
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        rgba(26,89,140,.12) 0,
+        rgba(26,89,140,.12) 1px,
+        transparent 1px,
+        transparent 40px
+      ),
+      #06101d;
+      color:var(--text);
+      font-family:Inter,system-ui,Arial,sans-serif;
     }
 
-    html, body {
-      margin: 0;
-      padding: 0;
-      min-height: 100%;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at top right, rgba(0, 255, 170, 0.08), transparent 24%),
-        radial-gradient(circle at bottom left, rgba(95, 140, 255, 0.08), transparent 28%),
-        linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+    .wrap{
+      width:min(1400px, 94vw);
+      margin:20px auto 48px;
     }
 
-    .bg-grid {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image:
-        linear-gradient(rgba(0, 211, 141, 0.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 211, 141, 0.05) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: linear-gradient(to bottom, rgba(255,255,255,0.85), rgba(255,255,255,0.18));
-      z-index: 0;
-    }
-
-    .wrap {
-      position: relative;
-      z-index: 1;
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 18px;
-    }
-
-    .hero,
-    .panel,
-    .card,
-    .summary-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      box-shadow: 0 0 28px rgba(0, 211, 141, 0.05);
-    }
-
-    .hero {
-      padding: 20px;
-      margin-bottom: 18px;
-    }
-
-    h1 {
-      margin: 0 0 8px;
-      font-size: clamp(2rem, 4vw, 3rem);
-      line-height: 1.02;
-      letter-spacing: 0.3px;
-    }
-
-    .subtext {
-      margin: 0;
-      color: var(--muted);
-      font-size: 1rem;
-      line-height: 1.5;
-      max-width: 900px;
-    }
-
-    .panel {
-      padding: 16px;
-      margin-bottom: 18px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .full {
-      grid-column: 1 / -1;
-    }
-
-    label {
-      display: block;
-      margin: 0 0 8px;
-      font-size: 0.95rem;
-      font-weight: 800;
-      color: #dce8f4;
-      letter-spacing: 0.01em;
-    }
-
-    input,
-    textarea {
-      width: 100%;
-      background: #05080d;
-      color: var(--text);
-      border: 1px solid var(--line-soft);
-      border-radius: 14px;
-      padding: 13px 14px;
-      font-size: 15px;
-      outline: none;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    input:focus,
-    textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(0, 211, 141, 0.16);
-    }
-
-    textarea {
-      min-height: 260px;
-      resize: vertical;
-      line-height: 1.45;
-    }
-
-    .upload-box {
-      background: var(--panel-2);
-      border: 1px dashed #31506a;
-      border-radius: 16px;
-      padding: 14px;
-    }
-
-    .upload-note {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.4;
-    }
-
-    .button-row {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .btn {
-      appearance: none;
-      border: none;
-      border-radius: 14px;
-      padding: 14px 20px;
-      font-size: 15px;
+    .title{
+      font-size: clamp(28px, 4vw, 46px);
       font-weight: 900;
-      cursor: pointer;
-      transition: transform 0.08s ease, filter 0.18s ease, opacity 0.18s ease;
+      letter-spacing:.02em;
+      margin: 8px 0 18px;
     }
 
-    .btn:active {
-      transform: translateY(1px);
+    .panel{
+      background:linear-gradient(180deg, rgba(7,18,35,.92), rgba(7,18,35,.84));
+      border:1px solid var(--line);
+      border-radius:24px;
+      box-shadow:0 0 0 1px rgba(40,100,180,.08) inset;
+      padding:20px;
+      margin-bottom:20px;
     }
 
-    .btn-primary {
-      background: linear-gradient(135deg, #ffe600, #ffbf00);
-      color: #111;
+    .grid-2{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:18px;
     }
 
-    .btn-secondary {
-      background: #111926;
-      color: #dbe8f4;
-      border: 1px solid #2a3a4d;
+    .field label{
+      display:block;
+      font-size:13px;
+      font-weight:800;
+      letter-spacing:.12em;
+      color:var(--muted);
+      margin:0 0 8px;
+      text-transform:uppercase;
     }
 
-    .btn:hover {
-      filter: brightness(1.04);
+    input[type="text"], textarea{
+      width:100%;
+      background:#08111f;
+      color:var(--text);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:14px 16px;
+      font-size:16px;
+      outline:none;
     }
 
-    .btn[disabled] {
-      opacity: 0.55;
-      cursor: not-allowed;
+    textarea{
+      min-height:260px;
+      resize:vertical;
+      line-height:1.45;
     }
 
-    .status-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 12px;
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      align-items:center;
+      margin-top:18px;
     }
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 38px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: #111a25;
-      border: 1px solid #294158;
-      color: #d7f7ea;
-      font-weight: 800;
-      font-size: 14px;
+    button{
+      border:0;
+      border-radius:18px;
+      padding:14px 22px;
+      font-size:16px;
+      font-weight:900;
+      cursor:pointer;
     }
 
-    .error-box {
-      display: none;
-      margin-top: 14px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      border: 1px solid rgba(255, 93, 93, 0.35);
-      background: rgba(155, 30, 30, 0.18);
-      color: #ffdcdc;
-      line-height: 1.45;
+    .primary{
+      background:var(--yellow);
+      color:#111;
     }
 
-    .results-panel {
-      display: none;
+    .secondary{
+      background:#10223d;
+      color:var(--text);
+      border:1px solid var(--line);
     }
 
-    .results-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      flex-wrap: wrap;
-      margin-bottom: 14px;
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:44px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:#0a172b;
+      color:var(--muted);
+      padding:0 16px;
+      font-weight:800;
     }
 
-    .results-head h2 {
-      margin: 0;
-      font-size: clamp(1.5rem, 2.6vw, 2rem);
+    .mode-pill{
+      color:var(--text);
     }
 
-    .results-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
+    .error{
+      margin-top:14px;
+      border:1px solid rgba(255,98,117,.4);
+      background:rgba(100,20,30,.35);
+      color:#ffd7dc;
+      border-radius:18px;
+      padding:14px 16px;
+      display:none;
     }
 
-    .card {
-      padding: 16px;
-      overflow: hidden;
-      background:
-        linear-gradient(180deg, rgba(12, 18, 26, 0.97), rgba(7, 11, 17, 0.97));
-    }
-
-    .team-a {
-      border-left: 5px solid var(--accent);
-    }
-
-    .team-b {
-      border-left: 5px solid var(--danger);
-    }
-
-    .summary-card {
-      padding: 16px;
-      margin-top: 16px;
-    }
-
-    .card h3,
-    .summary-card h3 {
+    .results-title{
+      font-size: clamp(24px, 3vw, 42px);
+      font-weight: 900;
       margin: 0 0 12px;
-      font-size: 1.6rem;
-      line-height: 1.15;
     }
 
-    .section-title {
-      margin: 14px 0 6px;
-      font-size: 0.82rem;
-      text-transform: uppercase;
-      letter-spacing: 0.09em;
-      color: #8fb5d2;
+    .team-card{
+      background:rgba(8,18,34,.8);
+      border:1px solid var(--line);
+      border-radius:28px;
+      padding:18px;
+      min-height:100%;
+      position:relative;
+      overflow:hidden;
+    }
+
+    .team-card.a{box-shadow:inset 4px 0 0 var(--cyan)}
+    .team-card.b{box-shadow:inset 4px 0 0 var(--red)}
+
+    .team-name{
+      font-size: clamp(24px, 2.5vw, 44px);
       font-weight: 900;
+      margin: 0 0 10px;
     }
 
-    .block {
-      min-height: 48px;
-      background: #081019;
-      border: 1px solid #162636;
-      border-radius: 12px;
-      padding: 12px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      line-height: 1.48;
-      color: #eff5fb;
+    .mini-label{
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.18em;
+      color:var(--muted);
+      margin: 14px 0 8px;
+      text-transform:uppercase;
     }
 
-    .summary-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
+    .box{
+      background:#07111f;
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:14px 16px;
+      min-height:60px;
+      line-height:1.4;
+      font-size:15px;
+      word-break:break-word;
     }
 
-    .video-preview-wrap {
-      margin-top: 12px;
-      display: none;
+    .readout{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:18px;
     }
 
-    .video-meta {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.4;
+    .readout-full{
+      grid-column:1 / -1;
     }
 
-    video {
-      width: 100%;
-      max-height: 420px;
-      border-radius: 16px;
-      border: 1px solid #223244;
-      background: #000;
-    }
-
-    .footer-note {
-      margin-top: 14px;
-      color: #8296aa;
-      font-size: 0.9rem;
-      line-height: 1.45;
-    }
-
-    @media (max-width: 980px) {
-      .grid,
-      .results-grid {
-        grid-template-columns: 1fr;
-      }
-
-      textarea {
-        min-height: 220px;
-      }
-    }
-
-    @media (max-width: 560px) {
-      .wrap {
-        padding: 12px;
-      }
-
-      .hero,
-      .panel,
-      .card,
-      .summary-card {
-        border-radius: 16px;
-      }
-
-      .hero {
-        padding: 16px;
-      }
-
-      .panel,
-      .card,
-      .summary-card {
-        padding: 14px;
-      }
-
-      .btn {
-        width: 100%;
-      }
-
-      .button-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .badge {
-        width: 100%;
-        justify-content: center;
+    @media (max-width: 980px){
+      .grid-2,.readout{
+        grid-template-columns:1fr;
       }
     }
   </style>
 </head>
 <body>
-  <div class="bg-grid"></div>
-
   <div class="wrap">
-    <section class="hero">
-      <h1>Debate Points</h1>
-      <p class="subtext">
-        Paste the transcript, drop in a link, or upload a video for preview. The app should judge the spoken argument, not metadata sludge, timestamps, outro junk, or whatever else the internet dumps into transcripts.
-      </p>
-    </section>
+    <div class="title">Debate Points</div>
 
-    <section class="panel">
-      <div class="grid">
+    <div class="panel">
+      <div class="grid-2">
+        <div class="field">
+          <label for="teamAName">Team A Name</label>
+          <input id="teamAName" type="text" placeholder="Enter Team A name" />
+        </div>
+        <div class="field">
+          <label for="teamBName">Team B Name</label>
+          <input id="teamBName" type="text" placeholder="Enter Team B name" />
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:18px;">
+        <label for="transcriptText">Transcript</label>
+        <textarea id="transcriptText" placeholder="Paste debate transcript here..."></textarea>
+      </div>
+
+      <div class="field" style="margin-top:18px;">
+        <label for="videoLink">Video Link (optional)</label>
+        <input id="videoLink" type="text" placeholder="Paste a YouTube, TikTok, or other video link..." />
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="analyzeBtn">Analyze Debate</button>
+        <button class="secondary" id="clearBtn">Clear</button>
+        <div class="pill mode-pill" id="modePill">Analysis Mode: -</div>
+      </div>
+
+      <div class="error" id="errorBox"></div>
+    </div>
+
+    <div class="panel">
+      <div class="results-title">Results</div>
+
+      <div class="grid-2">
+        <div class="team-card a">
+          <div class="team-name" id="teamAHeader">Team A</div>
+
+          <div class="mini-label">Main Position</div>
+          <div class="box" id="teamA_main_position">-</div>
+
+          <div class="mini-label">Truth</div>
+          <div class="box" id="teamA_truth">-</div>
+
+          <div class="mini-label">Lies</div>
+          <div class="box" id="teamA_lies">-</div>
+
+          <div class="mini-label">Opinion</div>
+          <div class="box" id="teamA_opinion">-</div>
+
+          <div class="mini-label">Lala Land</div>
+          <div class="box" id="teamA_lala">-</div>
+        </div>
+
+        <div class="team-card b">
+          <div class="team-name" id="teamBHeader">Team B</div>
+
+          <div class="mini-label">Main Position</div>
+          <div class="box" id="teamB_main_position">-</div>
+
+          <div class="mini-label">Truth</div>
+          <div class="box" id="teamB_truth">-</div>
+
+          <div class="mini-label">Lies</div>
+          <div class="box" id="teamB_lies">-</div>
+
+          <div class="mini-label">Opinion</div>
+          <div class="box" id="teamB_opinion">-</div>
+
+          <div class="mini-label">Lala Land</div>
+          <div class="box" id="teamB_lala">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="results-title">Readout</div>
+
+      <div class="readout">
         <div>
-          <label for="teamAName">Team A Name (optional)</label>
-          <input id="teamAName" placeholder="Example: Host / Christian / Team A" />
+          <div class="mini-label">Winner</div>
+          <div class="box" id="winner">-</div>
         </div>
 
         <div>
-          <label for="teamBName">Team B Name (optional)</label>
-          <input id="teamBName" placeholder="Example: Guest / Opponent / Team B" />
+          <div class="mini-label">BS Meter</div>
+          <div class="box" id="bsMeter">-</div>
         </div>
 
-        <div class="full">
-          <label for="transcriptText">Transcript / Debate Text</label>
-          <textarea id="transcriptText" placeholder="Paste the full transcript here..."></textarea>
+        <div>
+          <div class="mini-label">Team A Score</div>
+          <div class="box" id="teamAScore">-</div>
         </div>
 
-        <div class="full">
-          <label for="videoLink">Video Link (optional)</label>
-          <input id="videoLink" placeholder="Paste a YouTube, TikTok, or other video link..." />
+        <div>
+          <div class="mini-label">Team B Score</div>
+          <div class="box" id="teamBScore">-</div>
         </div>
 
-        <div class="full">
-          <label for="videoUpload">Video Upload (optional preview)</label>
-          <div class="upload-box">
-            <input type="file" id="videoUpload" accept="video/*" />
-            <div class="upload-note">
-              Frontend file selection is open-ended here, but real giant-upload processing is still limited by hosting/backend rules. Right now uploaded video is for preview unless your backend is upgraded to actually process files.
-            </div>
-
-            <div id="videoPreviewWrap" class="video-preview-wrap">
-              <video id="videoPreview" controls preload="metadata"></video>
-              <div id="videoMeta" class="video-meta"></div>
-            </div>
-          </div>
+        <div>
+          <div class="mini-label">Strongest Argument Side</div>
+          <div class="box" id="strongestArgumentSide">-</div>
         </div>
 
-        <div class="full">
-          <div class="button-row">
-            <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeDebate()">Analyze Debate</button>
-            <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
-          </div>
-
-          <div class="status-row">
-            <div class="badge" id="winnerBadge">Current Edge: -</div>
-          </div>
-
-          <div id="errorBox" class="error-box"></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="resultsPanel" class="panel results-panel">
-      <div class="results-head">
-        <h2>Results</h2>
-      </div>
-
-      <div class="results-grid">
-        <article class="card team-a">
-          <h3 id="outTeamAName">Team A</h3>
-
-          <div class="section-title">Main Position</div>
-          <div class="block" id="outTeamAMainPosition">-</div>
-
-          <div class="section-title">Truth</div>
-          <div class="block" id="outTeamATruth">-</div>
-
-          <div class="section-title">Lies</div>
-          <div class="block" id="outTeamALies">-</div>
-
-          <div class="section-title">Opinion</div>
-          <div class="block" id="outTeamAOpinion">-</div>
-
-          <div class="section-title">Lala Land</div>
-          <div class="block" id="outTeamALala">-</div>
-        </article>
-
-        <article class="card team-b">
-          <h3 id="outTeamBName">Team B</h3>
-
-          <div class="section-title">Main Position</div>
-          <div class="block" id="outTeamBMainPosition">-</div>
-
-          <div class="section-title">Truth</div>
-          <div class="block" id="outTeamBTruth">-</div>
-
-          <div class="section-title">Lies</div>
-          <div class="block" id="outTeamBLies">-</div>
-
-          <div class="section-title">Opinion</div>
-          <div class="block" id="outTeamBOpinion">-</div>
-
-          <div class="section-title">Lala Land</div>
-          <div class="block" id="outTeamBLala">-</div>
-        </article>
-      </div>
-
-      <div class="summary-card">
-        <h3>Readout</h3>
-
-        <div class="summary-grid">
-          <div>
-            <div class="section-title">Winner</div>
-            <div class="block" id="outWinner">-</div>
-          </div>
-
-          <div>
-            <div class="section-title">BS Meter</div>
-            <div class="block" id="outBSMeter">-</div>
-          </div>
-
-          <div>
-            <div class="section-title">Why</div>
-            <div class="block" id="outWhy">-</div>
-          </div>
+        <div>
+          <div class="mini-label">Strongest Overall</div>
+          <div class="box" id="strongestOverall">-</div>
         </div>
 
-        <div class="footer-note">
-          Uploaded video preview is restored. Transcript and link are what the current backend actually uses for analysis. If you want true large-file video processing later, that has to be built into the backend instead of pretending the frontend can do miracles.
+        <div class="readout-full">
+          <div class="mini-label">Strongest Argument</div>
+          <div class="box" id="strongestArgument">-</div>
+        </div>
+
+        <div class="readout-full">
+          <div class="mini-label">Why It Wins</div>
+          <div class="box" id="whyStrongest">-</div>
+        </div>
+
+        <div class="readout-full">
+          <div class="mini-label">Failed Response By Other Side</div>
+          <div class="box" id="failedResponseByOtherSide">-</div>
+        </div>
+
+        <div class="readout-full">
+          <div class="mini-label">Weakest Overall</div>
+          <div class="box" id="weakestOverall">-</div>
+        </div>
+
+        <div class="readout-full">
+          <div class="mini-label">Manipulation</div>
+          <div class="box" id="manipulation">-</div>
+        </div>
+
+        <div class="readout-full">
+          <div class="mini-label">Fluff</div>
+          <div class="box" id="fluff">-</div>
+        </div>
+
+        <div class="readout-full">
+          <div class="mini-label">Overall Why</div>
+          <div class="box" id="why">-</div>
         </div>
       </div>
-    </section>
+    </div>
   </div>
 
   <script>
-    const videoUpload = document.getElementById("videoUpload");
-    const videoPreview = document.getElementById("videoPreview");
-    const videoPreviewWrap = document.getElementById("videoPreviewWrap");
-    const videoMeta = document.getElementById("videoMeta");
-    const resultsPanel = document.getElementById("resultsPanel");
-    const analyzeBtn = document.getElementById("analyzeBtn");
-    const errorBox = document.getElementById("errorBox");
-    const winnerBadge = document.getElementById("winnerBadge");
+    const $ = (id) => document.getElementById(id);
 
-    videoUpload.addEventListener("change", function (e) {
-      const file = e.target.files && e.target.files[0];
+    const ids = [
+      "teamA_main_position",
+      "teamA_truth",
+      "teamA_lies",
+      "teamA_opinion",
+      "teamA_lala",
+      "teamB_main_position",
+      "teamB_truth",
+      "teamB_lies",
+      "teamB_opinion",
+      "teamB_lala",
+      "winner",
+      "bsMeter",
+      "teamAScore",
+      "teamBScore",
+      "strongestArgumentSide",
+      "strongestArgument",
+      "whyStrongest",
+      "failedResponseByOtherSide",
+      "strongestOverall",
+      "weakestOverall",
+      "manipulation",
+      "fluff",
+      "why"
+    ];
 
-      if (!file) {
-        videoPreviewWrap.style.display = "none";
-        videoPreview.removeAttribute("src");
-        videoMeta.innerText = "";
-        return;
-      }
-
-      const url = URL.createObjectURL(file);
-      videoPreview.src = url;
-      videoPreviewWrap.style.display = "block";
-
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-      videoMeta.innerText = `Selected file: ${file.name} • ${sizeMB} MB`;
-    });
-
-    function safeText(value, fallback = "-") {
-      if (value === null || value === undefined) return fallback;
-      const text = String(value).trim();
-      return text ? text : fallback;
+    function fillBox(id, value) {
+      $(id).textContent = value && String(value).trim() ? value : "-";
     }
 
-    function setText(id, value, fallback = "-") {
-      document.getElementById(id).innerText = safeText(value, fallback);
+    function resetResults() {
+      $("teamAHeader").textContent = "Team A";
+      $("teamBHeader").textContent = "Team B";
+      $("modePill").textContent = "Analysis Mode: -";
+      ids.forEach(id => fillBox(id, "-"));
+      hideError();
     }
 
     function showError(message) {
-      errorBox.innerText = message;
-      errorBox.style.display = "block";
+      const box = $("errorBox");
+      box.style.display = "block";
+      box.textContent = message;
     }
 
-    function clearError() {
-      errorBox.innerText = "";
-      errorBox.style.display = "none";
+    function hideError() {
+      const box = $("errorBox");
+      box.style.display = "none";
+      box.textContent = "";
     }
 
-    function clearResults() {
-      setText("outTeamAName", "Team A");
-      setText("outTeamBName", "Team B");
-      setText("outTeamAMainPosition", "-");
-      setText("outTeamATruth", "-");
-      setText("outTeamALies", "-");
-      setText("outTeamAOpinion", "-");
-      setText("outTeamALala", "-");
-      setText("outTeamBMainPosition", "-");
-      setText("outTeamBTruth", "-");
-      setText("outTeamBLies", "-");
-      setText("outTeamBOpinion", "-");
-      setText("outTeamBLala", "-");
-      setText("outWinner", "-");
-      setText("outBSMeter", "-");
-      setText("outWhy", "-");
-      winnerBadge.innerText = "Current Edge: -";
+    function renderResult(data) {
+      hideError();
+
+      $("teamAHeader").textContent = data.teamAName || "Team A";
+      $("teamBHeader").textContent = data.teamBName || "Team B";
+      $("modePill").textContent = "Analysis Mode: " + (data.analysisMode || "Unknown");
+
+      fillBox("teamA_main_position", data.teamA && data.teamA.main_position);
+      fillBox("teamA_truth", data.teamA && data.teamA.truth);
+      fillBox("teamA_lies", data.teamA && data.teamA.lies);
+      fillBox("teamA_opinion", data.teamA && data.teamA.opinion);
+      fillBox("teamA_lala", data.teamA && data.teamA.lala);
+
+      fillBox("teamB_main_position", data.teamB && data.teamB.main_position);
+      fillBox("teamB_truth", data.teamB && data.teamB.truth);
+      fillBox("teamB_lies", data.teamB && data.teamB.lies);
+      fillBox("teamB_opinion", data.teamB && data.teamB.opinion);
+      fillBox("teamB_lala", data.teamB && data.teamB.lala);
+
+      fillBox("winner", data.winner);
+      fillBox("bsMeter", data.bsMeter);
+      fillBox("teamAScore", data.teamAScore);
+      fillBox("teamBScore", data.teamBScore);
+      fillBox("strongestArgumentSide", data.strongestArgumentSide);
+      fillBox("strongestArgument", data.strongestArgument);
+      fillBox("whyStrongest", data.whyStrongest);
+      fillBox("failedResponseByOtherSide", data.failedResponseByOtherSide);
+      fillBox("strongestOverall", data.strongestOverall);
+      fillBox("weakestOverall", data.weakestOverall);
+      fillBox("manipulation", data.manipulation);
+      fillBox("fluff", data.fluff);
+      fillBox("why", data.why);
     }
 
-    function clearForm() {
-      document.getElementById("teamAName").value = "";
-      document.getElementById("teamBName").value = "";
-      document.getElementById("transcriptText").value = "";
-      document.getElementById("videoLink").value = "";
-      document.getElementById("videoUpload").value = "";
-      videoPreview.removeAttribute("src");
-      videoPreviewWrap.style.display = "none";
-      videoMeta.innerText = "";
-      clearError();
-      clearResults();
-      resultsPanel.style.display = "none";
-    }
+    async function analyze() {
+      hideError();
 
-    async function analyzeDebate() {
-      const teamAName = document.getElementById("teamAName").value.trim() || "Team A";
-      const teamBName = document.getElementById("teamBName").value.trim() || "Team B";
-      const transcriptText = document.getElementById("transcriptText").value.trim();
-      const videoLink = document.getElementById("videoLink").value.trim();
+      const payload = {
+        teamAName: $("teamAName").value.trim(),
+        teamBName: $("teamBName").value.trim(),
+        transcriptText: $("transcriptText").value,
+        videoLink: $("videoLink").value.trim()
+      };
 
-      clearError();
-
-      if (!transcriptText) {
-        showError("Paste the transcript first. The current backend analyzes transcript text, not raw uploaded video.");
-        resultsPanel.style.display = "none";
+      if (!payload.transcriptText.trim()) {
+        showError("Paste a transcript first.");
         return;
       }
 
-      analyzeBtn.disabled = true;
-      analyzeBtn.innerText = "Analyzing...";
-      winnerBadge.innerText = "Current Edge: Working...";
-      clearResults();
+      $("analyzeBtn").disabled = true;
+      $("analyzeBtn").textContent = "Analyzing...";
 
       try {
-        const res = await fetch("/api/analyze2", {
+        const response = await fetch("/api/analyze2", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
-            teamAName,
-            teamBName,
-            transcriptText,
-            videoLink
-          })
+          body: JSON.stringify(payload)
         });
 
-        let data;
-        try {
-          data = await res.json();
-        } catch (jsonErr) {
-          throw new Error("Server returned invalid JSON");
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data) {
+          showError((data && data.error) || "Server returned invalid JSON");
+          return;
         }
 
-        if (!res.ok) {
-          throw new Error(data && data.error ? data.error : "Analysis failed");
+        if (data.error) {
+          showError(data.error);
+          return;
         }
 
-        resultsPanel.style.display = "block";
-
-        setText("outTeamAName", data.teamAName || teamAName, "Team A");
-        setText("outTeamBName", data.teamBName || teamBName, "Team B");
-
-        setText("outTeamAMainPosition", data.teamA && data.teamA.main_position);
-        setText("outTeamATruth", data.teamA && data.teamA.truth);
-        setText("outTeamALies", data.teamA && data.teamA.lies);
-        setText("outTeamAOpinion", data.teamA && data.teamA.opinion);
-        setText("outTeamALala", data.teamA && data.teamA.lala);
-
-        setText("outTeamBMainPosition", data.teamB && data.teamB.main_position);
-        setText("outTeamBTruth", data.teamB && data.teamB.truth);
-        setText("outTeamBLies", data.teamB && data.teamB.lies);
-        setText("outTeamBOpinion", data.teamB && data.teamB.opinion);
-        setText("outTeamBLala", data.teamB && data.teamB.lala);
-
-        setText("outWinner", data.winner);
-        setText("outBSMeter", data.bsMeter);
-        setText("outWhy", data.why);
-
-        winnerBadge.innerText = "Current Edge: " + safeText(data.winner);
-
+        renderResult(data);
       } catch (err) {
-        resultsPanel.style.display = "none";
-        winnerBadge.innerText = "Current Edge: Error";
-        showError(err.message || "Request failed");
+        showError("Network error while analyzing debate.");
       } finally {
-        analyzeBtn.disabled = false;
-        analyzeBtn.innerText = "Analyze Debate";
+        $("analyzeBtn").disabled = false;
+        $("analyzeBtn").textContent = "Analyze Debate";
       }
     }
+
+    $("analyzeBtn").addEventListener("click", analyze);
+
+    $("clearBtn").addEventListener("click", () => {
+      $("teamAName").value = "";
+      $("teamBName").value = "";
+      $("transcriptText").value = "";
+      $("videoLink").value = "";
+      resetResults();
+    });
+
+    resetResults();
   </script>
 </body>
 </html>
