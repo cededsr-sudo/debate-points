@@ -15,27 +15,17 @@
       --yellow:#ffd84d;
       --text:#eaf2ff;
       --muted:#9eb6d3;
-      --soft:#10203a;
     }
 
     *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:
-      linear-gradient(180deg, rgba(12,30,58,.92), rgba(4,10,21,.98)),
-      repeating-linear-gradient(
-        to right,
-        rgba(26,89,140,.12) 0,
-        rgba(26,89,140,.12) 1px,
-        transparent 1px,
-        transparent 40px
-      ),
-      repeating-linear-gradient(
-        to bottom,
-        rgba(26,89,140,.12) 0,
-        rgba(26,89,140,.12) 1px,
-        transparent 1px,
-        transparent 40px
-      ),
-      #06101d;
+    html,body{
+      margin:0;
+      padding:0;
+      background:
+        linear-gradient(180deg, rgba(12,30,58,.92), rgba(4,10,21,.98)),
+        repeating-linear-gradient(to right, rgba(26,89,140,.12) 0, rgba(26,89,140,.12) 1px, transparent 1px, transparent 40px),
+        repeating-linear-gradient(to bottom, rgba(26,89,140,.12) 0, rgba(26,89,140,.12) 1px, transparent 1px, transparent 40px),
+        #06101d;
       color:var(--text);
       font-family:Inter,system-ui,Arial,sans-serif;
     }
@@ -48,7 +38,6 @@
     .title{
       font-size: clamp(28px, 4vw, 46px);
       font-weight: 900;
-      letter-spacing:.02em;
       margin: 8px 0 18px;
     }
 
@@ -56,7 +45,6 @@
       background:linear-gradient(180deg, rgba(7,18,35,.92), rgba(7,18,35,.84));
       border:1px solid var(--line);
       border-radius:24px;
-      box-shadow:0 0 0 1px rgba(40,100,180,.08) inset;
       padding:20px;
       margin-bottom:20px;
     }
@@ -125,18 +113,13 @@
     .pill{
       display:inline-flex;
       align-items:center;
-      gap:8px;
       min-height:44px;
       border-radius:999px;
       border:1px solid var(--line);
       background:#0a172b;
-      color:var(--muted);
+      color:var(--text);
       padding:0 16px;
       font-weight:800;
-    }
-
-    .mode-pill{
-      color:var(--text);
     }
 
     .error{
@@ -161,8 +144,6 @@
       border-radius:28px;
       padding:18px;
       min-height:100%;
-      position:relative;
-      overflow:hidden;
     }
 
     .team-card.a{box-shadow:inset 4px 0 0 var(--cyan)}
@@ -189,9 +170,12 @@
       border-radius:18px;
       padding:14px 16px;
       min-height:60px;
-      line-height:1.4;
+      line-height:1.45;
       font-size:15px;
       word-break:break-word;
+      white-space:pre-wrap;
+      overflow:visible;
+      text-overflow:unset;
     }
 
     .readout{
@@ -240,7 +224,7 @@
       <div class="actions">
         <button class="primary" id="analyzeBtn">Analyze Debate</button>
         <button class="secondary" id="clearBtn">Clear</button>
-        <div class="pill mode-pill" id="modePill">Analysis Mode: -</div>
+        <div class="pill" id="modePill">Analysis Mode: -</div>
       </div>
 
       <div class="error" id="errorBox"></div>
