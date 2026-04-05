@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -14,9 +14,7 @@ export default async function handler(req, res) {
       typeof body.videoLink === "string" ? body.videoLink.trim() : "";
 
     if (!transcriptText.trim()) {
-      return res.status(400).json({
-        error: "Transcript is required"
-      });
+      return res.status(400).json({ error: "Transcript is required" });
     }
 
     const cleanedTranscript = cleanTranscript(transcriptText);
@@ -43,13 +41,11 @@ export default async function handler(req, res) {
     const chunkResults = [];
 
     for (let i = 0; i < chunks.length; i += 1) {
-      const chunk = chunks[i];
-
       const chunkPrompt = buildChunkPrompt({
         teamAName,
         teamBName,
         videoLink,
-        chunkText: chunk,
+        chunkText: chunks[i],
         chunkNumber: i + 1,
         totalChunks: chunks.length
       });
@@ -61,7 +57,7 @@ export default async function handler(req, res) {
           buildFallbackResponse({
             teamAName,
             teamBName,
-            reason: `Chunk analysis failed: ${chunkResponse.error}`
+            reason: "Chunk analysis failed: " + chunkResponse.error
           })
         );
       }
@@ -96,7 +92,7 @@ export default async function handler(req, res) {
         buildFallbackResponse({
           teamAName,
           teamBName,
-          reason: `Final synthesis failed: ${synthesisResponse.error}`
+          reason: "Final synthesis failed: " + synthesisResponse.error
         })
       );
     }
@@ -114,12 +110,9 @@ export default async function handler(req, res) {
       );
     }
 
-    const safeResult = normalizeFinalResult(parsedFinal, {
-      teamAName,
-      teamBName
-    });
-
-    return res.status(200).json(safeResult);
+    return res.status(200).json(
+      normalizeFinalResult(parsedFinal, { teamAName, teamBName })
+    );
   } catch (err) {
     return res.status(200).json(
       buildFallbackResponse({
@@ -129,18 +122,18 @@ export default async function handler(req, res) {
       })
     );
   }
-}
+};
 
 async function callGroqJson(prompt) {
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        Authorization: "Bearer " + process.env.GROQ_API_KEY,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: model: "openai/gpt-oss-20b",
+        model: "openai/gpt-oss-20b",
         temperature: 0.1,
         response_format: { type: "json_object" },
         max_completion_tokens: 1800,
@@ -157,14 +150,22 @@ async function callGroqJson(prompt) {
 
     if (!response.ok) {
       const message =
-        raw?.error?.message || raw?.message || "Groq request failed";
+        (raw && raw.error && raw.error.message) ||
+        (raw && raw.message) ||
+        "Groq request failed";
+
       return {
         ok: false,
         error: message
       };
     }
 
-    const content = raw?.choices?.[0]?.message?.content;
+    const content =
+      raw &&
+      raw.choices &&
+      raw.choices[0] &&
+      raw.choices[0].message &&
+      raw.choices[0].message.content;
 
     if (!content) {
       return {
@@ -175,7 +176,7 @@ async function callGroqJson(prompt) {
 
     return {
       ok: true,
-      content
+      content: content
     };
   } catch (err) {
     return {
@@ -185,170 +186,160 @@ async function callGroqJson(prompt) {
   }
 }
 
-function buildChunkPrompt({
-  teamAName,
-  teamBName,
-  videoLink,
-  chunkText,
-  chunkNumber,
-  totalChunks
-}) {
-  return `
-Return ONLY valid JSON.
-No markdown.
-No code fences.
-No commentary before or after the JSON.
-
-You are analyzing one chunk of a larger debate transcript.
-
-Ignore:
-- timestamps
-- metadata
-- uploader junk
-- category labels
-- title text
-- page filler
-- platform junk
-
-Analyze ONLY the spoken exchange in this chunk.
-
-Team A label: ${teamAName}
-Team B label: ${teamBName}
-Optional link: ${videoLink || "No link provided"}
-Chunk: ${chunkNumber} of ${totalChunks}
-
-Return this exact JSON shape:
-
-{
-  "teamA": {
-    "main_points": [],
-    "truth_points": [],
-    "lie_points": [],
-    "opinion_points": [],
-    "lala_points": []
-  },
-  "teamB": {
-    "main_points": [],
-    "truth_points": [],
-    "lie_points": [],
-    "opinion_points": [],
-    "lala_points": []
-  },
-  "winnerLean": "",
-  "bestPoint": "",
-  "worstPoint": "",
-  "manipulation": "",
-  "fluff": "",
-  "sourceClaims": [
-    {
-      "claim": "",
-      "type": "",
-      "likely_source": "",
-      "confidence": ""
-    }
-  ]
+function buildChunkPrompt(args) {
+  return [
+    'Return ONLY valid JSON.',
+    'No markdown.',
+    'No code fences.',
+    'No commentary before or after the JSON.',
+    '',
+    'You are analyzing one chunk of a larger debate transcript.',
+    '',
+    'Ignore:',
+    '- timestamps',
+    '- metadata',
+    '- uploader junk',
+    '- category labels',
+    '- title text',
+    '- page filler',
+    '- platform junk',
+    '',
+    'Analyze ONLY the spoken exchange in this chunk.',
+    '',
+    'Team A label: ' + args.teamAName,
+    'Team B label: ' + args.teamBName,
+    'Optional link: ' + (args.videoLink || 'No link provided'),
+    'Chunk: ' + args.chunkNumber + ' of ' + args.totalChunks,
+    '',
+    'Return this exact JSON shape:',
+    '',
+    '{',
+    '  "teamA": {',
+    '    "main_points": [],',
+    '    "truth_points": [],',
+    '    "lie_points": [],',
+    '    "opinion_points": [],',
+    '    "lala_points": []',
+    '  },',
+    '  "teamB": {',
+    '    "main_points": [],',
+    '    "truth_points": [],',
+    '    "lie_points": [],',
+    '    "opinion_points": [],',
+    '    "lala_points": []',
+    '  },',
+    '  "winnerLean": "",',
+    '  "bestPoint": "",',
+    '  "worstPoint": "",',
+    '  "manipulation": "",',
+    '  "fluff": "",',
+    '  "sourceClaims": [',
+    '    {',
+    '      "claim": "",',
+    '      "type": "",',
+    '      "likely_source": "",',
+    '      "confidence": ""',
+    '    }',
+    '  ]',
+    '}',
+    '',
+    'Rules:',
+    '- Arrays should contain short concrete points from THIS chunk only.',
+    '- winnerLean must be exactly "Team A", "Team B", or "Mixed".',
+    '- bestPoint must be one specific strong point from this chunk.',
+    '- worstPoint must be one specific weak point from this chunk.',
+    '- sourceClaims should include up to 3 claims needing outside verification.',
+    '',
+    'Transcript chunk:',
+    args.chunkText
+  ].join('\n');
 }
 
-Rules:
-- Arrays should contain short concrete points from THIS chunk only.
-- winnerLean must be exactly "Team A", "Team B", or "Mixed".
-- bestPoint must be one specific strong point from this chunk.
-- worstPoint must be one specific weak point from this chunk.
-- sourceClaims should include up to 3 claims needing outside verification.
-
-Transcript chunk:
-${chunkText}
-`.trim();
+function buildSynthesisPrompt(args) {
+  return [
+    'Return ONLY valid JSON.',
+    'No markdown.',
+    'No code fences.',
+    'No commentary before or after the JSON.',
+    '',
+    'You are synthesizing chunk-level debate analyses into one final result.',
+    '',
+    'Team A label: ' + args.teamAName,
+    'Team B label: ' + args.teamBName,
+    'Optional link: ' + (args.videoLink || 'No link provided'),
+    '',
+    'Use this exact JSON shape:',
+    '',
+    '{',
+    '  "teamAName": "",',
+    '  "teamBName": "",',
+    '  "teamA": {',
+    '    "main_position": "",',
+    '    "truth": "",',
+    '    "lies": "",',
+    '    "opinion": "",',
+    '    "lala": ""',
+    '  },',
+    '  "teamB": {',
+    '    "main_position": "",',
+    '    "truth": "",',
+    '    "lies": "",',
+    '    "opinion": "",',
+    '    "lala": ""',
+    '  },',
+    '  "winner": "",',
+    '  "bsMeter": "",',
+    '  "strongestOverall": "",',
+    '  "weakestOverall": "",',
+    '  "why": "",',
+    '  "manipulation": "",',
+    '  "fluff": "",',
+    '  "sources": [',
+    '    {',
+    '      "claim": "",',
+    '      "type": "",',
+    '      "likely_source": "",',
+    '      "confidence": ""',
+    '    }',
+    '  ]',
+    '}',
+    '',
+    'Rules:',
+    '- winner must be exactly "Team A", "Team B", or "Mixed".',
+    '- truth = grounded, supported, reasonable claims overall.',
+    '- lies = false, exaggerated, unsupported, or overconfident claims overall.',
+    '- opinion = subjective framing overall.',
+    '- lala = fantasy leaps, absurd overreach, or nonsense overall.',
+    '- strongestOverall must identify one specific strong point.',
+    '- weakestOverall must identify one specific weak point.',
+    '- bsMeter must clearly say who is bluffing/reaching more, or say 50/50 if truly even.',
+    '- why must explain the edge plainly.',
+    '- sources should include 2 to 4 claims needing outside verification.',
+    '',
+    'Chunk analyses:',
+    JSON.stringify(args.chunkResults, null, 2)
+  ].join('\n');
 }
 
-function buildSynthesisPrompt({
-  teamAName,
-  teamBName,
-  videoLink,
-  chunkResults
-}) {
-  return `
-Return ONLY valid JSON.
-No markdown.
-No code fences.
-No commentary before or after the JSON.
-
-You are synthesizing chunk-level debate analyses into one final result.
-
-Team A label: ${teamAName}
-Team B label: ${teamBName}
-Optional link: ${videoLink || "No link provided"}
-
-Use this exact JSON shape:
-
-{
-  "teamAName": "",
-  "teamBName": "",
-  "teamA": {
-    "main_position": "",
-    "truth": "",
-    "lies": "",
-    "opinion": "",
-    "lala": ""
-  },
-  "teamB": {
-    "main_position": "",
-    "truth": "",
-    "lies": "",
-    "opinion": "",
-    "lala": ""
-  },
-  "winner": "",
-  "bsMeter": "",
-  "strongestOverall": "",
-  "weakestOverall": "",
-  "why": "",
-  "manipulation": "",
-  "fluff": "",
-  "sources": [
-    {
-      "claim": "",
-      "type": "",
-      "likely_source": "",
-      "confidence": ""
-    }
-  ]
-}
-
-Rules:
-- winner must be exactly "Team A", "Team B", or "Mixed".
-- truth = grounded, supported, reasonable claims overall.
-- lies = false, exaggerated, unsupported, or overconfident claims overall.
-- opinion = subjective framing overall.
-- lala = fantasy leaps, absurd overreach, or nonsense overall.
-- strongestOverall must identify one specific strong point.
-- weakestOverall must identify one specific weak point.
-- bsMeter must clearly say who is bluffing/reaching more, or say 50/50 if truly even.
-- why must explain the edge plainly.
-- sources should include 2 to 4 claims needing outside verification.
-
-Chunk analyses:
-${JSON.stringify(chunkResults, null, 2)}
-`.trim();
-}
-
-function chunkTranscript(text, maxChars = 4500) {
+function chunkTranscript(text, maxChars) {
   const paragraphs = text
     .split(/\n{2,}/)
-    .map((p) => p.trim())
+    .map(function (p) { return p.trim(); })
     .filter(Boolean);
 
   const chunks = [];
-  let current = "";
+  let current = '';
 
-  for (const para of paragraphs) {
+  for (let i = 0; i < paragraphs.length; i += 1) {
+    const para = paragraphs[i];
+
     if (!current) {
       current = para;
       continue;
     }
 
-    if ((current + "\n\n" + para).length <= maxChars) {
-      current += "\n\n" + para;
+    if ((current + '\n\n' + para).length <= maxChars) {
+      current += '\n\n' + para;
     } else {
       chunks.push(current);
       current = para;
@@ -369,54 +360,54 @@ function chunkTranscript(text, maxChars = 4500) {
 function normalizeChunkResult(parsed) {
   return {
     teamA: {
-      main_points: safeArray(parsed?.teamA?.main_points),
-      truth_points: safeArray(parsed?.teamA?.truth_points),
-      lie_points: safeArray(parsed?.teamA?.lie_points),
-      opinion_points: safeArray(parsed?.teamA?.opinion_points),
-      lala_points: safeArray(parsed?.teamA?.lala_points)
+      main_points: safeArray(parsed && parsed.teamA && parsed.teamA.main_points),
+      truth_points: safeArray(parsed && parsed.teamA && parsed.teamA.truth_points),
+      lie_points: safeArray(parsed && parsed.teamA && parsed.teamA.lie_points),
+      opinion_points: safeArray(parsed && parsed.teamA && parsed.teamA.opinion_points),
+      lala_points: safeArray(parsed && parsed.teamA && parsed.teamA.lala_points)
     },
     teamB: {
-      main_points: safeArray(parsed?.teamB?.main_points),
-      truth_points: safeArray(parsed?.teamB?.truth_points),
-      lie_points: safeArray(parsed?.teamB?.lie_points),
-      opinion_points: safeArray(parsed?.teamB?.opinion_points),
-      lala_points: safeArray(parsed?.teamB?.lala_points)
+      main_points: safeArray(parsed && parsed.teamB && parsed.teamB.main_points),
+      truth_points: safeArray(parsed && parsed.teamB && parsed.teamB.truth_points),
+      lie_points: safeArray(parsed && parsed.teamB && parsed.teamB.lie_points),
+      opinion_points: safeArray(parsed && parsed.teamB && parsed.teamB.opinion_points),
+      lala_points: safeArray(parsed && parsed.teamB && parsed.teamB.lala_points)
     },
-    winnerLean: normalizeWinner(parsed?.winnerLean),
-    bestPoint: safeString(parsed?.bestPoint),
-    worstPoint: safeString(parsed?.worstPoint),
-    manipulation: safeString(parsed?.manipulation),
-    fluff: safeString(parsed?.fluff),
-    sourceClaims: normalizeSources(parsed?.sourceClaims).slice(0, 3)
+    winnerLean: normalizeWinner(parsed && parsed.winnerLean),
+    bestPoint: safeString(parsed && parsed.bestPoint),
+    worstPoint: safeString(parsed && parsed.worstPoint),
+    manipulation: safeString(parsed && parsed.manipulation),
+    fluff: safeString(parsed && parsed.fluff),
+    sourceClaims: normalizeSources(parsed && parsed.sourceClaims).slice(0, 3)
   };
 }
 
 function normalizeFinalResult(parsed, defaults) {
   return {
-    teamAName: safeString(parsed?.teamAName, defaults.teamAName),
-    teamBName: safeString(parsed?.teamBName, defaults.teamBName),
+    teamAName: safeString(parsed && parsed.teamAName, defaults.teamAName),
+    teamBName: safeString(parsed && parsed.teamBName, defaults.teamBName),
     teamA: {
-      main_position: safeString(parsed?.teamA?.main_position),
-      truth: safeString(parsed?.teamA?.truth),
-      lies: safeString(parsed?.teamA?.lies),
-      opinion: safeString(parsed?.teamA?.opinion),
-      lala: safeString(parsed?.teamA?.lala)
+      main_position: safeString(parsed && parsed.teamA && parsed.teamA.main_position),
+      truth: safeString(parsed && parsed.teamA && parsed.teamA.truth),
+      lies: safeString(parsed && parsed.teamA && parsed.teamA.lies),
+      opinion: safeString(parsed && parsed.teamA && parsed.teamA.opinion),
+      lala: safeString(parsed && parsed.teamA && parsed.teamA.lala)
     },
     teamB: {
-      main_position: safeString(parsed?.teamB?.main_position),
-      truth: safeString(parsed?.teamB?.truth),
-      lies: safeString(parsed?.teamB?.lies),
-      opinion: safeString(parsed?.teamB?.opinion),
-      lala: safeString(parsed?.teamB?.lala)
+      main_position: safeString(parsed && parsed.teamB && parsed.teamB.main_position),
+      truth: safeString(parsed && parsed.teamB && parsed.teamB.truth),
+      lies: safeString(parsed && parsed.teamB && parsed.teamB.lies),
+      opinion: safeString(parsed && parsed.teamB && parsed.teamB.opinion),
+      lala: safeString(parsed && parsed.teamB && parsed.teamB.lala)
     },
-    winner: normalizeWinner(parsed?.winner),
-    bsMeter: safeString(parsed?.bsMeter),
-    strongestOverall: safeString(parsed?.strongestOverall),
-    weakestOverall: safeString(parsed?.weakestOverall),
-    why: safeString(parsed?.why),
-    manipulation: safeString(parsed?.manipulation),
-    fluff: safeString(parsed?.fluff),
-    sources: normalizeSources(parsed?.sources).slice(0, 4)
+    winner: normalizeWinner(parsed && parsed.winner),
+    bsMeter: safeString(parsed && parsed.bsMeter),
+    strongestOverall: safeString(parsed && parsed.strongestOverall),
+    weakestOverall: safeString(parsed && parsed.weakestOverall),
+    why: safeString(parsed && parsed.why),
+    manipulation: safeString(parsed && parsed.manipulation),
+    fluff: safeString(parsed && parsed.fluff),
+    sources: normalizeSources(parsed && parsed.sources).slice(0, 4)
   };
 }
 
@@ -426,95 +417,80 @@ function normalizeSources(input) {
   if (!arr.length) {
     return [
       {
-        claim: "No explicit source claims extracted",
-        type: "general",
-        likely_source: "No direct source — requires verification",
-        confidence: "low"
+        claim: 'No explicit source claims extracted',
+        type: 'general',
+        likely_source: 'No direct source — requires verification',
+        confidence: 'low'
       }
     ];
   }
 
-  return arr.map((item) => ({
-    claim: safeString(item?.claim, "No explicit source claim extracted"),
-    type: safeString(item?.type, "general"),
-    likely_source: safeString(
-      item?.likely_source,
-      "No direct source — requires verification"
-    ),
-    confidence: safeString(item?.confidence, "low")
-  }));
+  return arr.map(function (item) {
+    return {
+      claim: safeString(item && item.claim, 'No explicit source claim extracted'),
+      type: safeString(item && item.type, 'general'),
+      likely_source: safeString(
+        item && item.likely_source,
+        'No direct source — requires verification'
+      ),
+      confidence: safeString(item && item.confidence, 'low')
+    };
+  });
 }
 
 function normalizeWinner(value) {
-  const text = safeString(value, "Mixed");
-  return text === "Team A" || text === "Team B" || text === "Mixed"
+  const text = safeString(value, 'Mixed');
+  return text === 'Team A' || text === 'Team B' || text === 'Mixed'
     ? text
-    : "Mixed";
+    : 'Mixed';
 }
 
 function safeArray(value) {
   if (!Array.isArray(value)) return [];
   return value
-    .map((item) => safeString(item, ""))
-    .filter((item) => item && item !== "-")
+    .map(function (item) { return safeString(item, ''); })
+    .filter(function (item) { return item && item !== '-'; })
     .slice(0, 6);
 }
 
 function cleanSimpleName(value) {
-  if (typeof value !== "string") return "";
-  return value.replace(/\s+/g, " ").trim().slice(0, 80);
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
 function cleanTranscript(text) {
   return String(text)
-    .replace(/\r/g, "\n")
-
-    // urls
-    .replace(/https?:\/\/\S+/gi, " ")
-    .replace(/www\.\S+/gi, " ")
-
-    // page junk
-    .replace(/^\s*sync to video time\s*$/gim, " ")
-    .replace(/^\s*show transcript\s*$/gim, " ")
-    .replace(/^\s*transcript\s*$/gim, " ")
-    .replace(/^\s*autoplay\s*$/gim, " ")
-    .replace(/^\s*subscribe\s*$/gim, " ")
-    .replace(/^\s*closing remarks\s*$/gim, " ")
-    .replace(/^\s*invitation\s*$/gim, " ")
-    .replace(/^\s*epic exchange\s*$/gim, " ")
-    .replace(/^\s*all\s*$/gim, " ")
-    .replace(/^\s*politics news\s*$/gim, " ")
-    .replace(/^\s*\[music\]\s*$/gim, " ")
-
-    // wrapper junk
-    .replace(/^\s*chapter\s+\d+.*$/gim, " ")
-    .replace(/^\s*\d+\s+views?\s*$/gim, " ")
-    .replace(
-      /^\s*\d+\s+(seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago\s*$/gim,
-      " "
-    )
-
-    // timestamps
-    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
-
-    // bare bracket metadata
-    .replace(/^\s*\[[^\]]*\]\s*$/gm, " ")
-    .replace(/^\s*\([^)]*\)\s*$/gm, " ")
-
-    // giant junk blobs
-    .replace(/[A-Za-z0-9_-]{25,}/g, " ")
-
-    // normalize
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n[ \t]+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\r/g, '\n')
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/www\.\S+/gi, ' ')
+    .replace(/^\s*sync to video time\s*$/gim, ' ')
+    .replace(/^\s*show transcript\s*$/gim, ' ')
+    .replace(/^\s*transcript\s*$/gim, ' ')
+    .replace(/^\s*autoplay\s*$/gim, ' ')
+    .replace(/^\s*subscribe\s*$/gim, ' ')
+    .replace(/^\s*closing remarks\s*$/gim, ' ')
+    .replace(/^\s*invitation\s*$/gim, ' ')
+    .replace(/^\s*epic exchange\s*$/gim, ' ')
+    .replace(/^\s*all\s*$/gim, ' ')
+    .replace(/^\s*politics news\s*$/gim, ' ')
+    .replace(/^\s*\[music\]\s*$/gim, ' ')
+    .replace(/^\s*chapter\s+\d+.*$/gim, ' ')
+    .replace(/^\s*\d+\s+views?\s*$/gim, ' ')
+    .replace(/^\s*\d+\s+(seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago\s*$/gim, ' ')
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, ' ')
+    .replace(/^\s*\[[^\]]*\]\s*$/gm, ' ')
+    .replace(/^\s*\([^)]*\)\s*$/gm, ' ')
+    .replace(/[A-Za-z0-9_-]{25,}/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
 function getTranscriptStats(text) {
   const lines = text
-    .split("\n")
-    .map((line) => line.trim())
+    .split('\n')
+    .map(function (line) { return line.trim(); })
     .filter(Boolean);
 
   const words = text.split(/\s+/).filter(Boolean);
@@ -533,43 +509,43 @@ async function safeJson(response) {
   }
 }
 
-function safeString(value, fallback = "-") {
-  if (value === null || value === undefined) return fallback;
+function safeString(value, fallback) {
+  if (value === null || value === undefined) return fallback || '-';
   const text = String(value).trim();
-  return text ? text : fallback;
+  return text ? text : (fallback || '-');
 }
 
-function buildFallbackResponse({ teamAName, teamBName, reason }) {
+function buildFallbackResponse(args) {
   return {
-    teamAName,
-    teamBName,
+    teamAName: args.teamAName,
+    teamBName: args.teamBName,
     teamA: {
-      main_position: "Fallback mode: AI unavailable",
-      truth: "-",
-      lies: "-",
-      opinion: "-",
-      lala: "-"
+      main_position: 'Fallback mode: AI unavailable',
+      truth: '-',
+      lies: '-',
+      opinion: '-',
+      lala: '-'
     },
     teamB: {
-      main_position: "Fallback mode: AI unavailable",
-      truth: "-",
-      lies: "-",
-      opinion: "-",
-      lala: "-"
+      main_position: 'Fallback mode: AI unavailable',
+      truth: '-',
+      lies: '-',
+      opinion: '-',
+      lala: '-'
     },
-    winner: "Mixed",
-    bsMeter: "No live AI judgment available",
-    strongestOverall: "-",
-    weakestOverall: "-",
-    why: safeString(reason, "AI unavailable."),
-    manipulation: "-",
-    fluff: "-",
+    winner: 'Mixed',
+    bsMeter: 'No live AI judgment available',
+    strongestOverall: '-',
+    weakestOverall: '-',
+    why: safeString(args.reason, 'AI unavailable.'),
+    manipulation: '-',
+    fluff: '-',
     sources: [
       {
-        claim: "No AI source extraction available",
-        type: "general",
-        likely_source: "Requires manual review",
-        confidence: "low"
+        claim: 'No AI source extraction available',
+        type: 'general',
+        likely_source: 'Requires manual review',
+        confidence: 'low'
       }
     ]
   };
