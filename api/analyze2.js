@@ -30,20 +30,18 @@ module.exports = async function handler(req, res) {
     if (!process.env.GROQ_API_KEY) {
       return res.status(200).json(
         buildFallbackResponse({
-          teamAName,
-          teamBName,
+          teamAName: teamAName,
+          teamBName: teamBName,
           reason: "Missing GROQ_API_KEY in Vercel environment variables."
         })
       );
     }
 
-    const chunks = chunkTranscript(cleanedTranscript, 2000);
+    const chunks = chunkTranscript(cleanedTranscript, 1200);
     const chunkResults = [];
 
     for (let i = 0; i < chunks.length; i += 1) {
-      await new Promise(function (resolve) {
-        setTimeout(resolve, 1200);
-      });
+      await sleep(2000);
 
       const chunkPrompt = buildChunkPrompt({
         teamAName: teamAName,
@@ -81,6 +79,8 @@ module.exports = async function handler(req, res) {
 
       chunkResults.push(normalizeChunkResult(parsedChunk));
     }
+
+    await sleep(2500);
 
     const synthesisPrompt = buildSynthesisPrompt({
       teamAName: teamAName,
@@ -143,7 +143,7 @@ async function callGroqJson(prompt) {
         model: "openai/gpt-oss-20b",
         temperature: 0.1,
         response_format: { type: "json_object" },
-        max_completion_tokens: 1200,
+        max_completion_tokens: 600,
         messages: [
           {
             role: "user",
@@ -239,15 +239,7 @@ function buildChunkPrompt(args) {
     '  "bestPoint": "",',
     '  "worstPoint": "",',
     '  "manipulation": "",',
-    '  "fluff": "",',
-    '  "sourceClaims": [',
-    "    {",
-    '      "claim": "",',
-    '      "type": "",',
-    '      "likely_source": "",',
-    '      "confidence": ""',
-    "    }",
-    "  ]",
+    '  "fluff": ""',
     "}",
     "",
     "Rules:",
@@ -255,7 +247,7 @@ function buildChunkPrompt(args) {
     '- winnerLean must be exactly "Team A", "Team B", or "Mixed".',
     "- bestPoint must be one specific strong point from this chunk.",
     "- worstPoint must be one specific weak point from this chunk.",
-    "- sourceClaims should include up to 3 claims needing outside verification.",
+    "- Keep the points short and direct.",
     "",
     "Transcript chunk:",
     args.chunkText
@@ -275,53 +267,36 @@ function buildSynthesisPrompt(args) {
     "Team B label: " + args.teamBName,
     "Optional link: " + (args.videoLink || "No link provided"),
     "",
-    "Use this exact JSON shape:",
+    "Return this exact JSON shape only:",
     "",
     "{",
     '  "teamAName": "",',
     '  "teamBName": "",',
-    '  "teamA": {',
-    '    "main_position": "",',
-    '    "truth": "",',
-    '    "lies": "",',
-    '    "opinion": "",',
-    '    "lala": ""',
-    "  },",
-    '  "teamB": {',
-    '    "main_position": "",',
-    '    "truth": "",',
-    '    "lies": "",',
-    '    "opinion": "",',
-    '    "lala": ""',
-    "  },",
+    '  "teamA_main_position": "",',
+    '  "teamA_truth": "",',
+    '  "teamA_lies": "",',
+    '  "teamA_opinion": "",',
+    '  "teamA_lala": "",',
+    '  "teamB_main_position": "",',
+    '  "teamB_truth": "",',
+    '  "teamB_lies": "",',
+    '  "teamB_opinion": "",',
+    '  "teamB_lala": "",',
     '  "winner": "",',
     '  "bsMeter": "",',
     '  "strongestOverall": "",',
     '  "weakestOverall": "",',
     '  "why": "",',
     '  "manipulation": "",',
-    '  "fluff": "",',
-    '  "sources": [',
-    "    {",
-    '      "claim": "",',
-    '      "type": "",',
-    '      "likely_source": "",',
-    '      "confidence": ""',
-    "    }",
-    "  ]",
+    '  "fluff": ""',
     "}",
     "",
     "Rules:",
     '- winner must be exactly "Team A", "Team B", or "Mixed".',
-    "- truth = grounded, supported, reasonable claims overall.",
-    "- lies = false, exaggerated, unsupported, or overconfident claims overall.",
-    "- opinion = subjective framing overall.",
-    "- lala = fantasy leaps, absurd overreach, or nonsense overall.",
-    "- strongestOverall must identify one specific strong point.",
-    "- weakestOverall must identify one specific weak point.",
-    "- bsMeter must clearly say who is bluffing/reaching more, or say 50/50 if truly even.",
-    "- why must explain the edge plainly.",
-    "- sources should include 2 to 4 claims needing outside verification.",
+    "- Keep each field short and direct.",
+    "- Do not include arrays.",
+    "- Do not include nested objects.",
+    "- Do not include extra keys.",
     "",
     "Chunk analyses:",
     JSON.stringify(args.chunkResults, null, 2)
@@ -386,8 +361,7 @@ function normalizeChunkResult(parsed) {
     bestPoint: safeString(parsed && parsed.bestPoint),
     worstPoint: safeString(parsed && parsed.worstPoint),
     manipulation: safeString(parsed && parsed.manipulation),
-    fluff: safeString(parsed && parsed.fluff),
-    sourceClaims: normalizeSources(parsed && parsed.sourceClaims).slice(0, 3)
+    fluff: safeString(parsed && parsed.fluff)
   };
 }
 
@@ -396,18 +370,18 @@ function normalizeFinalResult(parsed, defaults) {
     teamAName: safeString(parsed && parsed.teamAName, defaults.teamAName),
     teamBName: safeString(parsed && parsed.teamBName, defaults.teamBName),
     teamA: {
-      main_position: safeString(parsed && parsed.teamA && parsed.teamA.main_position),
-      truth: safeString(parsed && parsed.teamA && parsed.teamA.truth),
-      lies: safeString(parsed && parsed.teamA && parsed.teamA.lies),
-      opinion: safeString(parsed && parsed.teamA && parsed.teamA.opinion),
-      lala: safeString(parsed && parsed.teamA && parsed.teamA.lala)
+      main_position: safeString(parsed && parsed.teamA_main_position),
+      truth: safeString(parsed && parsed.teamA_truth),
+      lies: safeString(parsed && parsed.teamA_lies),
+      opinion: safeString(parsed && parsed.teamA_opinion),
+      lala: safeString(parsed && parsed.teamA_lala)
     },
     teamB: {
-      main_position: safeString(parsed && parsed.teamB && parsed.teamB.main_position),
-      truth: safeString(parsed && parsed.teamB && parsed.teamB.truth),
-      lies: safeString(parsed && parsed.teamB && parsed.teamB.lies),
-      opinion: safeString(parsed && parsed.teamB && parsed.teamB.opinion),
-      lala: safeString(parsed && parsed.teamB && parsed.teamB.lala)
+      main_position: safeString(parsed && parsed.teamB_main_position),
+      truth: safeString(parsed && parsed.teamB_truth),
+      lies: safeString(parsed && parsed.teamB_lies),
+      opinion: safeString(parsed && parsed.teamB_opinion),
+      lala: safeString(parsed && parsed.teamB_lala)
     },
     winner: normalizeWinner(parsed && parsed.winner),
     bsMeter: safeString(parsed && parsed.bsMeter),
@@ -416,35 +390,15 @@ function normalizeFinalResult(parsed, defaults) {
     why: safeString(parsed && parsed.why),
     manipulation: safeString(parsed && parsed.manipulation),
     fluff: safeString(parsed && parsed.fluff),
-    sources: normalizeSources(parsed && parsed.sources).slice(0, 4)
-  };
-}
-
-function normalizeSources(input) {
-  const arr = Array.isArray(input) ? input : [];
-
-  if (!arr.length) {
-    return [
+    sources: [
       {
-        claim: "No explicit source claims extracted",
+        claim: "Final synthesis did not include source extraction",
         type: "general",
-        likely_source: "No direct source — requires verification",
+        likely_source: "Manual verification needed",
         confidence: "low"
       }
-    ];
-  }
-
-  return arr.map(function (item) {
-    return {
-      claim: safeString(item && item.claim, "No explicit source claim extracted"),
-      type: safeString(item && item.type, "general"),
-      likely_source: safeString(
-        item && item.likely_source,
-        "No direct source — requires verification"
-      ),
-      confidence: safeString(item && item.confidence, "low")
-    };
-  });
+    ]
+  };
 }
 
 function normalizeWinner(value) {
@@ -531,6 +485,12 @@ function safeString(value, fallback) {
   if (value === null || value === undefined) return fallback || "-";
   const text = String(value).trim();
   return text ? text : fallback || "-";
+}
+
+function sleep(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
 }
 
 function buildFallbackResponse(args) {
