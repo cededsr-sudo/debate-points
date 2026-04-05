@@ -83,7 +83,15 @@ module.exports = async function handler(req, res) {
 
       const merged = mergeLocalAndAi(factAdjustedLocal, aiResult);
       const consistent = enforceConsistency(merged);
-      return res.status(200).json(withMode(consistent, factCheck.mode === "Fact-Checked Local" ? "Fact-Checked Hybrid" : "Hybrid"));
+
+      return res.status(200).json(
+        withMode(
+          consistent,
+          factCheck.mode === "Fact-Checked Local"
+            ? "Fact-Checked Hybrid"
+            : "Hybrid"
+        )
+      );
     } catch (err) {
       return res.status(200).json(withMode(factAdjustedLocal, factCheck.mode));
     }
@@ -379,7 +387,8 @@ function classifyClaimType(sentence) {
     /\bspeciation\b/.test(s) ||
     /\bmutation\b/.test(s) ||
     /\bnatural selection\b/.test(s) ||
-    /\bcommon ancestry\b/.test(s)
+    /\bcommon ancestry\b/.test(s) ||
+    /\bgenome\b/.test(s)
   ) {
     return "empirical / scientific";
   }
@@ -1662,42 +1671,55 @@ function detectLane(text) {
   const t = text.toLowerCase();
 
   const empirical =
-    countMatches(t, /\bevidence\b/g) +
-    countMatches(t, /\bdata\b/g) +
-    countMatches(t, /\bobserve\b/g) +
-    countMatches(t, /\bscience\b/g) +
-    countMatches(t, /\btheory\b/g) +
-    countMatches(t, /\bmutation\b/g) +
-    countMatches(t, /\bselection\b/g);
+    countMatches(t, /\bevidence\b/g) * 2 +
+    countMatches(t, /\bdata\b/g) * 2 +
+    countMatches(t, /\bobserve\b/g) * 2 +
+    countMatches(t, /\bmutation\b/g) * 2 +
+    countMatches(t, /\bnatural selection\b/g) * 2 +
+    countMatches(t, /\bgenome\b/g) * 2 +
+    countMatches(t, /\bbiology\b/g) * 2 +
+    countMatches(t, /\bscience\b/g) * 1;
 
   const philosophical =
-    countMatches(t, /\bdefinition\b/g) +
-    countMatches(t, /\bcausality\b/g) +
-    countMatches(t, /\bfact\b/g) +
-    countMatches(t, /\btheory\b/g) +
-    countMatches(t, /\blogic\b/g) +
-    countMatches(t, /\bepistemology\b/g);
+    countMatches(t, /\bdefinition\b/g) * 2 +
+    countMatches(t, /\bcausality\b/g) * 3 +
+    countMatches(t, /\bfact\b/g) * 2 +
+    countMatches(t, /\btheory\b/g) * 2 +
+    countMatches(t, /\bepistemology\b/g) * 3 +
+    countMatches(t, /\blogic\b/g) * 2 +
+    countMatches(t, /\bequivocation\b/g) * 2 +
+    countMatches(t, /\bmeaning\b/g) * 1;
 
   const theological =
-    countMatches(t, /\bscripture\b/g) +
-    countMatches(t, /\bgod\b/g) +
-    countMatches(t, /\btheological\b/g) +
-    countMatches(t, /\bfaith\b/g);
+    countMatches(t, /\bscripture\b/g) * 3 +
+    countMatches(t, /\bgod\b/g) * 2 +
+    countMatches(t, /\bfaith\b/g) * 2 +
+    countMatches(t, /\btheological\b/g) * 3;
 
   const rhetorical =
-    countMatches(t, /\bcoward\b/g) +
-    countMatches(t, /\bclown\b/g) +
-    countMatches(t, /\bincompetent\b/g) +
-    countMatches(t, /\blaughing\b/g);
+    countMatches(t, /\bclown\b/g) * 2 +
+    countMatches(t, /\bcoward\b/g) * 2 +
+    countMatches(t, /\bincompetent\b/g) * 2 +
+    countMatches(t, /\bprimitive understanding\b/g) * 2 +
+    countMatches(t, /\blaughing at you\b/g) * 2;
 
-  const pairs = [
+  const scores = [
     ["empirical / scientific", empirical],
     ["philosophical / logical", philosophical],
     ["theological / scriptural", theological],
     ["rhetorical / persuasive", rhetorical]
   ].sort((a, b) => b[1] - a[1]);
 
-  return pairs[0][1] > 0 ? pairs[0][0] : "rhetorical / persuasive";
+  if (
+    scores[0][1] > 0 &&
+    scores[1][1] > 0 &&
+    Math.abs(scores[0][1] - scores[1][1]) <= 2 &&
+    (scores[0][0] === "philosophical / logical" || scores[1][0] === "philosophical / logical")
+  ) {
+    return "philosophical / logical";
+  }
+
+  return scores[0][1] > 0 ? scores[0][0] : "rhetorical / persuasive";
 }
 
 function detectCoreDisagreement(teamAText, teamBText) {
@@ -1721,34 +1743,57 @@ function detectCoreDisagreement(teamAText, teamBText) {
 function summarizeIntegrity(text, profile) {
   const t = text.toLowerCase();
 
-  if (profile.pressure >= 4 && profile.support >= 4) {
-    return "Mixes substantive engagement with noticeable rhetorical pressure and personal framing.";
-  }
-  if (profile.support >= 4 && profile.overreach <= 2) {
-    return "Shows decent effort to support claims and stays relatively controlled.";
-  }
-  if (profile.overreach >= 4) {
-    return "Leans too heavily on overstatement or attack language relative to direct support.";
+  const attackHeavy = profile.pressure >= 4 || profile.overreach >= 5;
+  const supportHeavy = profile.support >= 5;
+  const dodgeHeavy = profile.dodging >= 3;
+
+  if (supportHeavy && attackHeavy && dodgeHeavy) {
+    return "Makes substantive points, but mixes them with rhetorical pressure, overstatement, and selective engagement.";
   }
 
-  if (/\brespond\b/.test(t) || /\banswer\b/.test(t)) {
-    return "Shows some engagement with the other side, though not always cleanly.";
+  if (supportHeavy && attackHeavy) {
+    return "Combines real argument with noticeable dismissive or pressuring rhetoric.";
   }
 
-  return "Limited but recognizable effort to stay on the dispute.";
+  if (supportHeavy && !attackHeavy) {
+    return "Shows a meaningful effort to support claims and stays comparatively more disciplined.";
+  }
+
+  if (attackHeavy && !supportHeavy) {
+    return "Relies too much on rhetorical pressure or attack language relative to direct support.";
+  }
+
+  if (/\bmy opponent\b/.test(t) || /\bhe claims\b/.test(t) || /\bshe claims\b/.test(t)) {
+    return "Engages the opponent directly, though not always with strong support.";
+  }
+
+  return "Limited but recognizable effort to engage the dispute.";
 }
 
 function summarizeReasoning(text, profile) {
-  if (profile.support >= 5 && profile.overreach <= 2) {
-    return "Reasoning chain is relatively visible, with claims connected to examples or stated support.";
+  const t = text.toLowerCase();
+
+  if (profile.support >= 6 && profile.overreach <= 2) {
+    return "Reasoning chain is relatively clear, with claims tied to examples, distinctions, or stated support.";
   }
-  if (profile.support >= 4 && profile.overreach >= 4) {
-    return "Contains real argument structure, but it is weakened by overreach and rhetorical padding.";
+
+  if (profile.support >= 5 && profile.overreach >= 4) {
+    return "Contains substantial argument structure, but the reasoning is weakened by overreach and rhetorical padding.";
   }
+
+  if (profile.support >= 4 && /\bdefinition\b|\bcausality\b|\bfact\b|\btheory\b/.test(t)) {
+    return "Reasoning leans heavily on conceptual framing and category distinctions rather than direct evidence alone.";
+  }
+
+  if (profile.support <= 2 && profile.overreach >= 4) {
+    return "Reasoning is comparatively thin and leans too much on assertion or attack.";
+  }
+
   if (profile.support <= 2) {
-    return "Reasoning is thin or under-supported in the extracted material.";
+    return "Reasoning is present, but it stays under-supported in the extracted material.";
   }
-  return "Reasoning is present, but the support is uneven.";
+
+  return "Reasoning is visible, but uneven in support and follow-through.";
 }
 
 function detectSameLaneEngagement(teamAText, teamBText) {
@@ -1798,28 +1843,47 @@ function buildWhyStrongest(strongest, teamAName, teamBName) {
 }
 
 function buildFailedResponse(strongest, teamAProfile, teamBProfile, teamAName, teamBName) {
-  if (strongest.side === "Team A") {
-    if (teamBProfile.support < teamAProfile.support) {
-      return teamBName + " does not appear to answer that point as strongly as " + teamAName + " presents it.";
-    }
+  if (!strongest || !strongest.text || strongest.text === "-") {
     return "No clear failed response extracted.";
   }
 
-  if (teamAProfile.support < teamBProfile.support) {
-    return teamAName + " does not appear to answer that point as strongly as " + teamBName + " presents it.";
+  if (strongest.side === "Team A") {
+    if (teamBProfile.support + teamBProfile.dodging < teamAProfile.support) {
+      return teamBName + " does not seem to answer " + teamAName + "'s strongest extracted point with equal clarity or support.";
+    }
+    if (teamBProfile.overreach > teamAProfile.overreach + 1) {
+      return teamBName + " appears to answer pressure with more pressure rather than a comparably strong direct rebuttal.";
+    }
+    return "No major failed response extracted.";
   }
 
-  return "No clear failed response extracted.";
+  if (teamAProfile.support + teamAProfile.dodging < teamBProfile.support) {
+    return teamAName + " does not seem to answer " + teamBName + "'s strongest extracted point with equal clarity or support.";
+  }
+  if (teamAProfile.overreach > teamBProfile.overreach + 1) {
+    return teamAName + " appears to answer pressure with more pressure rather than a comparably strong direct rebuttal.";
+  }
+
+  return "No major failed response extracted.";
 }
 
 function buildWeakestOverall(teamAProfile, teamBProfile, teamAName, teamBName) {
-  if (teamAProfile.overreach > teamBProfile.overreach + 1) {
-    return teamAName + " shows the weaker stretch because the extracted material contains more overreach or attack framing.";
+  const aWeak = teamAProfile.overreach + teamAProfile.fluff - teamAProfile.support;
+  const bWeak = teamBProfile.overreach + teamBProfile.fluff - teamBProfile.support;
+
+  if (aWeak >= bWeak + 2) {
+    return teamAName + " shows the weaker stretch because overreach and rhetorical excess outpace support more noticeably.";
   }
-  if (teamBProfile.overreach > teamAProfile.overreach + 1) {
-    return teamBName + " shows the weaker stretch because the extracted material contains more overreach or attack framing.";
+
+  if (bWeak >= aWeak + 2) {
+    return teamBName + " shows the weaker stretch because overreach and rhetorical excess outpace support more noticeably.";
   }
-  return "Neither side has a uniquely weak stretch by a large margin in the extracted material.";
+
+  if (teamAProfile.overreach >= 5 && teamBProfile.overreach >= 5) {
+    return "Both sides have weak stretches where rhetorical pressure starts crowding out cleaner argument.";
+  }
+
+  return "Neither side has a uniquely weak stretch by a large margin, but both have some uneven moments.";
 }
 
 function buildManipulation(teamAText, teamBText) {
@@ -2102,19 +2166,30 @@ function buildFallbackResponse(args) {
 ========================= */
 
 function cleanTranscript(text) {
-  return hardScrubText(
-    String(text)
-      .replace(/\r/g, "\n")
-      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\d*\s*hour[s]?,\s*\d+\s*minute[s]?,\s*\d+\s*second[s]?\b/gi, " ")
-      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\d*\s*minute[s]?,\s*\d+\s*second[s]?\b/gi, " ")
-      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
-      .replace(/\b\d+\s*hour[s]?,\s*\d+\s*minute[s]?,\s*\d+\s*second[s]?\b/gi, " ")
-      .replace(/\b\d+\s*minute[s]?,\s*\d+\s*second[s]?\b/gi, " ")
-      .replace(/\b\d+\s*second[s]?\b/gi, " ")
-      .replace(/\b\d+\s*minute[s]?\b/gi, " ")
-      .replace(/[ \t]+\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-  ).trim();
+  return String(text)
+    .replace(/\r/g, "\n")
+
+    .replace(/\b\d{1,2}:\d{2}\d+\s*minute[s]?,\s*\d+\s*second[s]?\b/gi, " ")
+    .replace(/\b\d{1,2}:\d{2}\d+\s*minutes?\b/gi, " ")
+
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+    .replace(/\b\d+\s*hour[s]?,\s*\d+\s*minute[s]?,\s*\d+\s*second[s]?\b/gi, " ")
+    .replace(/\b\d+\s*minute[s]?,\s*\d+\s*second[s]?\b/gi, " ")
+    .replace(/\b\d+\s*minute[s]?\b/gi, " ")
+    .replace(/\b\d+\s*second[s]?\b/gi, " ")
+
+    .replace(/\bseconds([A-Za-z])/g, " $1")
+    .replace(/\bminutes([A-Za-z])/g, " $1")
+    .replace(/\bsecond([A-Za-z])/g, " $1")
+    .replace(/\bminute([A-Za-z])/g, " $1")
+
+    .replace(/\b\d{1,2}:\s*,/g, " ")
+    .replace(/\b\d{1,2}:\b/g, " ")
+
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 function normalizeBlockText(text) {
@@ -2142,6 +2217,16 @@ function hardScrubText(text) {
     .replace(/[‘’]/g, "'")
     .replace(/[‐-‒–—]/g, "-")
     .replace(/\u00A0/g, " ")
+    .replace(/\b\d{1,2}:\d{2}\b/g, " ")
+    .replace(/\b\d+\s*minutes?\b/gi, " ")
+    .replace(/\b\d+\s*seconds?\b/gi, " ")
+    .replace(/\bseconds([A-Za-z])/g, " $1")
+    .replace(/\bminutes([A-Za-z])/g, " $1")
+    .replace(/\s+,/g, ",")
+    .replace(/\s+\./g, ".")
+    .replace(/\s+:/g, ":")
+    .replace(/\(\s+/g, "(")
+    .replace(/\s+\)/g, ")")
     .replace(/\s*\n\s*/g, "\n")
     .replace(/[ \t]+/g, " ")
     .trim();
@@ -2177,9 +2262,14 @@ function makeClaim(text) {
 function cleanAnalystField(value) {
   const text = safeString(value, "-");
   return text
-    .replace(/\s+/g, " ")
+    .replace(/\b\d{1,2}:\d{2}\b/g, " ")
+    .replace(/\b\d+\s*minutes?\b/gi, " ")
+    .replace(/\b\d+\s*seconds?\b/gi, " ")
+    .replace(/\bseconds([A-Za-z])/g, " $1")
+    .replace(/\bminutes([A-Za-z])/g, " $1")
     .replace(/\buh\b/gi, "")
     .replace(/\bum\b/gi, "")
+    .replace(/\s+/g, " ")
     .replace(/\s+,/g, ",")
     .replace(/\s+\./g, ".")
     .trim() || "-";
