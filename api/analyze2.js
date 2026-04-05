@@ -20,106 +20,90 @@ module.exports = async function handler(req, res) {
     const cleanedTranscript = cleanTranscript(transcriptText);
     const stats = getTranscriptStats(cleanedTranscript);
 
-    if (stats.wordCount < 80 || stats.lineCount < 4) {
+    if (stats.wordCount < 40 || stats.lineCount < 2) {
       return res.status(400).json({
         error:
-          "This does not look like a usable debate transcript yet. Paste the actual spoken exchange, not metadata, timestamps, titles, or outro junk."
+          "This does not look like a usable debate transcript yet. Paste actual spoken exchange, not metadata or junk."
       });
     }
 
+    // Always build a deterministic local result first
+    const localResult = buildDeterministicResult({
+      teamAName: teamAName,
+      teamBName: teamBName,
+      transcript: cleanedTranscript,
+      videoLink: videoLink
+    });
+
+    // If no Groq key, return local result immediately
     if (!process.env.GROQ_API_KEY) {
-      return res.status(200).json(
-        buildFallbackResponse({
-          teamAName: teamAName,
-          teamBName: teamBName,
-          reason: "Missing GROQ_API_KEY in Vercel environment variables."
-        })
-      );
+      return res.status(200).json(localResult);
     }
 
-    const chunks = chunkTranscript(cleanedTranscript, 1200);
-    const chunkResults = [];
+    // Try AI enhancement, but NEVER let it kill the whole app
+    try {
+      const chunks = chunkTranscript(cleanedTranscript, 900);
+      const chunkResults = [];
 
-    for (let i = 0; i < chunks.length; i += 1) {
-      await sleep(2000);
+      for (let i = 0; i < chunks.length; i += 1) {
+        await sleep(1800);
 
-      const chunkPrompt = buildChunkPrompt({
+        const chunkPrompt = buildChunkPrompt({
+          teamAName: teamAName,
+          teamBName: teamBName,
+          videoLink: videoLink,
+          chunkText: chunks[i],
+          chunkNumber: i + 1,
+          totalChunks: chunks.length
+        });
+
+        const chunkResponse = await callGroq(chunkPrompt);
+
+        if (!chunkResponse.ok) {
+          return res.status(200).json(withAiNote(localResult, "AI chunk step failed. Showing local analysis."));
+        }
+
+        let parsedChunk;
+        try {
+          parsedChunk = safeParseJson(chunkResponse.content);
+        } catch (err) {
+          return res.status(200).json(withAiNote(localResult, "AI chunk JSON failed. Showing local analysis."));
+        }
+
+        chunkResults.push(normalizeChunkResult(parsedChunk));
+      }
+
+      await sleep(2200);
+
+      const synthesisPrompt = buildSynthesisPrompt({
         teamAName: teamAName,
         teamBName: teamBName,
         videoLink: videoLink,
-        chunkText: chunks[i],
-        chunkNumber: i + 1,
-        totalChunks: chunks.length
+        chunkResults: chunkResults
       });
 
-      const chunkResponse = await callGroqJson(chunkPrompt);
+      const synthesisResponse = await callGroq(synthesisPrompt);
 
-      if (!chunkResponse.ok) {
-        return res.status(200).json(
-          buildFallbackResponse({
-            teamAName: teamAName,
-            teamBName: teamBName,
-            reason: "Chunk analysis failed: " + chunkResponse.error
-          })
-        );
+      if (!synthesisResponse.ok) {
+        return res.status(200).json(withAiNote(localResult, "AI synthesis failed. Showing local analysis."));
       }
 
-      let parsedChunk;
+      let parsedFinal;
       try {
-        parsedChunk = safeParseJson(chunkResponse.content);
+        parsedFinal = safeParseJson(synthesisResponse.content);
       } catch (err) {
-        return res.status(200).json(
-          buildFallbackResponse({
-            teamAName: teamAName,
-            teamBName: teamBName,
-            reason: "A chunk returned invalid JSON."
-          })
-        );
+        return res.status(200).json(withAiNote(localResult, "AI synthesis JSON failed. Showing local analysis."));
       }
 
-      chunkResults.push(normalizeChunkResult(parsedChunk));
-    }
-
-    await sleep(2500);
-
-    const synthesisPrompt = buildSynthesisPrompt({
-      teamAName: teamAName,
-      teamBName: teamBName,
-      videoLink: videoLink,
-      chunkResults: chunkResults
-    });
-
-    const synthesisResponse = await callGroqJson(synthesisPrompt);
-
-    if (!synthesisResponse.ok) {
-      return res.status(200).json(
-        buildFallbackResponse({
-          teamAName: teamAName,
-          teamBName: teamBName,
-          reason: "Final synthesis failed: " + synthesisResponse.error
-        })
-      );
-    }
-
-    let parsedFinal;
-    try {
-      parsedFinal = safeParseJson(synthesisResponse.content);
-    } catch (err) {
-      return res.status(200).json(
-        buildFallbackResponse({
-          teamAName: teamAName,
-          teamBName: teamBName,
-          reason: "Final synthesis returned invalid JSON."
-        })
-      );
-    }
-
-    return res.status(200).json(
-      normalizeFinalResult(parsedFinal, {
+      const aiResult = normalizeAiFinalResult(parsedFinal, {
         teamAName: teamAName,
         teamBName: teamBName
-      })
-    );
+      });
+
+      return res.status(200).json(mergeLocalAndAi(localResult, aiResult));
+    } catch (err) {
+      return res.status(200).json(withAiNote(localResult, "AI enhancement failed. Showing local analysis."));
+    }
   } catch (err) {
     return res.status(200).json(
       buildFallbackResponse({
@@ -131,7 +115,7 @@ module.exports = async function handler(req, res) {
   }
 };
 
-async function callGroqJson(prompt) {
+async function callGroq(prompt) {
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -142,8 +126,7 @@ async function callGroqJson(prompt) {
       body: JSON.stringify({
         model: "openai/gpt-oss-20b",
         temperature: 0.1,
-        response_format: { type: "json_object" },
-        max_completion_tokens: 600,
+        max_completion_tokens: 500,
         messages: [
           {
             role: "user",
@@ -195,35 +178,17 @@ async function callGroqJson(prompt) {
 
 function buildChunkPrompt(args) {
   return [
-    "STRICT MODE:",
-    "You MUST return ONLY valid JSON.",
-    "NO text before JSON.",
-    "NO text after JSON.",
-    "NO markdown.",
-    "NO explanations.",
-    "NO comments.",
-    "If you break this, the system fails.",
+    "Return ONLY valid JSON.",
+    "No markdown.",
+    "No code fences.",
+    "No explanation outside JSON.",
     "",
-    "You are analyzing one chunk of a larger debate transcript.",
-    "",
-    "Ignore:",
-    "- timestamps",
-    "- metadata",
-    "- uploader junk",
-    "- category labels",
-    "- title text",
-    "- page filler",
-    "- platform junk",
-    "",
-    "Analyze ONLY the spoken exchange in this chunk.",
-    "",
+    "Analyze this debate chunk.",
     "Team A label: " + args.teamAName,
     "Team B label: " + args.teamBName,
-    "Optional link: " + (args.videoLink || "No link provided"),
     "Chunk: " + args.chunkNumber + " of " + args.totalChunks,
     "",
-    "Return this exact JSON shape:",
-    "",
+    "Return exactly:",
     "{",
     '  "teamA": {',
     '    "main_points": [],',
@@ -247,37 +212,27 @@ function buildChunkPrompt(args) {
     "}",
     "",
     "Rules:",
-    "- Arrays should contain short concrete points from THIS chunk only.",
     '- winnerLean must be exactly "Team A", "Team B", or "Mixed".',
-    "- bestPoint must be one specific strong point from this chunk.",
-    "- worstPoint must be one specific weak point from this chunk.",
-    "- Keep each point short and direct.",
+    "- Keep points short.",
     "- No extra keys.",
     "",
-    "Transcript chunk:",
+    "Chunk text:",
     args.chunkText
   ].join("\n");
 }
 
 function buildSynthesisPrompt(args) {
   return [
-    "STRICT MODE:",
-    "You MUST return ONLY valid JSON.",
-    "NO text before JSON.",
-    "NO text after JSON.",
-    "NO markdown.",
-    "NO explanations.",
-    "NO comments.",
-    "If you break this, the system fails.",
+    "Return ONLY valid JSON.",
+    "No markdown.",
+    "No code fences.",
+    "No explanation outside JSON.",
     "",
-    "You are synthesizing chunk-level debate analyses into one final result.",
-    "",
+    "Synthesize these chunk analyses into one final result.",
     "Team A label: " + args.teamAName,
     "Team B label: " + args.teamBName,
-    "Optional link: " + (args.videoLink || "No link provided"),
     "",
-    "Return this exact JSON shape only:",
-    "",
+    "Return exactly:",
     "{",
     '  "teamAName": "",',
     '  "teamBName": "",',
@@ -302,79 +257,400 @@ function buildSynthesisPrompt(args) {
     "",
     "Rules:",
     '- winner must be exactly "Team A", "Team B", or "Mixed".',
-    "- Keep each field short and direct.",
-    "- Do not include arrays.",
-    "- Do not include nested objects.",
-    "- Do not include extra keys.",
+    "- No nested objects.",
+    "- No arrays.",
+    "- No extra keys.",
     "",
     "Chunk analyses:",
     JSON.stringify(args.chunkResults, null, 2)
   ].join("\n");
 }
 
-function chunkTranscript(text, maxChars) {
-  const paragraphs = text
-    .split(/\n{2,}/)
-    .map(function (p) {
-      return p.trim();
-    })
-    .filter(Boolean);
+function buildDeterministicResult(args) {
+  const transcript = args.transcript;
+  const lines = splitDialogueLines(transcript);
+  const split = splitLinesIntoSides(lines);
 
-  const chunks = [];
-  let current = "";
+  const teamAJoined = split.teamA.join(" ");
+  const teamBJoined = split.teamB.join(" ");
 
-  for (let i = 0; i < paragraphs.length; i += 1) {
-    const para = paragraphs[i];
+  const teamAMain = summarizeMainPosition(teamAJoined);
+  const teamBMain = summarizeMainPosition(teamBJoined);
 
-    if (!current) {
-      current = para;
-      continue;
-    }
+  const teamATruth = detectReasonableClaims(teamAJoined);
+  const teamBTruth = detectReasonableClaims(teamBJoined);
 
-    if ((current + "\n\n" + para).length <= maxChars) {
-      current += "\n\n" + para;
-    } else {
-      chunks.push(current);
-      current = para;
-    }
-  }
+  const teamALies = detectWeakClaims(teamAJoined);
+  const teamBLies = detectWeakClaims(teamBJoined);
 
-  if (current) {
-    chunks.push(current);
-  }
+  const teamAOpinion = detectOpinion(teamAJoined);
+  const teamBOpinion = detectOpinion(teamBJoined);
 
-  if (!chunks.length) {
-    return [text.slice(0, maxChars)];
-  }
+  const teamALala = detectLala(teamAJoined);
+  const teamBLala = detectLala(teamBJoined);
 
-  return chunks;
-}
+  const fluffA = countFluff(teamAJoined);
+  const fluffB = countFluff(teamBJoined);
+  const weakA = weaknessScore(teamAJoined);
+  const weakB = weaknessScore(teamBJoined);
+  const supportA = supportScore(teamAJoined);
+  const supportB = supportScore(teamBJoined);
 
-function normalizeChunkResult(parsed) {
+  let winner = "Mixed";
+  if (supportA - weakA > supportB - weakB + 1) winner = "Team A";
+  if (supportB - weakB > supportA - weakA + 1) winner = "Team B";
+
+  const bsMeter = buildBsMeter(weakA, weakB);
+  const strongestOverall = buildStrongestOverall(teamAJoined, teamBJoined, args.teamAName, args.teamBName);
+  const weakestOverall = buildWeakestOverall(teamAJoined, teamBJoined, args.teamAName, args.teamBName);
+  const why = buildWhy(winner, supportA, weakA, supportB, weakB, args.teamAName, args.teamBName);
+  const manipulation = buildManipulation(teamAJoined, teamBJoined);
+  const fluff = buildFluff(fluffA, fluffB);
+
   return {
+    teamAName: args.teamAName,
+    teamBName: args.teamBName,
     teamA: {
-      main_points: safeArray(parsed && parsed.teamA && parsed.teamA.main_points),
-      truth_points: safeArray(parsed && parsed.teamA && parsed.teamA.truth_points),
-      lie_points: safeArray(parsed && parsed.teamA && parsed.teamA.lie_points),
-      opinion_points: safeArray(parsed && parsed.teamA && parsed.teamA.opinion_points),
-      lala_points: safeArray(parsed && parsed.teamA && parsed.teamA.lala_points)
+      main_position: teamAMain,
+      truth: teamATruth,
+      lies: teamALies,
+      opinion: teamAOpinion,
+      lala: teamALala
     },
     teamB: {
-      main_points: safeArray(parsed && parsed.teamB && parsed.teamB.main_points),
-      truth_points: safeArray(parsed && parsed.teamB && parsed.teamB.truth_points),
-      lie_points: safeArray(parsed && parsed.teamB && parsed.teamB.lie_points),
-      opinion_points: safeArray(parsed && parsed.teamB && parsed.teamB.opinion_points),
-      lala_points: safeArray(parsed && parsed.teamB && parsed.teamB.lala_points)
+      main_position: teamBMain,
+      truth: teamBTruth,
+      lies: teamBLies,
+      opinion: teamBOpinion,
+      lala: teamBLala
     },
-    winnerLean: normalizeWinner(parsed && parsed.winnerLean),
-    bestPoint: safeString(parsed && parsed.bestPoint),
-    worstPoint: safeString(parsed && parsed.worstPoint),
-    manipulation: safeString(parsed && parsed.manipulation),
-    fluff: safeString(parsed && parsed.fluff)
+    winner: winner,
+    bsMeter: bsMeter,
+    strongestOverall: strongestOverall,
+    weakestOverall: weakestOverall,
+    why: why,
+    manipulation: manipulation,
+    fluff: fluff,
+    sources: [
+      {
+        claim: "Deterministic analysis uses transcript patterns, not outside fact-checking",
+        type: "general",
+        likely_source: "Manual review needed",
+        confidence: "medium"
+      }
+    ]
   };
 }
 
-function normalizeFinalResult(parsed, defaults) {
+function splitDialogueLines(text) {
+  return text
+    .split("\n")
+    .map(function (line) {
+      return line.trim();
+    })
+    .filter(Boolean);
+}
+
+function splitLinesIntoSides(lines) {
+  const teamA = [];
+  const teamB = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (i % 2 === 0) {
+      teamA.push(lines[i]);
+    } else {
+      teamB.push(lines[i]);
+    }
+  }
+
+  return { teamA: teamA, teamB: teamB };
+}
+
+function summarizeMainPosition(text) {
+  const sentences = splitSentences(text);
+  if (!sentences.length) return "-";
+  return shorten(sentences[0], 140);
+}
+
+function detectReasonableClaims(text) {
+  const sentences = splitSentences(text);
+  const picked = sentences.filter(function (s) {
+    return hasSupportLanguage(s) && !hasExtremeLanguage(s);
+  });
+  if (!picked.length) return "-";
+  return shorten(picked.slice(0, 2).join(" | "), 220);
+}
+
+function detectWeakClaims(text) {
+  const sentences = splitSentences(text);
+  const picked = sentences.filter(function (s) {
+    return hasExtremeLanguage(s) || hasOverclaimLanguage(s);
+  });
+  if (!picked.length) return "-";
+  return shorten(picked.slice(0, 2).join(" | "), 220);
+}
+
+function detectOpinion(text) {
+  const sentences = splitSentences(text);
+  const picked = sentences.filter(function (s) {
+    return hasOpinionLanguage(s);
+  });
+  if (!picked.length) return "-";
+  return shorten(picked.slice(0, 2).join(" | "), 220);
+}
+
+function detectLala(text) {
+  const sentences = splitSentences(text);
+  const picked = sentences.filter(function (s) {
+    return hasLalaLanguage(s);
+  });
+  if (!picked.length) return "-";
+  return shorten(picked.slice(0, 2).join(" | "), 220);
+}
+
+function splitSentences(text) {
+  return String(text)
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map(function (s) {
+      return s.trim();
+    })
+    .filter(function (s) {
+      return s.length > 12;
+    });
+}
+
+function hasSupportLanguage(s) {
+  const t = s.toLowerCase();
+  return (
+    t.includes("because") ||
+    t.includes("for example") ||
+    t.includes("for instance") ||
+    t.includes("evidence") ||
+    t.includes("data") ||
+    t.includes("according") ||
+    t.includes("study") ||
+    t.includes("shows") ||
+    t.includes("means")
+  );
+}
+
+function hasExtremeLanguage(s) {
+  const t = s.toLowerCase();
+  return (
+    t.includes("always") ||
+    t.includes("never") ||
+    t.includes("everyone") ||
+    t.includes("nobody") ||
+    t.includes("all of them") ||
+    t.includes("completely") ||
+    t.includes("proves everything")
+  );
+}
+
+function hasOverclaimLanguage(s) {
+  const t = s.toLowerCase();
+  return (
+    t.includes("obviously") ||
+    t.includes("clearly") ||
+    t.includes("undeniable") ||
+    t.includes("proves") ||
+    t.includes("no doubt")
+  );
+}
+
+function hasOpinionLanguage(s) {
+  const t = s.toLowerCase();
+  return (
+    t.includes("i think") ||
+    t.includes("i feel") ||
+    t.includes("i believe") ||
+    t.includes("in my view") ||
+    t.includes("should") ||
+    t.includes("would like")
+  );
+}
+
+function hasLalaLanguage(s) {
+  const t = s.toLowerCase();
+  return (
+    t.includes("everybody knows") ||
+    t.includes("literally everyone") ||
+    t.includes("nothing matters") ||
+    t.includes("everything is fake") ||
+    t.includes("all behavior is") ||
+    t.includes("the whole world")
+  );
+}
+
+function countFluff(text) {
+  const t = String(text).toLowerCase();
+  let count = 0;
+  const tokens = ["um", "uh", "like", "you know", "i mean", "basically", "sort of"];
+  for (let i = 0; i < tokens.length; i += 1) {
+    count += occurrences(t, tokens[i]);
+  }
+  return count;
+}
+
+function supportScore(text) {
+  const s = splitSentences(text);
+  let score = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    if (hasSupportLanguage(s[i])) score += 2;
+    if (!hasExtremeLanguage(s[i])) score += 1;
+  }
+  return score;
+}
+
+function weaknessScore(text) {
+  const s = splitSentences(text);
+  let score = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    if (hasExtremeLanguage(s[i])) score += 2;
+    if (hasOverclaimLanguage(s[i])) score += 1;
+    if (hasLalaLanguage(s[i])) score += 2;
+  }
+  return score;
+}
+
+function buildBsMeter(weakA, weakB) {
+  if (Math.abs(weakA - weakB) <= 1) return "50/50";
+  if (weakA > weakB) return "Team A is reaching more";
+  return "Team B is reaching more";
+}
+
+function buildStrongestOverall(teamA, teamB, teamAName, teamBName) {
+  const a = detectReasonableClaims(teamA);
+  const b = detectReasonableClaims(teamB);
+  if (a === "-" && b === "-") return "-";
+  if (a !== "-" && b === "-") return teamAName + ": " + a;
+  if (b !== "-" && a === "-") return teamBName + ": " + b;
+  return a.length >= b.length ? teamAName + ": " + a : teamBName + ": " + b;
+}
+
+function buildWeakestOverall(teamA, teamB, teamAName, teamBName) {
+  const a = detectWeakClaims(teamA);
+  const b = detectWeakClaims(teamB);
+  if (a === "-" && b === "-") return "-";
+  if (a !== "-" && b === "-") return teamAName + ": " + a;
+  if (b !== "-" && a === "-") return teamBName + ": " + b;
+  return a.length >= b.length ? teamAName + ": " + a : teamBName + ": " + b;
+}
+
+function buildWhy(winner, supportA, weakA, supportB, weakB, teamAName, teamBName) {
+  if (winner === "Team A") {
+    return teamAName + " had slightly more support and less weak overreach overall.";
+  }
+  if (winner === "Team B") {
+    return teamBName + " had slightly more support and less weak overreach overall.";
+  }
+  return "Both sides had mixed strengths and weak spots, so neither side created a clear edge.";
+}
+
+function buildManipulation(teamA, teamB) {
+  const text = (teamA + " " + teamB).toLowerCase();
+  if (
+    text.includes("you people") ||
+    text.includes("you just") ||
+    text.includes("that’s ridiculous") ||
+    text.includes("be honest")
+  ) {
+    return "Some rhetorical pressure or dismissive framing appears in the exchange.";
+  }
+  return "-";
+}
+
+function buildFluff(fluffA, fluffB) {
+  const total = fluffA + fluffB;
+  if (total === 0) return "-";
+  if (total < 4) return "Light filler present.";
+  if (total < 10) return "Noticeable filler and repetition present.";
+  return "Heavy filler and repetition present.";
+}
+
+function mergeLocalAndAi(localResult, aiResult) {
+  return {
+    teamAName: aiResult.teamAName || localResult.teamAName,
+    teamBName: aiResult.teamBName || localResult.teamBName,
+    teamA: {
+      main_position: pickBetter(aiResult.teamA.main_position, localResult.teamA.main_position),
+      truth: pickBetter(aiResult.teamA.truth, localResult.teamA.truth),
+      lies: pickBetter(aiResult.teamA.lies, localResult.teamA.lies),
+      opinion: pickBetter(aiResult.teamA.opinion, localResult.teamA.opinion),
+      lala: pickBetter(aiResult.teamA.lala, localResult.teamA.lala)
+    },
+    teamB: {
+      main_position: pickBetter(aiResult.teamB.main_position, localResult.teamB.main_position),
+      truth: pickBetter(aiResult.teamB.truth, localResult.teamB.truth),
+      lies: pickBetter(aiResult.teamB.lies, localResult.teamB.lies),
+      opinion: pickBetter(aiResult.teamB.opinion, localResult.teamB.opinion),
+      lala: pickBetter(aiResult.teamB.lala, localResult.teamB.lala)
+    },
+    winner: pickBetter(aiResult.winner, localResult.winner),
+    bsMeter: pickBetter(aiResult.bsMeter, localResult.bsMeter),
+    strongestOverall: pickBetter(aiResult.strongestOverall, localResult.strongestOverall),
+    weakestOverall: pickBetter(aiResult.weakestOverall, localResult.weakestOverall),
+    why: pickBetter(aiResult.why, localResult.why),
+    manipulation: pickBetter(aiResult.manipulation, localResult.manipulation),
+    fluff: pickBetter(aiResult.fluff, localResult.fluff),
+    sources: localResult.sources
+  };
+}
+
+function withAiNote(result, note) {
+  return {
+    teamAName: result.teamAName,
+    teamBName: result.teamBName,
+    teamA: result.teamA,
+    teamB: result.teamB,
+    winner: result.winner,
+    bsMeter: result.bsMeter,
+    strongestOverall: result.strongestOverall,
+    weakestOverall: result.weakestOverall,
+    why: result.why + " " + note,
+    manipulation: result.manipulation,
+    fluff: result.fluff,
+    sources: result.sources
+  };
+}
+
+function pickBetter(primary, fallback) {
+  if (primary && primary !== "-" && primary !== "Mixed") return primary;
+  return fallback;
+}
+
+function occurrences(text, fragment) {
+  const escaped = fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = text.match(new RegExp(escaped, "g"));
+  return matches ? matches.length : 0;
+}
+
+function shorten(text, maxLen) {
+  const t = safeString(text, "-");
+  if (t.length <= maxLen) return t;
+  return t.slice(0, maxLen - 3).trim() + "...";
+}
+
+function safeJson(response) {
+  return response.json().catch(function () {
+    return null;
+  });
+}
+
+function safeParseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      return JSON.parse(text.slice(start, end + 1));
+    }
+    throw new Error("Invalid JSON from model");
+  }
+}
+
+function normalizeAiFinalResult(parsed, defaults) {
   return {
     teamAName: safeString(parsed && parsed.teamAName, defaults.teamAName),
     teamBName: safeString(parsed && parsed.teamBName, defaults.teamBName),
@@ -399,14 +675,31 @@ function normalizeFinalResult(parsed, defaults) {
     why: safeString(parsed && parsed.why),
     manipulation: safeString(parsed && parsed.manipulation),
     fluff: safeString(parsed && parsed.fluff),
-    sources: [
-      {
-        claim: "Final synthesis did not include source extraction",
-        type: "general",
-        likely_source: "Manual verification needed",
-        confidence: "low"
-      }
-    ]
+    sources: []
+  };
+}
+
+function normalizeChunkResult(parsed) {
+  return {
+    teamA: {
+      main_points: safeArray(parsed && parsed.teamA && parsed.teamA.main_points),
+      truth_points: safeArray(parsed && parsed.teamA && parsed.teamA.truth_points),
+      lie_points: safeArray(parsed && parsed.teamA && parsed.teamA.lie_points),
+      opinion_points: safeArray(parsed && parsed.teamA && parsed.teamA.opinion_points),
+      lala_points: safeArray(parsed && parsed.teamA && parsed.teamA.lala_points)
+    },
+    teamB: {
+      main_points: safeArray(parsed && parsed.teamB && parsed.teamB.main_points),
+      truth_points: safeArray(parsed && parsed.teamB && parsed.teamB.truth_points),
+      lie_points: safeArray(parsed && parsed.teamB && parsed.teamB.lie_points),
+      opinion_points: safeArray(parsed && parsed.teamB && parsed.teamB.opinion_points),
+      lala_points: safeArray(parsed && parsed.teamB && parsed.teamB.lala_points)
+    },
+    winnerLean: normalizeWinner(parsed && parsed.winnerLean),
+    bestPoint: safeString(parsed && parsed.bestPoint),
+    worstPoint: safeString(parsed && parsed.worstPoint),
+    manipulation: safeString(parsed && parsed.manipulation),
+    fluff: safeString(parsed && parsed.fluff)
   };
 }
 
@@ -480,27 +773,6 @@ function getTranscriptStats(text) {
     lineCount: lines.length,
     wordCount: words.length
   };
-}
-
-async function safeJson(response) {
-  try {
-    return await response.json();
-  } catch (err) {
-    return null;
-  }
-}
-
-function safeParseJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start !== -1 && end !== -1 && end > start) {
-      return JSON.parse(text.slice(start, end + 1));
-    }
-    throw new Error("Invalid JSON from model");
-  }
 }
 
 function safeString(value, fallback) {
