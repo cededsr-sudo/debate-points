@@ -5,10 +5,13 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body || {};
+
     const teamAName = cleanSimpleName(body.teamAName) || "Team A";
     const teamBName = cleanSimpleName(body.teamBName) || "Team B";
-    const transcriptText = typeof body.transcriptText === "string" ? body.transcriptText : "";
-    const videoLink = typeof body.videoLink === "string" ? body.videoLink.trim() : "";
+    const transcriptText =
+      typeof body.transcriptText === "string" ? body.transcriptText : "";
+    const videoLink =
+      typeof body.videoLink === "string" ? body.videoLink.trim() : "";
 
     if (!transcriptText.trim()) {
       return res.status(400).json({
@@ -17,18 +20,24 @@ export default async function handler(req, res) {
     }
 
     const cleanedTranscript = cleanTranscript(transcriptText);
-    const transcriptStats = getTranscriptStats(cleanedTranscript);
+    const stats = getTranscriptStats(cleanedTranscript);
 
-    if (transcriptStats.wordCount < 80 || transcriptStats.lineCount < 4) {
+    if (stats.wordCount < 80 || stats.lineCount < 4) {
       return res.status(400).json({
-        error: "This does not look like a usable debate transcript yet. Paste the actual spoken exchange, not metadata, timestamps, titles, or outro junk."
+        error:
+          "This does not look like a usable debate transcript yet. Paste the actual spoken exchange, not metadata, timestamps, titles, or outro junk."
       });
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({
-        error: "Missing OPENAI_API_KEY in server environment"
-      });
+      return res.status(200).json(
+        buildFallbackResponse({
+          teamAName,
+          teamBName,
+          reason:
+            "Missing OPENAI_API_KEY. The app is wired, but no server API key is available."
+        })
+      );
     }
 
     const prompt = buildPrompt({
@@ -57,7 +66,7 @@ export default async function handler(req, res) {
           {
             role: "developer",
             content:
-              "Return only schema-valid JSON. Be decisive. Ignore transcript metadata, timestamps, page junk, titles, and platform filler."
+              "Return only schema-valid JSON. Ignore transcript metadata, timestamps, labels, title text, category text, and platform filler."
           },
           {
             role: "user",
@@ -78,46 +87,71 @@ export default async function handler(req, res) {
       const lowered = String(providerMessage).toLowerCase();
 
       if (lowered.includes("quota") || lowered.includes("billing")) {
-        return res.status(500).json({
-          error: "OpenAI quota/billing issue. The app is wired correctly, but the API key currently cannot run requests."
-        });
+        return res.status(200).json(
+          buildFallbackResponse({
+            teamAName,
+            teamBName,
+            reason:
+              "OpenAI quota/billing issue. The app is wired correctly, but the API key currently cannot run requests."
+          })
+        );
       }
 
       if (lowered.includes("api key") || lowered.includes("authentication")) {
-        return res.status(500).json({
-          error: "OpenAI API key issue. Check the key stored in Vercel."
-        });
+        return res.status(200).json(
+          buildFallbackResponse({
+            teamAName,
+            teamBName,
+            reason:
+              "OpenAI API key issue. Check the key stored in Vercel."
+          })
+        );
       }
 
-      return res.status(500).json({
-        error: providerMessage
-      });
+      return res.status(200).json(
+        buildFallbackResponse({
+          teamAName,
+          teamBName,
+          reason: `Provider error: ${providerMessage}`
+        })
+      );
     }
 
     const content = rawResponse?.choices?.[0]?.message?.content;
 
     if (!content) {
-      return res.status(500).json({
-        error: "OpenAI returned no message content"
-      });
+      return res.status(200).json(
+        buildFallbackResponse({
+          teamAName,
+          teamBName,
+          reason: "OpenAI returned no message content."
+        })
+      );
     }
 
     let parsed;
     try {
       parsed = JSON.parse(content);
     } catch (err) {
-      return res.status(500).json({
-        error: "Structured output parsing failed"
-      });
+      return res.status(200).json(
+        buildFallbackResponse({
+          teamAName,
+          teamBName,
+          reason: "Structured output parsing failed."
+        })
+      );
     }
 
     const safeResult = normalizeResult(parsed, { teamAName, teamBName });
-
     return res.status(200).json(safeResult);
   } catch (err) {
-    return res.status(500).json({
-      error: "Analysis failed"
-    });
+    return res.status(200).json(
+      buildFallbackResponse({
+        teamAName: "Team A",
+        teamBName: "Team B",
+        reason: "Unexpected backend failure."
+      })
+    );
   }
 }
 
@@ -134,7 +168,7 @@ function cleanTranscript(text) {
     .replace(/https?:\/\/\S+/gi, " ")
     .replace(/www\.\S+/gi, " ")
 
-    // obvious platform junk
+    // common page junk
     .replace(/^\s*sync to video time\s*$/gim, " ")
     .replace(/^\s*show transcript\s*$/gim, " ")
     .replace(/^\s*transcript\s*$/gim, " ")
@@ -154,18 +188,27 @@ function cleanTranscript(text) {
       " "
     )
 
-    // standalone timestamps
-    .replace(/^\s*\d{1,2}:\d{2}(?::\d{2})?\s*$/gm, " ")
+    // inline timestamp junk
     .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
 
-    // bare bracketed metadata lines
+    // remove lines that are mostly timestamp + junk
+    .replace(
+      /^\s*\d{1,2}:\d{2}(?::\d{2})?\s*(minutes?,?\s*\d+\s*seconds?)?.*$/gim,
+      function (line) {
+        const stripped = line.replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, "").trim();
+        if (!stripped) return " ";
+        return stripped;
+      }
+    )
+
+    // bare bracket metadata
     .replace(/^\s*\[[^\]]*\]\s*$/gm, " ")
     .replace(/^\s*\([^)]*\)\s*$/gm, " ")
 
-    // remove long encoded junk blobs
+    // giant encoded junk blobs
     .replace(/[A-Za-z0-9_-]{25,}/g, " ")
 
-    // normalize spacing
+    // normalize whitespace
     .replace(/[ \t]+/g, " ")
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
@@ -204,7 +247,7 @@ The transcript may contain metadata such as:
 - uploader notes
 - category labels
 
-IGNORE all metadata, labels, page filler, timestamps, and platform junk.
+You must IGNORE all metadata, timestamps, labels, title text, page filler, and platform junk.
 Analyze ONLY the actual spoken exchange and argumentative content.
 
 Optional Team A Name: ${teamAName}
@@ -253,15 +296,15 @@ Return ONLY valid JSON in this exact shape:
 Rules:
 - Ignore metadata and non-debate filler completely.
 - Be decisive.
-- Do NOT say "could not be isolated cleanly" unless the transcript is genuinely too weak.
+- Do NOT use filler like "could not be isolated cleanly" unless the content is genuinely too weak.
 - "winner" must be exactly "Team A", "Team B", or "Mixed".
 - "truth" = grounded, supported, reasonable claims by that side.
 - "lies" = false, exaggerated, unsupported, or overconfident claims by that side.
 - "opinion" = subjective framing by that side.
 - "lala" = fantasy leaps, absurd overreach, reality disconnect, nonsense by that side.
 - "bsMeter" must plainly say who is bluffing or reaching more and why.
-- "strongestOverall" must name one specific strong point from the exchange.
-- "weakestOverall" must name one specific weak point from the exchange.
+- "strongestOverall" must identify one specific strong point from the exchange.
+- "weakestOverall" must identify one specific weak point from the exchange.
 - "why" must explain the edge plainly.
 - "manipulation" should describe rhetorical pressure or emotional steering if present.
 - "fluff" should describe actual spoken filler or repetition, not metadata.
@@ -415,4 +458,40 @@ function safeString(value, fallback = "-") {
   if (value === null || value === undefined) return fallback;
   const text = String(value).trim();
   return text ? text : fallback;
+}
+
+function buildFallbackResponse({ teamAName, teamBName, reason }) {
+  return {
+    teamAName,
+    teamBName,
+    teamA: {
+      main_position: "Fallback mode: AI unavailable",
+      truth: "-",
+      lies: "-",
+      opinion: "-",
+      lala: "-"
+    },
+    teamB: {
+      main_position: "Fallback mode: AI unavailable",
+      truth: "-",
+      lies: "-",
+      opinion: "-",
+      lala: "-"
+    },
+    winner: "Mixed",
+    bsMeter: "No live AI judgment available",
+    strongestOverall: "-",
+    weakestOverall: "-",
+    why: safeString(reason, "AI unavailable."),
+    manipulation: "-",
+    fluff: "-",
+    sources: [
+      {
+        claim: "No AI source extraction available",
+        type: "general",
+        likely_source: "Requires manual review",
+        confidence: "low"
+      }
+    ]
+  };
 }
