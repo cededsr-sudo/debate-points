@@ -494,13 +494,12 @@ function enforceConsistency(result) {
   out.teamB.lala = cleanAnalystField(out.teamB.lala);
 
   out.strongestArgument = cleanAnalystField(out.strongestArgument);
-  out.strongestOverall = cleanAnalystField(out.strongestOverall);
-  out.weakestOverall = cleanAnalystField(out.weakestOverall);
   out.failedResponseByOtherSide = cleanAnalystField(out.failedResponseByOtherSide);
   out.whyStrongest = cleanAnalystField(out.whyStrongest);
   out.why = cleanAnalystField(out.why);
   out.manipulation = cleanAnalystField(out.manipulation);
   out.fluff = cleanAnalystField(out.fluff);
+  out.weakestOverall = cleanAnalystField(out.weakestOverall);
   out.bsMeter = normalizeBsMeter(out.bsMeter);
   out.winner = normalizeWinner(out.winner);
   out.strongestArgumentSide = normalizeStrongestSide(out.strongestArgumentSide);
@@ -508,6 +507,26 @@ function enforceConsistency(result) {
   if (!out.strongestArgumentSide) {
     out.strongestArgumentSide =
       out.teamAScore >= out.teamBScore ? "Team A" : "Team B";
+  }
+
+  if (
+    out.strongestArgument &&
+    out.strongestArgument !== "-" &&
+    out.strongestArgumentSide === "Team A"
+  ) {
+    out.strongestOverall = out.teamAName + ": " + out.strongestArgument;
+  } else if (
+    out.strongestArgument &&
+    out.strongestArgument !== "-" &&
+    out.strongestArgumentSide === "Team B"
+  ) {
+    out.strongestOverall = out.teamBName + ": " + out.strongestArgument;
+  } else {
+    out.strongestOverall = cleanAnalystField(
+      String(out.strongestOverall || "")
+        .replace(/^Team A:\s*/i, out.teamAName + ": ")
+        .replace(/^Team B:\s*/i, out.teamBName + ": ")
+    );
   }
 
   if (out.winner === "Team A" && out.teamAScore <= out.teamBScore) {
@@ -540,10 +559,38 @@ function enforceConsistency(result) {
     }
   }
 
+  if (
+    out.winner === "Mixed" &&
+    out.strongestArgumentSide &&
+    out.bsMeter !== "Neither side is reaching significantly"
+  ) {
+    const reachAdvantage =
+      out.bsMeter === "Team A is reaching more"
+        ? "Team B"
+        : out.bsMeter === "Team B is reaching more"
+        ? "Team A"
+        : "";
+
+    if (reachAdvantage && reachAdvantage !== out.strongestArgumentSide) {
+      out.winner = reachAdvantage;
+      if (reachAdvantage === "Team A" && out.teamAScore <= out.teamBScore) {
+        out.teamAScore = Math.min(10, out.teamBScore + 1);
+      }
+      if (reachAdvantage === "Team B" && out.teamBScore <= out.teamAScore) {
+        out.teamBScore = Math.min(10, out.teamAScore + 1);
+      }
+    }
+  }
+
   if (out.winner === "Mixed") {
     const even = Math.max(Math.min(out.teamAScore, out.teamBScore), 6);
     out.teamAScore = even;
     out.teamBScore = even;
+  }
+
+  if (out.winner === "Mixed" && out.teamAScore === 10 && out.teamBScore === 10) {
+    out.teamAScore = 8;
+    out.teamBScore = 8;
   }
 
   return out;
@@ -662,7 +709,12 @@ function removeTranscriptNoise(text) {
     .replace(/^\s*\[music\]\s*$/gim, " ")
     .replace(/\[\d{1,2}:\d{2}(?::\d{2})?\]/g, " ")
     .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
-    .replace(/\b(?:applause|laughter|music)\b/gi, " ");
+    .replace(/\b\d{1,2}:\d{2}\d*\s*(seconds?|minutes?)\b/gi, " ")
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*(seconds?|minutes?)\b/gi, " ")
+    .replace(/\b(?:applause|laughter|music)\b/gi, " ")
+    .replace(/\b\d{1,2}:\d{2}(?=[A-Z])/g, " ")
+    .replace(/\b\d{1,2}:\d{2}(?=[A-Za-z])/g, " ")
+    .replace(/\b\d{1,2}:\d{2}\d+(?=[A-Za-z])/g, " ");
 }
 
 function normalizeWhitespace(text) {
@@ -850,8 +902,8 @@ function splitLinesIntoSidesSmart(lines, teamAName, teamBName) {
       continue;
     }
 
-    if (current === "A") teamA.push(line);
-    else teamB.push(line);
+    if (current === "A") teamA.push(stripSpeakerPrefix(line));
+    else teamB.push(stripSpeakerPrefix(line));
   }
 
   if (!teamA.length && !teamB.length) {
@@ -870,8 +922,8 @@ function splitLinesIntoSidesFallback(lines) {
   const teamB = [];
 
   for (let i = 0; i < lines.length; i += 1) {
-    if (i % 2 === 0) teamA.push(lines[i]);
-    else teamB.push(lines[i]);
+    if (i % 2 === 0) teamA.push(stripSpeakerPrefix(lines[i]));
+    else teamB.push(stripSpeakerPrefix(lines[i]));
   }
 
   return { teamA, teamB };
@@ -889,7 +941,7 @@ function detectSpeaker(line, normalizedA, normalizedB) {
   const raw = String(line).trim();
   const lower = raw.toLowerCase();
 
-  const prefixMatch = raw.match(/^\s*([^:\-\]]{1,40})\s*[:\-]\s+/);
+  const prefixMatch = raw.match(/^\s*(?:>>\s*)?([^:\-\]]{1,40})\s*[:\-]\s+/);
   if (!prefixMatch) return "";
 
   const candidate = normalizeSpeakerName(prefixMatch[1]);
@@ -902,15 +954,16 @@ function detectSpeaker(line, normalizedA, normalizedB) {
     return "B";
   }
 
-  if (/\b(team a|speaker 1|host|interviewer)\b/.test(lower)) return "A";
-  if (/\b(team b|speaker 2|guest|opponent)\b/.test(lower)) return "B";
+  if (/\b(team a|speaker 1)\b/.test(lower)) return "A";
+  if (/\b(team b|speaker 2)\b/.test(lower)) return "B";
 
   return "";
 }
 
 function stripSpeakerPrefix(line) {
   return String(line)
-    .replace(/^\s*([^:\-\]]{1,40})\s*[:\-]\s+/, "")
+    .replace(/^\s*(?:>>\s*)?([^:\-\]]{1,40})\s*[:\-]\s+/, "")
+    .replace(/^\s*(TRUMP|RUBIO|MODERATOR|HOST|QUESTION|AUDIENCE)\s*:\s*/i, "")
     .trim();
 }
 
@@ -999,7 +1052,7 @@ function splitSentences(text) {
 }
 
 function cleanSentence(s) {
-  return normalizeWhitespace(removeTranscriptNoise(String(s))).trim();
+  return normalizeWhitespace(removeTranscriptNoise(stripSpeakerPrefix(String(s)))).trim();
 }
 
 function createUsedTracker() {
@@ -1193,8 +1246,17 @@ function cleanAnalystField(value) {
   let text = safeString(value, "-");
   if (text === "-") return text;
 
-  text = normalizeWhitespace(removeTranscriptNoise(text))
+  text = String(text)
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+    .replace(/\b\d{1,2}:\d{2}\d*\s*(seconds?|minutes?)\b/gi, " ")
+    .replace(/\b(TRUMP|RUBIO|MODERATOR|HOST|QUESTION|AUDIENCE)\s*:\s*/gi, "")
     .replace(/>>\s*[^:]+:\s*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  text = normalizeWhitespace(removeTranscriptNoise(text))
+    .replace(/^Team A:\s*/i, "")
+    .replace(/^Team B:\s*/i, "")
     .trim();
 
   if (!text) return "-";
