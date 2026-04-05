@@ -4,59 +4,190 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { teamAName, teamBName, transcriptText, videoLink } = req.body || {};
+    const body = req.body || {};
+    const teamAName = cleanSimpleName(body.teamAName) || "Team A";
+    const teamBName = cleanSimpleName(body.teamBName) || "Team B";
+    const transcriptText = typeof body.transcriptText === "string" ? body.transcriptText : "";
+    const videoLink = typeof body.videoLink === "string" ? body.videoLink.trim() : "";
 
-    if (!transcriptText || !transcriptText.trim()) {
-      return res.status(400).json({ error: "Transcript is required" });
-    }
-
-    function cleanTranscript(text) {
-      return String(text)
-        // urls
-        .replace(/https?:\/\/\S+/gi, " ")
-        .replace(/www\.\S+/gi, " ")
-
-        // common platform junk
-        .replace(/\b\d+\s+views?\b/gi, " ")
-        .replace(/\b\d+\s+(seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago\b/gi, " ")
-        .replace(/\bsync to video time\s*/gi, " ")
-        .replace(/\bshow transcript\s*/gi, " ")
-        .replace(/\btranscript\s*/gi, " ")
-        .replace(/\bautoplay\s*/gi, " ")
-        .replace(/\bsubscribe\s*/gi, " ")
-        .replace(/\bclosing remarks\s*/gi, " ")
-        .replace(/\binvitation\s*/gi, " ")
-        .replace(/\bepic exchange\s*/gi, " ")
-
-        // chapter labels / timestamps
-        .replace(/\bchapter\s+\d+\b.*$/gim, " ")
-        .replace(/^\s*\d{1,2}:\d{2}(?::\d{2})?\s*$/gm, " ")
-        .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
-
-        // uploader junk / bracket junk
-        .replace(/^\s*\[.*?\]\s*$/gm, " ")
-        .replace(/^\s*\(.*?\)\s*$/gm, " ")
-
-        // encoded blobs / obvious nonsense chunks
-        .replace(/[A-Za-z0-9\-_]{25,}/g, " ")
-
-        // normalize whitespace
-        .replace(/[ \t]+/g, " ")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
+    if (!transcriptText.trim()) {
+      return res.status(400).json({
+        error: "Transcript is required"
+      });
     }
 
     const cleanedTranscript = cleanTranscript(transcriptText);
-    const wordCount = cleanedTranscript.split(/\s+/).filter(Boolean).length;
-    const lineCount = cleanedTranscript.split("\n").filter(line => line.trim()).length;
+    const transcriptStats = getTranscriptStats(cleanedTranscript);
 
-    if (wordCount < 80 || lineCount < 4) {
+    if (transcriptStats.wordCount < 80 || transcriptStats.lineCount < 4) {
       return res.status(400).json({
         error: "This does not look like a usable debate transcript yet. Paste the actual spoken exchange, not metadata, timestamps, titles, or outro junk."
       });
     }
 
-    const prompt = `
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({
+        error: "Missing OPENAI_API_KEY in server environment"
+      });
+    }
+
+    const prompt = buildPrompt({
+      teamAName,
+      teamBName,
+      videoLink,
+      cleanedTranscript
+    });
+
+    const schema = buildSchema();
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.1,
+        response_format: {
+          type: "json_schema",
+          json_schema: schema
+        },
+        messages: [
+          {
+            role: "developer",
+            content:
+              "Return only schema-valid JSON. Be decisive. Ignore transcript metadata, timestamps, page junk, titles, and platform filler."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ]
+      })
+    });
+
+    const rawResponse = await safeJson(response);
+
+    if (!response.ok) {
+      const providerMessage =
+        rawResponse?.error?.message ||
+        rawResponse?.message ||
+        "OpenAI request failed";
+
+      const lowered = String(providerMessage).toLowerCase();
+
+      if (lowered.includes("quota") || lowered.includes("billing")) {
+        return res.status(500).json({
+          error: "OpenAI quota/billing issue. The app is wired correctly, but the API key currently cannot run requests."
+        });
+      }
+
+      if (lowered.includes("api key") || lowered.includes("authentication")) {
+        return res.status(500).json({
+          error: "OpenAI API key issue. Check the key stored in Vercel."
+        });
+      }
+
+      return res.status(500).json({
+        error: providerMessage
+      });
+    }
+
+    const content = rawResponse?.choices?.[0]?.message?.content;
+
+    if (!content) {
+      return res.status(500).json({
+        error: "OpenAI returned no message content"
+      });
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (err) {
+      return res.status(500).json({
+        error: "Structured output parsing failed"
+      });
+    }
+
+    const safeResult = normalizeResult(parsed, { teamAName, teamBName });
+
+    return res.status(200).json(safeResult);
+  } catch (err) {
+    return res.status(500).json({
+      error: "Analysis failed"
+    });
+  }
+}
+
+function cleanSimpleName(value) {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+function cleanTranscript(text) {
+  return String(text)
+    .replace(/\r/g, "\n")
+
+    // urls
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/www\.\S+/gi, " ")
+
+    // obvious platform junk
+    .replace(/^\s*sync to video time\s*$/gim, " ")
+    .replace(/^\s*show transcript\s*$/gim, " ")
+    .replace(/^\s*transcript\s*$/gim, " ")
+    .replace(/^\s*autoplay\s*$/gim, " ")
+    .replace(/^\s*subscribe\s*$/gim, " ")
+    .replace(/^\s*closing remarks\s*$/gim, " ")
+    .replace(/^\s*invitation\s*$/gim, " ")
+    .replace(/^\s*epic exchange\s*$/gim, " ")
+    .replace(/^\s*all\s*$/gim, " ")
+    .replace(/^\s*politics news\s*$/gim, " ")
+
+    // chapter labels / youtube wrapper junk
+    .replace(/^\s*chapter\s+\d+.*$/gim, " ")
+    .replace(/^\s*\d+\s+views?\s*$/gim, " ")
+    .replace(
+      /^\s*\d+\s+(seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago\s*$/gim,
+      " "
+    )
+
+    // standalone timestamps
+    .replace(/^\s*\d{1,2}:\d{2}(?::\d{2})?\s*$/gm, " ")
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+
+    // bare bracketed metadata lines
+    .replace(/^\s*\[[^\]]*\]\s*$/gm, " ")
+    .replace(/^\s*\([^)]*\)\s*$/gm, " ")
+
+    // remove long encoded junk blobs
+    .replace(/[A-Za-z0-9_-]{25,}/g, " ")
+
+    // normalize spacing
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function getTranscriptStats(text) {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const words = text.split(/\s+/).filter(Boolean);
+
+  return {
+    lineCount: lines.length,
+    wordCount: words.length
+  };
+}
+
+function buildPrompt({ teamAName, teamBName, videoLink, cleanedTranscript }) {
+  return `
 You are a ruthless debate analyst.
 
 IMPORTANT:
@@ -66,18 +197,18 @@ The transcript may contain metadata such as:
 - views
 - months ago / years ago
 - chapter labels
-- sync to video time
 - timestamps
-- closing remarks
-- invitations
+- sync to video time
 - subscribe prompts
+- outro junk
 - uploader notes
+- category labels
 
-You must IGNORE all metadata, timestamps, labels, title text, and outro junk.
+IGNORE all metadata, labels, page filler, timestamps, and platform junk.
 Analyze ONLY the actual spoken exchange and argumentative content.
 
-Optional Team A Name: ${teamAName || "Team A"}
-Optional Team B Name: ${teamBName || "Team B"}
+Optional Team A Name: ${teamAName}
+Optional Team B Name: ${teamBName}
 Optional Link: ${videoLink || "No link provided"}
 
 Transcript:
@@ -122,152 +253,166 @@ Return ONLY valid JSON in this exact shape:
 Rules:
 - Ignore metadata and non-debate filler completely.
 - Be decisive.
-- Do NOT use filler like "could not be isolated cleanly" unless the debate content is genuinely too weak.
+- Do NOT say "could not be isolated cleanly" unless the transcript is genuinely too weak.
 - "winner" must be exactly "Team A", "Team B", or "Mixed".
 - "truth" = grounded, supported, reasonable claims by that side.
 - "lies" = false, exaggerated, unsupported, or overconfident claims by that side.
 - "opinion" = subjective framing by that side.
 - "lala" = fantasy leaps, absurd overreach, reality disconnect, nonsense by that side.
 - "bsMeter" must plainly say who is bluffing or reaching more and why.
-- "strongestOverall" must identify one specific point from the exchange.
-- "weakestOverall" must identify one specific bad point from the exchange.
+- "strongestOverall" must name one specific strong point from the exchange.
+- "weakestOverall" must name one specific weak point from the exchange.
 - "why" must explain the edge plainly.
 - "manipulation" should describe rhetorical pressure or emotional steering if present.
-- "fluff" should describe actual spoken filler or repetition, not page metadata.
-- "sources" should list 2 to 4 claims that require support.
-`;
+- "fluff" should describe actual spoken filler or repetition, not metadata.
+- "sources" should list 2 to 4 claims that would need outside verification where possible.
+`.trim();
+}
 
-    const schema = {
-      name: "debate_analysis",
-      strict: true,
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          teamAName: { type: "string" },
-          teamBName: { type: "string" },
-          teamA: {
+function buildSchema() {
+  return {
+    name: "debate_analysis",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        teamAName: { type: "string" },
+        teamBName: { type: "string" },
+        teamA: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            main_position: { type: "string" },
+            truth: { type: "string" },
+            lies: { type: "string" },
+            opinion: { type: "string" },
+            lala: { type: "string" }
+          },
+          required: ["main_position", "truth", "lies", "opinion", "lala"]
+        },
+        teamB: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            main_position: { type: "string" },
+            truth: { type: "string" },
+            lies: { type: "string" },
+            opinion: { type: "string" },
+            lala: { type: "string" }
+          },
+          required: ["main_position", "truth", "lies", "opinion", "lala"]
+        },
+        winner: { type: "string" },
+        bsMeter: { type: "string" },
+        strongestOverall: { type: "string" },
+        weakestOverall: { type: "string" },
+        why: { type: "string" },
+        manipulation: { type: "string" },
+        fluff: { type: "string" },
+        sources: {
+          type: "array",
+          items: {
             type: "object",
             additionalProperties: false,
             properties: {
-              main_position: { type: "string" },
-              truth: { type: "string" },
-              lies: { type: "string" },
-              opinion: { type: "string" },
-              lala: { type: "string" }
+              claim: { type: "string" },
+              type: { type: "string" },
+              likely_source: { type: "string" },
+              confidence: { type: "string" }
             },
-            required: ["main_position", "truth", "lies", "opinion", "lala"]
-          },
-          teamB: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              main_position: { type: "string" },
-              truth: { type: "string" },
-              lies: { type: "string" },
-              opinion: { type: "string" },
-              lala: { type: "string" }
-            },
-            required: ["main_position", "truth", "lies", "opinion", "lala"]
-          },
-          winner: { type: "string" },
-          bsMeter: { type: "string" },
-          strongestOverall: { type: "string" },
-          weakestOverall: { type: "string" },
-          why: { type: "string" },
-          manipulation: { type: "string" },
-          fluff: { type: "string" },
-          sources: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                claim: { type: "string" },
-                type: { type: "string" },
-                likely_source: { type: "string" },
-                confidence: { type: "string" }
-              },
-              required: ["claim", "type", "likely_source", "confidence"]
-            }
+            required: ["claim", "type", "likely_source", "confidence"]
           }
-        },
-        required: [
-          "teamAName",
-          "teamBName",
-          "teamA",
-          "teamB",
-          "winner",
-          "bsMeter",
-          "strongestOverall",
-          "weakestOverall",
-          "why",
-          "manipulation",
-          "fluff",
-          "sources"
-        ]
-      }
-    };
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.1,
-        response_format: {
-          type: "json_schema",
-          json_schema: schema
-        },
-        messages: [
-          {
-            role: "developer",
-            content: "Return only schema-valid JSON."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      })
-    });
-
-    const rawResponse = await response.json();
-
-    if (!response.ok) {
-      return res.status(500).json({
-        error: rawResponse?.error?.message || "OpenAI request failed"
-      });
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(rawResponse.choices[0].message.content);
-    } catch (err) {
-      return res.status(500).json({
-        error: "Structured output parsing failed"
-      });
-    }
-
-    parsed.teamAName = parsed.teamAName || teamAName || "Team A";
-    parsed.teamBName = parsed.teamBName || teamBName || "Team B";
-
-    if (!Array.isArray(parsed.sources) || !parsed.sources.length) {
-      parsed.sources = [
-        {
-          claim: "No explicit source claims extracted",
-          type: "general",
-          likely_source: "No direct source — requires verification",
-          confidence: "low"
         }
-      ];
+      },
+      required: [
+        "teamAName",
+        "teamBName",
+        "teamA",
+        "teamB",
+        "winner",
+        "bsMeter",
+        "strongestOverall",
+        "weakestOverall",
+        "why",
+        "manipulation",
+        "fluff",
+        "sources"
+      ]
     }
+  };
+}
 
-    return res.status(200).json(parsed);
+async function safeJson(response) {
+  try {
+    return await response.json();
   } catch (err) {
-    return res.status(500).json({ error: "Analysis failed" });
+    return null;
   }
+}
+
+function normalizeResult(parsed, defaults) {
+  const safeTeamA = normalizeTeam(parsed?.teamA);
+  const safeTeamB = normalizeTeam(parsed?.teamB);
+
+  const winnerRaw = safeString(parsed?.winner);
+  const winner =
+    winnerRaw === "Team A" || winnerRaw === "Team B" || winnerRaw === "Mixed"
+      ? winnerRaw
+      : "Mixed";
+
+  let sources = Array.isArray(parsed?.sources) ? parsed.sources : [];
+  sources = sources
+    .map((item) => ({
+      claim: safeString(item?.claim, "No explicit source claim extracted"),
+      type: safeString(item?.type, "general"),
+      likely_source: safeString(
+        item?.likely_source,
+        "No direct source — requires verification"
+      ),
+      confidence: safeString(item?.confidence, "low")
+    }))
+    .slice(0, 4);
+
+  if (!sources.length) {
+    sources = [
+      {
+        claim: "No explicit source claims extracted",
+        type: "general",
+        likely_source: "No direct source — requires verification",
+        confidence: "low"
+      }
+    ];
+  }
+
+  return {
+    teamAName: safeString(parsed?.teamAName, defaults.teamAName),
+    teamBName: safeString(parsed?.teamBName, defaults.teamBName),
+    teamA: safeTeamA,
+    teamB: safeTeamB,
+    winner,
+    bsMeter: safeString(parsed?.bsMeter),
+    strongestOverall: safeString(parsed?.strongestOverall),
+    weakestOverall: safeString(parsed?.weakestOverall),
+    why: safeString(parsed?.why),
+    manipulation: safeString(parsed?.manipulation),
+    fluff: safeString(parsed?.fluff),
+    sources
+  };
+}
+
+function normalizeTeam(team) {
+  return {
+    main_position: safeString(team?.main_position),
+    truth: safeString(team?.truth),
+    lies: safeString(team?.lies),
+    opinion: safeString(team?.opinion),
+    lala: safeString(team?.lala)
+  };
+}
+
+function safeString(value, fallback = "-") {
+  if (value === null || value === undefined) return fallback;
+  const text = String(value).trim();
+  return text ? text : fallback;
 }
