@@ -1828,3 +1828,213 @@ function buildFailureResponse(req, error) {
     sources: []
   });
 }
+/* =========================
+   VERDICT CLARITY OVERRIDES
+   Paste this at the END of /api/analyze2.js
+   ========================= */
+
+function summarizeClaimTight(text) {
+  const cleaned = clip(
+    cleanWhitespace(stripTranscriptCorruption(text || ""))
+      .replace(/^[,;:\-\s]+/, "")
+      .replace(/\.$/, ""),
+    160
+  );
+
+  if (!cleaned) return "the main claim is not preserved clearly";
+  return cleaned.charAt(0).toLowerCase() + cleaned.slice(1);
+}
+
+function reasonProfile(analysis) {
+  const joined = (analysis && analysis.sentences ? analysis.sentences : [])
+    .join(" ")
+    .toLowerCase();
+
+  return {
+    evidenceHits: countHits(joined, EVIDENCE_WORDS),
+    reasoningHits: countHits(joined, REASONING_WORDS),
+    topicHits: countHits(joined, TOPIC_WORDS),
+    opinionHits: countHits(joined, OPINION_WORDS),
+    overreachHits: countHits(joined, OVERREACH_WORDS),
+    fillerHits: countHits(joined, FILLER_WORDS)
+  };
+}
+
+function strongestReasonWhy(a, b) {
+  const pa = reasonProfile(a);
+  const pb = reasonProfile(b);
+
+  const winner = a.scoreRaw >= b.scoreRaw ? a : b;
+  const loser = winner === a ? b : a;
+  const wp = winner === a ? pa : pb;
+  const lp = winner === a ? pb : pa;
+
+  const reasons = [];
+
+  if (wp.evidenceHits > lp.evidenceHits) {
+    reasons.push("it uses more evidence-oriented support");
+  }
+
+  if (wp.reasoningHits > lp.reasoningHits) {
+    reasons.push("it gives a clearer because-therefore chain");
+  }
+
+  if (wp.topicHits > lp.topicHits) {
+    reasons.push("it stays closer to the actual dispute");
+  }
+
+  if (lp.overreachHits > wp.overreachHits) {
+    reasons.push("the other side reaches harder without matching support");
+  }
+
+  if (lp.fillerHits > wp.fillerHits) {
+    reasons.push("the other side burns more space on weaker framing");
+  }
+
+  if (!reasons.length) {
+    reasons.push("it is the cleaner and more focused point in the preserved transcript");
+  }
+
+  return {
+    winner,
+    loser,
+    text: "because " + reasons.slice(0, 3).join(", ")
+  };
+}
+
+function weakPointReason(analysis) {
+  const p = reasonProfile(analysis);
+  const weakClaim = summarizeClaimTight(
+    analysis.lies || analysis.opinion || analysis.lala || analysis.bestSentence || ""
+  );
+
+  const reasons = [];
+
+  if (p.overreachHits >= 1) reasons.push("it overreaches beyond what is actually supported");
+  if (p.evidenceHits === 0) reasons.push("it does not bring concrete evidence with it");
+  if (p.reasoningHits === 0) reasons.push("it asserts more than it explains");
+  if (p.opinionHits >= 1) reasons.push("it leans into interpretation more than demonstration");
+  if (p.fillerHits >= 2) reasons.push("it carries extra fluff instead of pressure on the issue");
+
+  if (!reasons.length) {
+    reasons.push("it does not create a strong enough edge against the opposing case");
+  }
+
+  return {
+    claim: weakClaim,
+    reason: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function strongerWeakPoint(teamAAnalysis, teamBAnalysis) {
+  const aWeakScore = weaknessScore(teamAAnalysis);
+  const bWeakScore = weaknessScore(teamBAnalysis);
+
+  const weaker = aWeakScore >= bWeakScore ? teamAAnalysis : teamBAnalysis;
+  const detail = weakPointReason(weaker);
+
+  return {
+    side: weaker.sideName,
+    text:
+      weaker.sideName +
+      " weakest point: " +
+      detail.claim +
+      " because " +
+      detail.reason +
+      "."
+  };
+}
+
+function buildCoreDisagreement(teamAAnalysis, teamBAnalysis) {
+  const aClaim = summarizeClaimTight(
+    teamAAnalysis.truth || teamAAnalysis.bestSentence || teamAAnalysis.main_position || ""
+  );
+  const bClaim = summarizeClaimTight(
+    teamBAnalysis.truth || teamBAnalysis.bestSentence || teamBAnalysis.main_position || ""
+  );
+
+  if (aClaim && bClaim) {
+    return (
+      "The dispute is whether " +
+      aClaim +
+      ", while Team B argues " +
+      bClaim +
+      "."
+    );
+  }
+
+  return "The sides disagree over which core claim is better supported by reasoning and evidence.";
+}
+
+function buildOverallWhy(winner, teamAAnalysis, teamBAnalysis, factLayer) {
+  if (winner === "Mixed") {
+    const aWeak = weakPointReason(teamAAnalysis);
+    const bWeak = weakPointReason(teamBAnalysis);
+
+    return (
+      "Mixed because Team A still has weakness around " +
+      aWeak.claim +
+      ", and Team B still has weakness around " +
+      bWeak.claim +
+      ". Neither side creates a decisive edge."
+    );
+  }
+
+  const winnerAnalysis = winner === teamAAnalysis.sideName ? teamAAnalysis : teamBAnalysis;
+  const loserAnalysis = winner === teamAAnalysis.sideName ? teamBAnalysis : teamAAnalysis;
+
+  const strongest = summarizeClaimTight(
+    winnerAnalysis.bestSentence || winnerAnalysis.truth || winnerAnalysis.main_position || ""
+  );
+
+  const weak = weakPointReason(loserAnalysis);
+  const because = strongestReasonWhy(teamAAnalysis, teamBAnalysis).text;
+
+  return (
+    winner +
+    " wins because its best point is " +
+    strongest +
+    ", " +
+    because +
+    ", while " +
+    loserAnalysis.sideName +
+    " stays weaker around " +
+    weak.claim +
+    "."
+  );
+}
+
+function heuristicAIRefinement(teamAAnalysis, teamBAnalysis) {
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const weak = strongerWeakPoint(teamAAnalysis, teamBAnalysis);
+
+  return {
+    strongestArgumentSide: strongest.winner.sideName,
+    strongestArgument:
+      strongest.winner.bestSentence ||
+      strongest.winner.truth ||
+      strongest.winner.main_position,
+    whyStrongest:
+      "It stands out " + strongest.text + ".",
+    failedResponseByOtherSide:
+      strongest.loser.sideName +
+      " never fully breaks that point with a stronger counter-claim or cleaner evidence line.",
+    weakestOverall: weak.text,
+    manipulation:
+      teamAAnalysis.sideName +
+      ": " +
+      teamAAnalysis.manipulationText +
+      " " +
+      teamBAnalysis.sideName +
+      ": " +
+      teamBAnalysis.manipulationText,
+    fluff:
+      teamAAnalysis.sideName +
+      ": " +
+      teamAAnalysis.fluffText +
+      " " +
+      teamBAnalysis.sideName +
+      ": " +
+      teamBAnalysis.fluffText
+  };
+}
