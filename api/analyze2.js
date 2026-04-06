@@ -1738,3 +1738,409 @@ function buildFailureResponse(req, error) {
     sources: []
   });
 }
+/* =========================
+   RHETORICAL-INTRO KILL SWITCH
+   Paste at END of /api/analyze2.js
+   ========================= */
+
+function isRhetoricalIntro(text) {
+  const t = cleanWhitespace(text || "").toLowerCase();
+
+  return (
+    /people are going to say/.test(t) ||
+    /some people are going to say/.test(t) ||
+    /why are you being so aggressive/.test(t) ||
+    /let me tell you why/.test(t) ||
+    /now i know/.test(t) ||
+    /i know some people/.test(t) ||
+    /you may be wondering/.test(t) ||
+    /somebody might say/.test(t) ||
+    /someone might say/.test(t) ||
+    /before i get into that/.test(t) ||
+    /let me explain something/.test(t)
+  );
+}
+
+function isBadClaimCandidate(text) {
+  const t = cleanClaimForDisplay(text || "");
+  if (!t) return true;
+
+  return (
+    isRhetoricalIntro(t) ||
+    isNonArgumentContextLine(t) ||
+    isGenericFallbackText(t) ||
+    wordCount(t) < 7 ||
+    /^[,"'`;:\-]/.test(t) ||
+    /\.\.\.$/.test(t) ||
+    /(^|[\s,;:])\d+\s*[;:,]/.test(t)
+  );
+}
+
+function cleanClaimForDisplay(text) {
+  let t = cleanWhitespace(stripTranscriptCorruption(text || ""));
+
+  t = t
+    .replace(/^\d+\s*[;:,.-]\s*/g, "")
+    .replace(/^team\s*[ab]\s*(says|argues)\s*/i, "")
+    .replace(/^says\s*/i, "")
+    .replace(/^argues\s*/i, "")
+    .replace(/^that\s+/i, "")
+    .replace(/^quote[:,]?\s*/i, "")
+    .replace(/^first[:,]?\s*/i, "")
+    .replace(/^second[:,]?\s*/i, "")
+    .replace(/^third[:,]?\s*/i, "")
+    .replace(/^fourth[:,]?\s*/i, "")
+    .replace(/^and\s+/i, "")
+    .replace(/^but\s+/i, "")
+    .replace(/^so\s+/i, "")
+    .replace(/^now\s+/i, "")
+    .replace(/^well\s+/i, "")
+    .replace(/^look[:,]?\s*/i, "")
+    .replace(/^listen[:,]?\s*/i, "")
+    .replace(/^let'?s (look at|talk about)\s+/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return t;
+}
+
+function isThesisLike(text) {
+  const t = cleanWhitespace(text || "").toLowerCase();
+  if (!t) return false;
+  if (isBadClaimCandidate(t)) return false;
+  if (isAttackSentence(t)) return false;
+  if (isExampleHeavySentence(t)) return false;
+
+  return (
+    /\bshould\b/.test(t) ||
+    /\bshould not\b/.test(t) ||
+    /\bcannot\b/.test(t) ||
+    /\bdoes not\b/.test(t) ||
+    /\bis\b/.test(t) ||
+    /\bare\b/.test(t) ||
+    /\bcounts as\b/.test(t) ||
+    /\bhistorical proof\b/.test(t) ||
+    /\bhistorical evidence\b/.test(t) ||
+    /\bgenesis\b/.test(t) ||
+    /\bjesus\b/.test(t) ||
+    /\bgospels?\b/.test(t) ||
+    /\beyewitness/.test(t) ||
+    /\bmoral law/.test(t) ||
+    /\bgod\b/.test(t)
+  );
+}
+
+function scoreSentence(sentence) {
+  const text = cleanClaimForDisplay(sentence);
+  if (isBadClaimCandidate(text)) return -999;
+
+  let score = 0;
+  const wc = wordCount(text);
+
+  score += Math.min(wc, 24);
+  score += countHits(text, REASONING_WORDS) * 7;
+  score += countHits(text, EVIDENCE_WORDS) * 6;
+  score += countHits(text, TOPIC_WORDS) * 5;
+  score -= countHits(text, FILLER_WORDS) * 3;
+
+  if (isAttackSentence(text)) score -= 6;
+  if (isExampleHeavySentence(text)) score -= 8;
+  if (wc > 50) score -= 6;
+  if (/\?/.test(text)) score -= 4;
+
+  return score;
+}
+
+function humanizeClaim(text) {
+  const raw = cleanClaimForDisplay(text);
+  const t = raw.toLowerCase();
+
+  if (!raw) return "the main claim is not preserved clearly";
+  if (isRhetoricalIntro(raw)) return "rhetorical setup language, not a usable argument claim";
+
+  if (/eyewitness/.test(t) && /jesus/.test(t) && /historical (proof|evidence)/.test(t)) {
+    return "eyewitness-style testimony should not automatically count as strong historical proof for Jesus";
+  }
+
+  if (/babylonian background of genesis|mesopotamian literature|primeval history of genesis/i.test(raw)) {
+    return "Genesis should be read against Ancient Near Eastern background material rather than as an isolated modern account";
+  }
+
+  if (/moral law/i.test(raw) && /moral lawgiver/i.test(raw)) {
+    return "objective moral law points to a moral lawgiver";
+  }
+
+  if (/disciple whom jesus loved|johannine/i.test(raw)) {
+    return "the beloved disciple may be a literary figure rather than a secure eyewitness";
+  }
+
+  if (/heaven'?s gate|joseph smith|angel moroni|spaceship/i.test(raw)) {
+    return "sincere belief by itself does not prove that the belief is historically true";
+  }
+
+  if (/papias/i.test(raw) && /judas/i.test(raw)) {
+    return "Papias includes legendary material, which weakens it as clean historical support";
+  }
+
+  if (/everyone else.*go to hell|simply chose not to save/i.test(raw)) {
+    return "this point depends on a harsh theological interpretation that still needs stronger support";
+  }
+
+  return clip(raw.charAt(0).toLowerCase() + raw.slice(1), 170);
+}
+
+function buildClaimMap(text, sideName) {
+  const sentences = toSentences(text)
+    .map(cleanClaimForDisplay)
+    .filter(Boolean)
+    .filter((s) => wordCount(s) >= 5)
+    .filter((s) => !isRhetoricalIntro(s));
+
+  const theses = [];
+  const supports = [];
+  const attacks = [];
+  const examples = [];
+  const fillers = [];
+
+  for (const sentence of sentences) {
+    const kind = classifySentence(sentence);
+    const record = {
+      text: sentence,
+      human: humanizeClaim(sentence),
+      score: scoreSentence(sentence)
+    };
+
+    if (kind === "thesis") theses.push(record);
+    else if (kind === "support") supports.push(record);
+    else if (kind === "attack") attacks.push(record);
+    else if (kind === "example") examples.push(record);
+    else fillers.push(record);
+  }
+
+  const sortDesc = (a, b) => b.score - a.score;
+
+  theses.sort(sortDesc);
+  supports.sort(sortDesc);
+  attacks.sort(sortDesc);
+  examples.sort(sortDesc);
+  fillers.sort(sortDesc);
+
+  return {
+    sideName,
+    sentences,
+    thesis: uniqueRecordHuman(theses).filter((r) => !isBadClaimCandidate(r.text)).slice(0, 5),
+    support: uniqueRecordHuman(supports).filter((r) => !isBadClaimCandidate(r.text)).slice(0, 7),
+    attack: uniqueRecordHuman(attacks).filter((r) => !isBadClaimCandidate(r.text)).slice(0, 5),
+    example: uniqueRecordHuman(examples).filter((r) => !isBadClaimCandidate(r.text)).slice(0, 4),
+    filler: uniqueRecordHuman(fillers).slice(0, 4)
+  };
+}
+
+function classifySentence(sentence) {
+  const cleaned = cleanClaimForDisplay(sentence);
+  const lower = cleaned.toLowerCase();
+
+  if (!cleaned || isRhetoricalIntro(cleaned) || isNonArgumentContextLine(cleaned) || countHits(cleaned, FILLER_WORDS) >= 2) {
+    return "filler";
+  }
+
+  if (isAttackSentence(cleaned)) return "attack";
+  if (isExampleHeavySentence(cleaned)) return "example";
+
+  const reasoningHits = countHits(lower, REASONING_WORDS);
+  const evidenceHits = countHits(lower, EVIDENCE_WORDS);
+  const topicHits = countHits(lower, TOPIC_WORDS);
+
+  if (isThesisLike(cleaned)) return "thesis";
+  if (evidenceHits >= 1 || reasoningHits >= 1 || topicHits >= 1) return "support";
+
+  return "filler";
+}
+
+function bestUsableClaimFromAnalysis(analysis) {
+  const thesis = analysis && analysis.thesis && analysis.thesis.length ? analysis.thesis[0].human : "";
+  if (thesis && !isBadClaimCandidate(thesis) && !isAttackSentence(thesis)) return thesis;
+
+  const support = analysis && analysis.support && analysis.support.length ? analysis.support[0].human : "";
+  if (support && !isBadClaimCandidate(support) && !isAttackSentence(support)) return support;
+
+  return "the main claim is not preserved clearly";
+}
+
+function deterministicAnalysis(claimMap, sideName) {
+  const mainClaim = bestUsableClaimFromAnalysis(claimMap);
+
+  const truth =
+    claimMap.support.length
+      ? claimMap.support[0].human
+      : claimMap.thesis.length
+      ? claimMap.thesis[0].human
+      : mainClaim;
+
+  const lies =
+    claimMap.attack.length
+      ? claimMap.attack[0].human
+      : "the case includes at least one claim that outruns its displayed support";
+
+  const opinionCandidate = claimMap.sentences.find(
+    (s) =>
+      !isBadClaimCandidate(s) &&
+      /\bi think\b|\bi believe\b|\bin my view\b|\bit seems\b|\bshould\b/i.test(s)
+  );
+
+  const opinion = opinionCandidate
+    ? humanizeClaim(opinionCandidate)
+    : "interpretive language is mixed into the case";
+
+  const lala =
+    claimMap.filler.length
+      ? claimMap.filler[0].human
+      : "some filler remains after cleanup";
+
+  const joined = (claimMap.sentences || []).join(" ").toLowerCase();
+
+  const evidenceHits = countHits(joined, EVIDENCE_WORDS);
+  const reasoningHits = countHits(joined, REASONING_WORDS);
+  const topicHits = countHits(joined, TOPIC_WORDS);
+  const overreachHits = countHits(joined, OVERREACH_WORDS);
+  const fillerHits = countHits(joined, FILLER_WORDS);
+
+  const lane = inferLane(joined);
+  const integrityText = buildIntegrityText(evidenceHits, reasoningHits, overreachHits);
+  const reasoningText = buildReasoningText(evidenceHits, reasoningHits, topicHits);
+  const manipulationText = buildManipulationText(joined);
+  const fluffText = fillerHits >= 3 ? "Some fluff remains, but the main claims are still identifiable." : "Low fluff after cleanup.";
+
+  const scoreRaw = scoreSide({
+    evidenceHits,
+    reasoningHits,
+    topicHits,
+    overreachHits,
+    fillerHits,
+    thesisCount: claimMap.thesis.length,
+    supportCount: claimMap.support.length
+  });
+
+  return {
+    sideName,
+    sentences: claimMap.sentences,
+    thesis: claimMap.thesis,
+    support: claimMap.support,
+    attack: claimMap.attack,
+    example: claimMap.example,
+    filler: claimMap.filler,
+    main_position: sideName + " mainly argues that " + mainClaim + ".",
+    truth,
+    lies,
+    opinion,
+    lala,
+    bestSentence: mainClaim,
+    lane,
+    integrityText,
+    reasoningText,
+    manipulationText,
+    fluffText,
+    scoreRaw
+  };
+}
+
+function factCheckLayer(teamAAnalysis, teamBAnalysis, meta) {
+  const checkedClaims = [];
+
+  const inspect = (analysis, sideName) => {
+    const claims = []
+      .concat(analysis.thesis || [])
+      .concat(analysis.support || [])
+      .filter((item) => item && item.text && !isBadClaimCandidate(item.text))
+      .slice(0, 3);
+
+    for (const claim of claims) {
+      checkedClaims.push({
+        claim: clip(sideName + ": " + claim.human, 220),
+        status: inferFactCheckStatus(claim.text),
+        note: buildFactCheckNote(claim.text),
+        source: meta.videoLink ? clip(meta.videoLink, 180) : "Transcript-only analysis"
+      });
+    }
+  };
+
+  inspect(teamAAnalysis, teamAAnalysis.sideName || DEFAULT_TEAM_A);
+  inspect(teamBAnalysis, teamBAnalysis.sideName || DEFAULT_TEAM_B);
+
+  return {
+    checkedClaims,
+    summary:
+      "Fact-check layer executed in transcript mode. Claims were filtered structurally, not externally verified."
+  };
+}
+
+function buildBaseResult(teamAName, teamBName, teamAAnalysis, teamBAnalysis, factLayer) {
+  const winner = decideWinner(teamAAnalysis, teamBAnalysis);
+  const confidence = buildConfidence(teamAAnalysis.scoreRaw, teamBAnalysis.scoreRaw);
+  const sameLane = buildSameLaneEngagement(teamAAnalysis.lane, teamBAnalysis.lane);
+  const laneMismatch = buildLaneMismatch(teamAAnalysis.lane, teamBAnalysis.lane);
+  const coreDisagreement = buildCoreDisagreement(teamAAnalysis, teamBAnalysis);
+  const why = buildOverallWhy(winner, teamAAnalysis, teamBAnalysis, factLayer);
+  const bsMeter = buildBSMeter(teamAAnalysis, teamBAnalysis);
+  const weakest = strongerWeakPoint(teamAAnalysis, teamBAnalysis);
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+
+  return {
+    teamAName,
+    teamBName,
+    winner,
+    confidence,
+    teamAScore: normalizeDisplayScore(teamAAnalysis.scoreRaw),
+    teamBScore: normalizeDisplayScore(teamBAnalysis.scoreRaw),
+
+    teamA: {
+      main_position: teamAAnalysis.main_position,
+      truth: teamAAnalysis.truth,
+      lies: teamAAnalysis.lies,
+      opinion: teamAAnalysis.opinion,
+      lala: teamAAnalysis.lala
+    },
+
+    teamB: {
+      main_position: teamBAnalysis.main_position,
+      truth: teamBAnalysis.truth,
+      lies: teamBAnalysis.lies,
+      opinion: teamBAnalysis.opinion,
+      lala: teamBAnalysis.lala
+    },
+
+    teamA_integrity: teamAAnalysis.integrityText,
+    teamB_integrity: teamBAnalysis.integrityText,
+    teamA_reasoning: teamAAnalysis.reasoningText,
+    teamB_reasoning: teamBAnalysis.reasoningText,
+
+    teamA_lane: teamAAnalysis.lane,
+    teamB_lane: teamBAnalysis.lane,
+    same_lane_engagement: sameLane,
+    lane_mismatch: laneMismatch,
+
+    strongestArgumentSide: strongest.winner.sideName,
+    strongestArgument: "Core point: " + bestUsableClaimFromAnalysis(strongest.winner),
+    whyStrongest: "It stands out because " + strongest.text + ".",
+    failedResponseByOtherSide:
+      strongest.loser.sideName +
+      " does not beat that point with a cleaner rival claim. Its nearest competing claim is: " +
+      bestUsableClaimFromAnalysis(strongest.loser) +
+      ".",
+    weakestOverall: weakest.text,
+
+    bsMeter,
+    manipulation:
+      teamAAnalysis.sideName + ": " + teamAAnalysis.manipulationText + " " +
+      teamBAnalysis.sideName + ": " + teamBAnalysis.manipulationText,
+    fluff:
+      teamAAnalysis.sideName + ": " + teamAAnalysis.fluffText + " " +
+      teamBAnalysis.sideName + ": " + teamBAnalysis.fluffText,
+
+    core_disagreement: coreDisagreement,
+    why,
+
+    analysisMode: ANALYSIS_MODE,
+    sources: Array.isArray(factLayer.checkedClaims) ? factLayer.checkedClaims : []
+  };
+}
