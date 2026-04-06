@@ -1500,3 +1500,265 @@ function buildFailureResponse(req, err) {
     sources: []
   });
 }
+/* ===================== APPEND: STOP CLAIM COLLAPSE PATCH ===================== */
+
+function rawClaimForCompare(text) {
+  return cleanText(
+    String(text || "")
+      .replace(/\b\d+\s*seconds?\b/gi, " ")
+      .replace(/\b\d+\s*minutes?\b/gi, " ")
+      .replace(/\b\d+\s*hours?\b/gi, " ")
+      .replace(/\b\d+:\d+(?::\d+)?\b/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+  );
+}
+
+function looksTooGenericClaim(text) {
+  const t = cleanText(text).toLowerCase();
+  return (
+    !t ||
+    t === "genesis should be read against ancient near eastern background material rather than as an isolated modern account" ||
+    t === "sincere belief by itself does not prove that the belief is historically true" ||
+    t === "the beloved disciple may be a literary figure rather than a secure eyewitness" ||
+    t === "papias includes legendary material, which weakens it as clean historical support" ||
+    t === "this point depends on a harsh theological interpretation that still needs stronger support"
+  );
+}
+
+function humanizeClaim(text) {
+  const raw = rawClaimForCompare(verdictClean(text));
+  const lower = raw.toLowerCase();
+
+  if (!raw) return "no clear usable claim survived transcript cleanup";
+
+  if (/eyewitness/.test(lower) && /jesus/.test(lower) && /historical (proof|evidence)/.test(lower)) {
+    return "eyewitness testimony alone should not automatically settle the historical case for Jesus";
+  }
+
+  if (/babylonian background of genesis|mesopotamian literature|ancient near eastern background/.test(lower)) {
+    if (/directly dependent|dependent on/.test(lower)) {
+      return "Genesis is being argued to depend directly on Ancient Near Eastern source material";
+    }
+    if (/read against|background material|context/.test(lower)) {
+      return "Genesis is being argued to require Ancient Near Eastern background context for proper reading";
+    }
+    return clip(raw, 180);
+  }
+
+  if (/literary typology|historical reportage|gospel narratives are shaped/.test(lower)) {
+    return "the Gospels are being argued to be shaped by literary typology rather than straightforward historical reportage";
+  }
+
+  if (/martyrdom of the early disciples|wes himself admits|disciples are largely historically questionable/.test(lower)) {
+    return "the historical case for disciple martyrdom is being argued to be weaker than apologists claim";
+  }
+
+  if (/simon bar.?g(i|o)ra|movement died with him|messianic figure/.test(lower)) {
+    return "failed messianic movements are being used as a historical comparison against Christian claims";
+  }
+
+  if (/academic press|eyewitness testimony behind the gospels|undermines the apologetic claim/.test(lower)) {
+    return "academic scholarship is being used to argue against eyewitness testimony behind the Gospels";
+  }
+
+  if (/moral law/.test(lower) && /moral lawgiver/.test(lower)) {
+    return "objective moral law is being used to argue for a moral lawgiver";
+  }
+
+  if (/disciple whom jesus loved|johannine|beloved disciple/.test(lower)) {
+    return "the beloved disciple is being challenged as secure eyewitness evidence";
+  }
+
+  if (/heaven'?s gate|joseph smith|angel moroni|spaceship/.test(lower)) {
+    return "sincere belief is being used as an example that belief alone does not prove truth";
+  }
+
+  if (/papias/.test(lower) && /judas/.test(lower)) {
+    return "Papias is being used in a way that may overstate the strength of legendary material as history";
+  }
+
+  if (/everyone else.*go to hell|simply chose not to save/.test(lower)) {
+    return "this point leans on a harsh theological interpretation that still needs stronger support";
+  }
+
+  return clip(raw, 180);
+}
+
+function strongestReasonWhy(a, b) {
+  const aRaw = rawClaimForCompare(a.bestSentence || "");
+  const bRaw = rawClaimForCompare(b.bestSentence || "");
+  const aHuman = aRaw ? humanizeClaim(aRaw) : "no clear usable claim survived transcript cleanup";
+  const bHuman = bRaw ? humanizeClaim(bRaw) : "no clear usable claim survived transcript cleanup";
+
+  const aj = cleanText((a.sentences || []).join(" ")).toLowerCase();
+  const bj = cleanText((b.sentences || []).join(" ")).toLowerCase();
+
+  const aScore =
+    countHits(aj, EVIDENCE_WORDS) * 4 +
+    countHits(aj, REASONING_WORDS) * 4 +
+    countHits(aj, TOPIC_WORDS) * 2 -
+    countHits(aj, OVERREACH_WORDS) * 2;
+
+  const bScore =
+    countHits(bj, EVIDENCE_WORDS) * 4 +
+    countHits(bj, REASONING_WORDS) * 4 +
+    countHits(bj, TOPIC_WORDS) * 2 -
+    countHits(bj, OVERREACH_WORDS) * 2;
+
+  const claimsAreTooSimilar =
+    aHuman === bHuman ||
+    (looksTooGenericClaim(aHuman) && looksTooGenericClaim(bHuman)) ||
+    (aRaw && bRaw && (
+      aRaw.toLowerCase().includes(bRaw.toLowerCase()) ||
+      bRaw.toLowerCase().includes(aRaw.toLowerCase())
+    ));
+
+  const winner = aScore >= bScore ? a : b;
+  const loser = winner === a ? b : a;
+
+  const reasons = [];
+  const wj = winner === a ? aj : bj;
+  const lj = winner === a ? bj : aj;
+
+  if (countHits(wj, EVIDENCE_WORDS) > countHits(lj, EVIDENCE_WORDS)) reasons.push("it brings more actual support");
+  if (countHits(wj, REASONING_WORDS) > countHits(lj, REASONING_WORDS)) reasons.push("it explains its logic more clearly");
+  if (countHits(wj, TOPIC_WORDS) > countHits(lj, TOPIC_WORDS)) reasons.push("it stays closer to the real dispute");
+  if (countHits(lj, OVERREACH_WORDS) > countHits(wj, OVERREACH_WORDS)) reasons.push("the other side overreaches more");
+
+  if (claimsAreTooSimilar) {
+    reasons.push("the raw claim wording on both sides overlaps too much after cleanup, so only support and pressure differences remain");
+  }
+
+  if (!reasons.length) reasons.push("it remains the cleaner usable claim in the preserved text");
+
+  return {
+    winner,
+    loser,
+    winnerClaim: winner === a ? aHuman : bHuman,
+    loserClaim: winner === a ? bHuman : aHuman,
+    winnerRaw: winner === a ? aRaw : bRaw,
+    loserRaw: winner === a ? bRaw : aRaw,
+    claimsAreTooSimilar,
+    text: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function buildCoreDisagreement(teamAAnalysis, teamBAnalysis) {
+  const aRaw = rawClaimForCompare(teamAAnalysis.bestSentence || "");
+  const bRaw = rawClaimForCompare(teamBAnalysis.bestSentence || "");
+  const aClaim = aRaw ? humanizeClaim(aRaw) : "";
+  const bClaim = bRaw ? humanizeClaim(bRaw) : "";
+
+  if (!aRaw && !bRaw) {
+    return "The transcript cleanup did not preserve a stable core claim for either side clearly enough to summarize.";
+  }
+
+  if (!aRaw || !bRaw) {
+    return "One side preserves a clearer core claim than the other after transcript cleanup.";
+  }
+
+  if (aClaim === bClaim || (looksTooGenericClaim(aClaim) && looksTooGenericClaim(bClaim))) {
+    return "Both sides stay on the same topic, but the preserved transcript does not separate their best cleaned claims sharply enough. The real difference appears more in support, examples, and pressure than in thesis wording.";
+  }
+
+  return "Main dispute: Team A says " + aClaim + ", but Team B says " + bClaim + ".";
+}
+
+function buildOverallWhy(winner, teamAAnalysis, teamBAnalysis) {
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const aStrong = strongest.winner === teamAAnalysis ? strongest.winnerClaim : strongest.loserClaim;
+  const bStrong = strongest.winner === teamAAnalysis ? strongest.loserClaim : strongest.winnerClaim;
+  const aWeak = weakPointReason(teamAAnalysis);
+  const bWeak = weakPointReason(teamBAnalysis);
+
+  if (winner === "Mixed") {
+    if (strongest.claimsAreTooSimilar) {
+      return (
+        "Close call. The cleaned thesis wording on both sides collapses toward the same topic, so the result turns on support quality rather than a sharply distinct thesis. Team A is weakened because " +
+        aWeak.reason +
+        ". Team B is weakened because " +
+        bWeak.reason +
+        "."
+      );
+    }
+
+    return (
+      "Close call. Team A's clearest usable point is " +
+      aStrong +
+      ", but it is weakened because " +
+      aWeak.reason +
+      ". Team B's clearest usable point is " +
+      bStrong +
+      ", but it is weakened because " +
+      bWeak.reason +
+      "."
+    );
+  }
+
+  const loseWeak = weakPointReason(strongest.loser);
+
+  if (strongest.claimsAreTooSimilar) {
+    return (
+      winner +
+      " wins on support quality more than thesis uniqueness. The cleaned claims overlap too much, but " +
+      strongest.text +
+      ". The other side falls behind because " +
+      loseWeak.reason +
+      "."
+    );
+  }
+
+  return (
+    winner +
+    " wins because its clearest usable point is " +
+    strongest.winnerClaim +
+    ", and " +
+    strongest.text +
+    ". The other side falls behind because " +
+    loseWeak.reason +
+    "."
+  );
+}
+
+function strongerWeakPoint(teamAAnalysis, teamBAnalysis) {
+  const aWeak = weakPointReason(teamAAnalysis);
+  const bWeak = weakPointReason(teamBAnalysis);
+
+  const aPenalty =
+    (aWeak.reason.includes("lacks concrete support") ? 2 : 0) +
+    (aWeak.reason.includes("asserts more than it explains") ? 2 : 0) +
+    (aWeak.reason.includes("overstates the case") ? 1 : 0) +
+    (aWeak.reason.includes("leans on interpretation") ? 1 : 0);
+
+  const bPenalty =
+    (bWeak.reason.includes("lacks concrete support") ? 2 : 0) +
+    (bWeak.reason.includes("asserts more than it explains") ? 2 : 0) +
+    (bWeak.reason.includes("overstates the case") ? 1 : 0) +
+    (bWeak.reason.includes("leans on interpretation") ? 1 : 0);
+
+  if (aPenalty === bPenalty) {
+    return {
+      side: "Mixed",
+      text: "Neither side creates a clean edge on weakness. Both preserve claims with support gaps, interpretive stretch, or overreach."
+    };
+  }
+
+  const weaker = aPenalty > bPenalty ? teamAAnalysis : teamBAnalysis;
+  const detail = weaker === teamAAnalysis ? aWeak : bWeak;
+
+  return {
+    side: weaker.sideName,
+    text: weaker.sideName + " is weakest on " + detail.claim + " because " + detail.reason + "."
+  };
+}
+
+function decideWinner(teamAAnalysis, teamBAnalysis) {
+  const diff = Math.abs(teamAAnalysis.scoreRaw - teamBAnalysis.scoreRaw);
+  if (diff <= 2) return "Mixed";
+  return teamAAnalysis.scoreRaw > teamBAnalysis.scoreRaw
+    ? teamAAnalysis.sideName
+    : teamBAnalysis.sideName;
+}
+
+/* =================== END APPEND: STOP CLAIM COLLAPSE PATCH =================== */
