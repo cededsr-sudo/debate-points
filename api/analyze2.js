@@ -2038,3 +2038,374 @@ function heuristicAIRefinement(teamAAnalysis, teamBAnalysis) {
       teamBAnalysis.fluffText
   };
 }
+/* =========================
+   FINAL JUDGMENT OVERRIDES
+   Paste at END of /api/analyze2.js
+   ========================= */
+
+function cleanJudgmentText(text) {
+  let t = cleanWhitespace(stripTranscriptCorruption(text || ""));
+
+  t = t
+    .replace(/^\d+\s*[;:,.-]\s*/g, "")
+    .replace(/^chapter\s+\d+\s*[:.-]?\s*/i, "")
+    .replace(/^now let'?s look at\s+/i, "")
+    .replace(/^according to him,\s*/i, "")
+    .replace(/^and even if\s+/i, "even if ")
+    .replace(/^but by\s+/i, "")
+    .replace(/^so\s+/i, "")
+    .replace(/\bsubscribe\b.*$/i, "")
+    .replace(/\bhit the notification bell\b.*$/i, "")
+    .replace(/\bshare this video\b.*$/i, "")
+    .replace(/\bgood kind of case study\b/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return t;
+}
+
+function isNonArgumentContextLine(line) {
+  const t = cleanJudgmentText(line);
+  if (!t) return true;
+
+  if (
+    /\bsubscribe\b/i.test(t) ||
+    /\bnotification bell\b/i.test(t) ||
+    /\bshare this video\b/i.test(t) ||
+    /\bmy channel\b/i.test(t) ||
+    /\bour channel\b/i.test(t) ||
+    /\bchapter\s+\d+\b/i.test(t) ||
+    /\btable of contents\b/i.test(t) ||
+    /\bnow let'?s look at\b/i.test(t) ||
+    /\bnow i am defining\b/i.test(t) ||
+    /\bthis section\b/i.test(t) ||
+    /\bthis chapter\b/i.test(t) ||
+    /\baccording to him\b/i.test(t) ||
+    /\bgood kind of case study\b/i.test(t) ||
+    /\bthanks for watching\b/i.test(t) ||
+    /\bthanks for joining\b/i.test(t)
+  ) {
+    return true;
+  }
+
+  if (NON_ARGUMENT_CONTEXT_PATTERNS.some((re) => re.test(t))) return true;
+
+  const lower = t.toLowerCase();
+  const hasReasoning = includesAny(lower, REASONING_WORDS);
+  const hasEvidence = includesAny(lower, EVIDENCE_WORDS);
+  const hasTopic = includesAny(lower, TOPIC_WORDS);
+
+  if (!hasReasoning && !hasEvidence && !hasTopic) {
+    if (
+      /\bchannel\b/i.test(t) ||
+      /\bbook\b/i.test(t) ||
+      /\bchapter\b/i.test(t) ||
+      /\bdiscussion\b/i.test(t) ||
+      /\bfacilitate\b/i.test(t)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function selectArgumentSentences(text) {
+  const sentences = toSentences(text);
+
+  const candidates = sentences
+    .map((sentence) => cleanJudgmentText(sentence))
+    .filter(Boolean)
+    .filter((sentence) => !isNonArgumentContextLine(sentence))
+    .filter((sentence) => wordCount(sentence) >= 7)
+    .filter((sentence) => {
+      const hasReasoning = includesAny(sentence, REASONING_WORDS);
+      const hasEvidence = includesAny(sentence, EVIDENCE_WORDS);
+      const hasTopic = includesAny(sentence, TOPIC_WORDS);
+      const hasClaimVerb =
+        /\b(is|are|does|do|cannot|can't|won't|proves|shows|demonstrates|refutes|contradicts|supports|explains)\b/i.test(sentence);
+
+      return hasReasoning || hasEvidence || hasTopic || hasClaimVerb;
+    });
+
+  const scored = candidates
+    .map((sentence) => ({
+      sentence,
+      score: scoreSentence(sentence)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return uniquePreserveOrder(scored.slice(0, 12).map((x) => x.sentence));
+}
+
+function scoreSentence(sentence) {
+  const text = cleanJudgmentText(sentence);
+  let score = 0;
+  const wc = wordCount(text);
+
+  score += Math.min(wc, 24);
+  score += countHits(text, REASONING_WORDS) * 9;
+  score += countHits(text, EVIDENCE_WORDS) * 8;
+  score += countHits(text, TOPIC_WORDS) * 5;
+  score -= countHits(text, FILLER_WORDS) * 3;
+
+  if (/because/i.test(text)) score += 8;
+  if (/for example|for instance|according to/i.test(text)) score += 6;
+  if (wc > 10 && wc < 40) score += 6;
+  if (wc > 55) score -= 10;
+  if (isNonArgumentContextLine(text)) score -= 60;
+  if (/^\d+\s*[;:,.-]/.test(sentence)) score -= 25;
+  if (/\bchapter\s+\d+\b/i.test(sentence)) score -= 25;
+  if (/\bsubscribe\b/i.test(sentence)) score -= 50;
+
+  return score;
+}
+
+function summarizeClaimTight(text) {
+  const cleaned = clip(cleanJudgmentText(text || ""), 140)
+    .replace(/^[,;:\-\s]+/, "")
+    .replace(/\.$/, "");
+
+  if (!cleaned) return "the main claim is not preserved clearly";
+  return cleaned.charAt(0).toLowerCase() + cleaned.slice(1);
+}
+
+function reasonProfile(analysis) {
+  const joined = ((analysis && analysis.sentences) || [])
+    .map(cleanJudgmentText)
+    .join(" ")
+    .toLowerCase();
+
+  return {
+    evidenceHits: countHits(joined, EVIDENCE_WORDS),
+    reasoningHits: countHits(joined, REASONING_WORDS),
+    topicHits: countHits(joined, TOPIC_WORDS),
+    opinionHits: countHits(joined, OPINION_WORDS),
+    overreachHits: countHits(joined, OVERREACH_WORDS),
+    fillerHits: countHits(joined, FILLER_WORDS)
+  };
+}
+
+function strongestReasonWhy(a, b) {
+  const pa = reasonProfile(a);
+  const pb = reasonProfile(b);
+
+  const winner = a.scoreRaw >= b.scoreRaw ? a : b;
+  const loser = winner === a ? b : a;
+  const wp = winner === a ? pa : pb;
+  const lp = winner === a ? pb : pa;
+
+  const reasons = [];
+
+  if (wp.evidenceHits > lp.evidenceHits) {
+    reasons.push("it gives more actual evidence");
+  }
+  if (wp.reasoningHits > lp.reasoningHits) {
+    reasons.push("it explains its logic more clearly");
+  }
+  if (wp.topicHits > lp.topicHits) {
+    reasons.push("it stays more directly on the real issue");
+  }
+  if (lp.overreachHits > wp.overreachHits) {
+    reasons.push("the other side overreaches more");
+  }
+  if (lp.fillerHits > wp.fillerHits) {
+    reasons.push("the other side wastes more space on weaker material");
+  }
+
+  if (!reasons.length) {
+    reasons.push("it is the cleaner argument in the preserved transcript");
+  }
+
+  return {
+    winner,
+    loser,
+    text: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function weakPointReason(analysis) {
+  const p = reasonProfile(analysis);
+  const weakClaim = summarizeClaimTight(
+    analysis.lies || analysis.opinion || analysis.lala || analysis.bestSentence || ""
+  );
+
+  const reasons = [];
+
+  if (p.overreachHits >= 1) reasons.push("it reaches past the support actually shown");
+  if (p.evidenceHits === 0) reasons.push("it lacks concrete evidence");
+  if (p.reasoningHits === 0) reasons.push("it asserts more than it explains");
+  if (p.opinionHits >= 1) reasons.push("it leans on interpretation");
+  if (p.fillerHits >= 2) reasons.push("it carries too much fluff");
+
+  if (!reasons.length) {
+    reasons.push("it does not pressure the opposing case enough");
+  }
+
+  return {
+    claim: weakClaim,
+    reason: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function buildCoreDisagreement(teamAAnalysis, teamBAnalysis) {
+  const aClaim = summarizeClaimTight(
+    teamAAnalysis.truth || teamAAnalysis.bestSentence || teamAAnalysis.main_position || ""
+  );
+  const bClaim = summarizeClaimTight(
+    teamBAnalysis.truth || teamBAnalysis.bestSentence || teamBAnalysis.main_position || ""
+  );
+
+  return (
+    "Main dispute: Team A says " +
+    aClaim +
+    ", but Team B says " +
+    bClaim +
+    "."
+  );
+}
+
+function strongerWeakPoint(teamAAnalysis, teamBAnalysis) {
+  const aWeakScore = weaknessScore(teamAAnalysis);
+  const bWeakScore = weaknessScore(teamBAnalysis);
+
+  const weaker = aWeakScore >= bWeakScore ? teamAAnalysis : teamBAnalysis;
+  const detail = weakPointReason(weaker);
+
+  return {
+    side: weaker.sideName,
+    text:
+      weaker.sideName +
+      " is weakest on " +
+      detail.claim +
+      " because " +
+      detail.reason +
+      "."
+  };
+}
+
+function buildOverallWhy(winner, teamAAnalysis, teamBAnalysis, factLayer) {
+  if (winner === "Mixed") {
+    const aWeak = weakPointReason(teamAAnalysis);
+    const bWeak = weakPointReason(teamBAnalysis);
+
+    return (
+      "No clear winner. Team A is still weak on " +
+      aWeak.claim +
+      " because " +
+      aWeak.reason +
+      ", and Team B is still weak on " +
+      bWeak.claim +
+      " because " +
+      bWeak.reason +
+      "."
+    );
+  }
+
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const losingSide = strongest.loser;
+  const weak = weakPointReason(losingSide);
+  const winClaim = summarizeClaimTight(
+    strongest.winner.bestSentence ||
+      strongest.winner.truth ||
+      strongest.winner.main_position ||
+      ""
+  );
+
+  return (
+    winner +
+    " wins because its best point is " +
+    winClaim +
+    ", and " +
+    strongest.text +
+    ". " +
+    losingSide.sideName +
+    " stays weaker on " +
+    weak.claim +
+    " because " +
+    weak.reason +
+    "."
+  );
+}
+
+function heuristicAIRefinement(teamAAnalysis, teamBAnalysis) {
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const weak = strongerWeakPoint(teamAAnalysis, teamBAnalysis);
+
+  return {
+    strongestArgumentSide: strongest.winner.sideName,
+    strongestArgument:
+      cleanJudgmentText(
+        strongest.winner.bestSentence ||
+        strongest.winner.truth ||
+        strongest.winner.main_position
+      ),
+    whyStrongest:
+      "It wins because " + strongest.text + ".",
+    failedResponseByOtherSide:
+      strongest.loser.sideName +
+      " never answers that point with stronger evidence or a cleaner counter-argument.",
+    weakestOverall: weak.text,
+    manipulation:
+      teamAAnalysis.sideName +
+      ": " +
+      teamAAnalysis.manipulationText +
+      " " +
+      teamBAnalysis.sideName +
+      ": " +
+      teamBAnalysis.manipulationText,
+    fluff:
+      teamAAnalysis.sideName +
+      ": " +
+      teamAAnalysis.fluffText +
+      " " +
+      teamBAnalysis.sideName +
+      ": " +
+      teamBAnalysis.fluffText
+  };
+}
+
+function factCheckLayer(teamAAnalysis, teamBAnalysis, meta) {
+  const checkedClaims = [];
+
+  const inspect = (analysis, sideName) => {
+    const claims = (analysis.sentences || [])
+      .map(cleanJudgmentText)
+      .filter(Boolean)
+      .filter((claim) => !isNonArgumentContextLine(claim))
+      .filter((claim) => !/\bsubscribe\b/i.test(claim))
+      .filter((claim) => !/\bchapter\s+\d+\b/i.test(claim))
+      .slice(0, 3);
+
+    for (const claim of claims) {
+      checkedClaims.push({
+        claim: clip(sideName + ": " + claim, 220),
+        status: inferFactCheckStatus(claim),
+        note: buildFactCheckNote(claim),
+        source: meta.videoLink ? clip(meta.videoLink, 180) : "Transcript-only analysis"
+      });
+    }
+  };
+
+  inspect(teamAAnalysis, teamAAnalysis.sideName || DEFAULT_TEAM_A);
+  inspect(teamBAnalysis, teamBAnalysis.sideName || DEFAULT_TEAM_B);
+
+  return {
+    checkedClaims,
+    summary:
+      "Fact-check layer executed in transcript mode. Claims were filtered structurally, not externally verified."
+  };
+}
+
+function sanitizeForDisplay(value) {
+  let text = cleanJudgmentText(value || "");
+  if (!text) return "";
+
+  text = text
+    .replace(/^\d+\s*[;:,.-]\s*/g, "")
+    .replace(/^chapter\s+\d+\s*[:.-]?\s*/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return text || "";
+}
