@@ -1,12 +1,201 @@
-const express = require("express");
-const router = express.Router();
+"use strict";
 
-const ANALYSIS_MODE = process.env.ANALYSIS_MODE || "deterministic+ai";
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+/**
+ * /api/analyze2.js
+ *
+ * Complete self-contained backend endpoint for Debate Judgment Engine.
+ *
+ * Expected frontend body:
+ * {
+ *   teamAName: string,
+ *   teamBName: string,
+ *   transcriptText: string,
+ *   videoLink?: string
+ * }
+ *
+ * Requirements satisfied:
+ * - ONE complete backend file
+ * - res.json(...) only
+ * - always valid JSON
+ * - full try/catch
+ * - transcript cleaning
+ * - side extraction
+ * - sentence selection
+ * - deterministic analysis
+ * - fact check layer (stub but present)
+ * - AI refinement layer (stub/prompt override structure present)
+ * - merge layer
+ * - consistency enforcement
+ */
 
 const DEFAULT_TEAM_A = "Team A";
 const DEFAULT_TEAM_B = "Team B";
+const ANALYSIS_MODE = "deterministic+factcheck+ai-refinement+merge";
+
+module.exports = async function analyze2Handler(req, res) {
+  try {
+    const body = req && req.body && typeof req.body === "object" ? req.body : {};
+
+    const teamAName = safeText(
+      body.teamAName ||
+        body.teamA ||
+        body.speakerA ||
+        body.nameA ||
+        DEFAULT_TEAM_A
+    ) || DEFAULT_TEAM_A;
+
+    const teamBName = safeText(
+      body.teamBName ||
+        body.teamB ||
+        body.speakerB ||
+        body.nameB ||
+        DEFAULT_TEAM_B
+    ) || DEFAULT_TEAM_B;
+
+    const videoLink = safeText(body.videoLink || "");
+    const transcriptRaw = getTranscriptFromBody(body);
+
+    const cleaned = cleanTranscript(transcriptRaw);
+
+    const extracted = extractSides({
+      transcriptRaw,
+      cleanedTranscript: cleaned,
+      teamAName,
+      teamBName
+    });
+
+    const teamASelected = selectArgumentSentences(extracted.teamAText);
+    const teamBSelected = selectArgumentSentences(extracted.teamBText);
+
+    const teamAAnalysis = deterministicAnalysis(teamASelected, teamAName);
+    const teamBAnalysis = deterministicAnalysis(teamBSelected, teamBName);
+
+    const factLayer = factCheckLayer(teamAAnalysis, teamBAnalysis, {
+      teamAName,
+      teamBName,
+      videoLink
+    });
+
+    const aiLayer = await aiRefinementLayer(teamAAnalysis, teamBAnalysis, {
+      teamAName,
+      teamBName,
+      promptOverride: safeText(body.promptOverride || body.aiPrompt || body.refinementPrompt || ""),
+      videoLink
+    });
+
+    const merged = mergeLayer(
+      buildBaseResult(teamAName, teamBName, teamAAnalysis, teamBAnalysis, factLayer),
+      aiLayer
+    );
+
+    const finalResult = enforceConsistency({
+      ...merged,
+      teamAName,
+      teamBName,
+      analysisMode: ANALYSIS_MODE,
+      sources: Array.isArray(factLayer.checkedClaims) ? factLayer.checkedClaims : []
+    });
+
+    return res.json(finalResult);
+  } catch (err) {
+    return res.json(buildFailureResponse(req, err));
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+function getTranscriptFromBody(body) {
+  const candidates = [
+    body.transcriptText,
+    body.transcript,
+    body.rawTranscript,
+    body.text,
+    body.content,
+    body.input,
+    body.debateText,
+    body.fullTranscript,
+    body.videoTranscript,
+    body.cleanedTranscript
+  ];
+
+  for (const item of candidates) {
+    if (typeof item === "string" && item.trim()) return item;
+  }
+
+  if (Array.isArray(body.transcriptLines)) {
+    return body.transcriptLines.filter(Boolean).join("\n");
+  }
+
+  if (Array.isArray(body.lines)) {
+    return body.lines.filter(Boolean).join("\n");
+  }
+
+  return "";
+}
+
+function safeText(value) {
+  if (value == null) return "";
+  return String(value).replace(/\s+/g, " ").trim();
+}
+
+function cleanWhitespace(value) {
+  return safeText(value);
+}
+
+function clip(text, max = 320) {
+  const t = cleanWhitespace(text);
+  if (!t) return "";
+  if (t.length <= max) return t;
+  return t.slice(0, max - 3).trim() + "...";
+}
+
+function toSentences(text) {
+  const value = cleanWhitespace(text);
+  if (!value) return [];
+  return value
+    .replace(/\n+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => cleanWhitespace(s))
+    .filter(Boolean);
+}
+
+function wordCount(text) {
+  const value = cleanWhitespace(text);
+  if (!value) return 0;
+  return value.split(/\s+/).filter(Boolean).length;
+}
+
+function uniquePreserveOrder(arr) {
+  const out = [];
+  const seen = new Set();
+  for (const item of arr) {
+    const key = cleanWhitespace(item).toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleanWhitespace(item));
+  }
+  return out;
+}
+
+function hasAny(text, words) {
+  const lower = cleanWhitespace(text).toLowerCase();
+  return words.some((w) => lower.includes(w));
+}
+
+function countHits(text, words) {
+  const lower = cleanWhitespace(text).toLowerCase();
+  let count = 0;
+  for (const w of words) {
+    if (lower.includes(w)) count += 1;
+  }
+  return count;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dictionaries                                                       */
+/* ------------------------------------------------------------------ */
 
 const FILLER_WORDS = [
   "um",
@@ -59,58 +248,48 @@ const EVIDENCE_WORDS = [
   "facts",
   "record",
   "records",
-  "proof",
+  "according to",
+  "for example",
+  "for instance",
   "statistic",
   "statistics"
 ];
 
-const THEOLOGY_WORDS = [
-  "bible",
-  "scripture",
-  "god",
-  "jesus",
-  "christ",
-  "church",
-  "salvation",
-  "prophet",
-  "prophecy",
-  "apostle",
-  "gospel"
+const OPINION_WORDS = [
+  "i think",
+  "i believe",
+  "in my opinion",
+  "in my view",
+  "it seems",
+  "probably",
+  "maybe",
+  "perhaps",
+  "i feel",
+  "i guess"
 ];
 
-const PHILOSOPHY_WORDS = [
-  "logic",
-  "premise",
-  "conclusion",
-  "epistemology",
-  "ontology",
-  "contradiction",
-  "coherent",
-  "coherence",
-  "consistent",
-  "inconsistent"
+const OVERREACH_WORDS = [
+  "always",
+  "never",
+  "everyone",
+  "nobody",
+  "all of them",
+  "completely",
+  "obviously",
+  "100%",
+  "proved everything",
+  "absolutely all"
 ];
 
-const RHETORIC_WORDS = [
-  "dodging",
-  "avoid",
-  "evade",
-  "spin",
-  "framing",
-  "posture",
-  "rhetoric",
-  "strawman",
-  "misrepresent"
-];
-
-const SETUP_PATTERNS = [
+const INTRO_PATTERNS = [
   /\bwelcome everyone\b/i,
-  /\btoday we are here\b/i,
-  /\bintroduce our speakers\b/i,
+  /\bwelcome back\b/i,
   /\bthanks for having me\b/i,
   /\bthank you for having me\b/i,
+  /\bthanks for joining\b/i,
+  /\bmake sure to like\b/i,
+  /\bmake sure to subscribe\b/i,
   /\bdon't forget to subscribe\b/i,
-  /\bsubscribe\b/i,
   /\bpodcast\b/i,
   /\bpatreon\b/i,
   /\bsponsored by\b/i,
@@ -121,8 +300,8 @@ const SETUP_PATTERNS = [
   /\bwe have a great show\b/i,
   /\blet's get started\b/i,
   /\bwithout further ado\b/i,
-  /\btoday's debate\b/i,
   /\btonight's debate\b/i,
+  /\btoday's debate\b/i,
   /\bjoin us\b/i,
   /\bintroducing\b/i,
   /\bround of applause\b/i,
@@ -142,259 +321,32 @@ const MODERATOR_HINTS = [
 ];
 
 const STAGE_DIRECTION_PATTERNS = [
-  /\[[^\]]*music[^\]]*\]/gi,
-  /\[[^\]]*applause[^\]]*\]/gi,
-  /\[[^\]]*laughter[^\]]*\]/gi,
-  /\[[^\]]*cheers[^\]]*\]/gi,
-  /\[[^\]]*crosstalk[^\]]*\]/gi,
-  /\[[^\]]*inaudible[^\]]*\]/gi,
-  /\([^\)]*music[^\)]*\)/gi,
-  /\([^\)]*applause[^\)]*\)/gi,
-  /\([^\)]*laughter[^\)]*\)/gi,
-  /\([^\)]*cheers[^\)]*\)/gi,
-  /\([^\)]*crosstalk[^\)]*\)/gi,
-  /\([^\)]*inaudible[^\)]*\)/gi
+  /\[[^\]]{0,80}\]/g,
+  /\((?:music|applause|laughter|laughing|cheering|intro|outro|crosstalk|silence|background noise)[^)]*\)/gi
 ];
 
 const TIMESTAMP_PATTERNS = [
-  /\b\d{1,2}:\d{2}\b/g,
-  /\b\d{1,2}:\d{2}:\d{2}\b/g,
-  /\b\d+\s*hours?,\s*\d+\s*minutes?,\s*\d+\s*seconds?\b/gi,
-  /\b\d+\s*hours?\b/gi,
-  /\b\d+\s*minutes?\b/gi,
+  /\b\d{1,2}:\d{2}(?::\d{2})?\b/g,
+  /\b\d+\s*hours?,?\s*\d+\s*minutes?,?\s*\d+\s*seconds?\b/gi,
+  /\b\d+\s*minutes?,?\s*\d+\s*seconds?\b/gi,
   /\b\d+\s*seconds?\b/gi,
-  /\b\d+h\s*\d+m\s*\d+s\b/gi
+  /\b\d+\s*minutes?\b/gi
 ];
 
-function asString(value) {
-  if (typeof value === "string") return value;
-  if (value == null) return "";
-  return String(value);
-}
+/* ------------------------------------------------------------------ */
+/* Cleaning                                                           */
+/* ------------------------------------------------------------------ */
 
-function cleanWhitespace(text) {
-  return asString(text)
-    .replace(/\r/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+function cleanTranscript(text) {
+  const raw = typeof text === "string" ? text : "";
+  if (!raw.trim()) return "";
 
-function lower(text) {
-  return asString(text).toLowerCase();
-}
+  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
-
-function safeExcerpt(text, max = 240) {
-  const t = cleanWhitespace(text);
-  if (t.length <= max) return t;
-  return t.slice(0, max - 1).trimEnd() + "…";
-}
-
-function wordCount(text) {
-  const m = asString(text).trim().match(/\b[\w'-]+\b/g);
-  return m ? m.length : 0;
-}
-
-function containsAny(text, list) {
-  const t = lower(text);
-  return list.some(item => t.includes(item.toLowerCase()));
-}
-
-function uniquePreserveOrder(arr) {
-  const seen = new Set();
-  const out = [];
-
-  for (const item of arr) {
-    const cleaned = cleanWhitespace(item);
-    if (!cleaned) continue;
-    const key = cleaned.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(cleaned);
-  }
-
-  return out;
-}
-
-function sentenceSplit(text) {
-  return asString(text)
-    .replace(/\n+/g, " ")
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function normalizeSentence(text) {
-  return asString(text)
-    .replace(/^[\s"'“”‘’\-–—:;,.]+/, "")
-    .replace(/[\s"'“”‘’\-–—:;,.]+$/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isTooShort(text) {
-  return wordCount(text) < 6;
-}
-
-function regexAny(text, patterns) {
-  return patterns.some((re) => re.test(text));
-}
-
-function stripSpeakerPrefix(line) {
-  return asString(line)
-    .replace(/^\s*(speaker\s*[ab]|team\s*[ab]|side\s*[ab]|debater\s*[ab]|a|b)\s*[:\-]\s*/i, "")
-    .replace(/^\s*[A-Z][A-Za-z0-9_.\- ]{0,30}\s*[:\-]\s*/, "")
-    .trim();
-}
-
-function hasReasoning(text) {
-  return containsAny(text, REASONING_WORDS);
-}
-
-function hasEvidence(text) {
-  return containsAny(text, EVIDENCE_WORDS);
-}
-
-function isQuestionLike(text) {
-  const t = lower(text).trim();
-  return t.endsWith("?") || /^(why|how|what|when|where|who|is|are|do|does|did|can|could|would|should)\b/.test(t);
-}
-
-function isLikelySetupLine(text) {
-  const t = lower(text);
-  if (regexAny(t, SETUP_PATTERNS)) return true;
-  if (/^\s*(hello|hi|good evening|good afternoon|good morning)\b/.test(t)) return true;
-  if (/^\s*(welcome|introducing|thank you|thanks)\b/.test(t) && wordCount(t) < 18) return true;
-  return false;
-}
-
-function isLikelyModeratorLine(text) {
-  const t = lower(text);
-  if (containsAny(t, MODERATOR_HINTS)) return true;
-  if (/^\s*(next question|first question|opening statement|closing statement|cross[- ]?examination|rebuttal time)\b/.test(t)) return true;
-  if (/^\s*(let me ask|i'll ask|my question is|the question is|we'll move on)\b/.test(t)) return true;
-  return false;
-}
-
-function numericScoreToString(n) {
-  return String(clamp(Math.round(n), 0, 100));
-}
-
-function pickBestNonEmpty(candidates, fallback) {
-  for (const c of candidates) {
-    if (typeof c === "string" && c.trim()) return c.trim();
-  }
-  return fallback;
-}
-
-function scoreSentence(sentence) {
-  const s = normalizeSentence(sentence);
-  const l = lower(s);
-
-  if (!s) return -999;
-
-  let score = 0;
-  const wc = wordCount(s);
-
-  score += Math.min(wc, 30);
-
-  if (hasReasoning(s)) score += 30;
-  if (hasEvidence(s)) score += 25;
-  if (/\b(is|are|must|should|cannot|can't|does|did|proves|shows|demonstrates|means)\b/i.test(s)) score += 10;
-  if (/\bfor example\b|\bfor instance\b|\bthat shows\b|\bthis means\b/i.test(s)) score += 12;
-  if (/[,:;]/.test(s)) score += 4;
-
-  if (isLikelySetupLine(s)) score -= 80;
-  if (isLikelyModeratorLine(s)) score -= 80;
-  if (isTooShort(s)) score -= 55;
-  if (isQuestionLike(s)) score -= 10;
-
-  for (const filler of FILLER_WORDS) {
-    if (l.includes(filler)) score -= 6;
-  }
-
-  if (/\bsubscribe\b|\bthanks for having me\b|\bglad to be here\b/i.test(l)) score -= 85;
-  if (/\b\d{1,2}:\d{2}\b/.test(l)) score -= 100;
-
-  return score;
-}
-
-function rankSentences(sentences) {
-  return uniquePreserveOrder(sentences)
-    .map((text) => ({ text: normalizeSentence(text), score: scoreSentence(text) }))
-    .filter((item) => item.text)
-    .sort((a, b) => b.score - a.score);
-}
-
-function bestSentence(sentences, fallback) {
-  const ranked = rankSentences(sentences);
-  return ranked.length ? ranked[0].text : fallback;
-}
-
-function getTranscriptFromBody(body) {
-  if (!body || typeof body !== "object") return "";
-
-  const candidates = [
-    body.transcriptText,
-    body.transcript,
-    body.text,
-    body.rawTranscript,
-    body.content,
-    body.input
-  ];
-
-  for (const c of candidates) {
-    if (typeof c === "string" && c.trim()) return c;
-  }
-
-  if (Array.isArray(body.lines)) {
-    return body.lines.map(asString).join("\n");
-  }
-
-  return "";
-}
-
-function cleanTranscript(rawTranscript) {
-  let text = cleanWhitespace(rawTranscript);
-
-  for (const re of TIMESTAMP_PATTERNS) {
-    text = text.replace(re, " ");
-  }
-
-  for (const re of STAGE_DIRECTION_PATTERNS) {
-    text = text.replace(re, " ");
-  }
-
-  text = text
-    .replace(/\[(.*?)\]/g, " ")
-    .replace(/\((.*?)\)/g, (m, inner) => {
-      if (!inner) return " ";
-      const t = inner.trim().toLowerCase();
-      if (
-        t.includes("applause") ||
-        t.includes("music") ||
-        t.includes("laughter") ||
-        t.includes("inaudible") ||
-        t.includes("crosstalk") ||
-        t.includes("cheers")
-      ) {
-        return " ";
-      }
-      return ` ${inner} `;
-    })
-    .replace(/\b(ad break|commercial break)\b/gi, " ")
-    .replace(/\b(www\.[^\s]+|https?:\/\/[^\s]+)\b/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const rawLines = cleanWhitespace(rawTranscript)
+  const rawLines = normalized
     .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
+    .flatMap((line) => splitLineIntoSegments(line))
+    .map((line) => line.trim());
 
   const cleanedLines = [];
 
@@ -416,382 +368,485 @@ function cleanTranscript(rawTranscript) {
     const dePrefixed = stripSpeakerPrefix(line);
     if (isLikelySetupLine(dePrefixed)) continue;
 
-    cleanedLines.push(line);
+    cleanedLines.push(dePrefixed);
   }
 
-  const finalText = cleanWhitespace(uniquePreserveOrder(cleanedLines).join("\n") || text);
+  const finalText = cleanWhitespace(uniquePreserveOrder(cleanedLines).join("\n")) || raw;
 
+  return finalText;
+}
+
+function splitLineIntoSegments(line) {
+  const value = typeof line === "string" ? line : "";
+  if (!value.trim()) return [];
+  return value
+    .replace(/([.?!])\s+/g, "$1\n")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function stripSpeakerPrefix(line) {
+  return cleanWhitespace(
+    line.replace(/^(speaker\s*[ab12]|team\s*[ab12]|a|b|host|moderator|interviewer)\s*[:\-]\s*/i, "")
+  );
+}
+
+function isLikelySetupLine(line) {
+  if (!line) return true;
+  const t = cleanWhitespace(line);
+  return INTRO_PATTERNS.some((re) => re.test(t));
+}
+
+function isLikelyModeratorLine(line) {
+  const t = cleanWhitespace(line).toLowerCase();
+  if (!t) return false;
+  if (/^(moderator|host|interviewer|question)\s*[:\-]/i.test(line)) return true;
+  return MODERATOR_HINTS.some((hint) => t.includes(hint));
+}
+
+/* ------------------------------------------------------------------ */
+/* Side Extraction                                                    */
+/* ------------------------------------------------------------------ */
+
+function extractSides({ transcriptRaw, cleanedTranscript, teamAName, teamBName }) {
+  const text = cleanedTranscript || transcriptRaw || "";
+  const lines = (text || "")
+    .split("\n")
+    .map((line) => cleanWhitespace(line))
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return {
+      teamAText: "",
+      teamBText: ""
+    };
+  }
+
+  const explicit = extractByExplicitSpeakerLabels(lines, teamAName, teamBName);
+  if (explicit.teamA.length >= 2 && explicit.teamB.length >= 2) {
+    return {
+      teamAText: explicit.teamA.join(" "),
+      teamBText: explicit.teamB.join(" ")
+    };
+  }
+
+  const fallback = fallbackSplitSides(lines);
   return {
-    cleanedTranscript: finalText,
-    cleanedLines: uniquePreserveOrder(
-      finalText
-        .split("\n")
-        .map((l) => cleanWhitespace(l))
-        .filter(Boolean)
-    )
+    teamAText: fallback.teamA.join(" "),
+    teamBText: fallback.teamB.join(" ")
   };
 }
 
-function detectSpeakerCue(line) {
-  const l = asString(line).trim();
+function extractByExplicitSpeakerLabels(lines, teamAName, teamBName) {
+  const teamA = [];
+  const teamB = [];
 
-  if (/^\s*(speaker\s*a|team\s*a|side\s*a|debater\s*a|a)\s*[:\-]/i.test(l)) {
-    return { side: "A", stripped: stripSpeakerPrefix(l) };
-  }
+  const aName = escapeRegExp(teamAName);
+  const bName = escapeRegExp(teamBName);
 
-  if (/^\s*(speaker\s*b|team\s*b|side\s*b|debater\s*b|b)\s*[:\-]/i.test(l)) {
-    return { side: "B", stripped: stripSpeakerPrefix(l) };
-  }
+  const aPatterns = [
+    new RegExp(`^${aName}\\s*[:\\-]`, "i"),
+    /^team\s*a\s*[:\-]/i,
+    /^speaker\s*a\s*[:\-]/i,
+    /^a\s*[:\-]/i,
+    /^1\s*[:\-]/i
+  ];
 
-  const namedMatch = l.match(/^\s*([A-Z][A-Za-z0-9_.\- ]{0,30})\s*[:\-]\s*(.+)$/);
-  if (namedMatch) {
-    return { side: null, name: namedMatch[1].trim(), stripped: namedMatch[2].trim() };
-  }
-
-  return { side: null, stripped: l };
-}
-
-function extractSpeakerNames(lines) {
-  const counts = new Map();
+  const bPatterns = [
+    new RegExp(`^${bName}\\s*[:\\-]`, "i"),
+    /^team\s*b\s*[:\-]/i,
+    /^speaker\s*b\s*[:\-]/i,
+    /^b\s*[:\-]/i,
+    /^2\s*[:\-]/i
+  ];
 
   for (const line of lines) {
-    const m = asString(line).match(/^\s*([A-Z][A-Za-z0-9_.\- ]{0,30})\s*[:\-]\s*(.+)$/);
-    if (!m) continue;
+    if (isLikelyModeratorLine(line)) continue;
 
-    const name = m[1].trim();
-    const speech = m[2].trim();
-
-    if (!name || !speech) continue;
-    if (isLikelyModeratorLine(name)) continue;
-    if (isLikelySetupLine(speech)) continue;
-    if (wordCount(speech) < 4) continue;
-
-    counts.set(name, (counts.get(name) || 0) + 1);
-  }
-
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([name]) => name);
-}
-
-function extractSides(cleanedLines, requestedTeamAName, requestedTeamBName) {
-  const lines = Array.isArray(cleanedLines) ? cleanedLines : [];
-  const topNames = extractSpeakerNames(lines);
-
-  let teamAName = requestedTeamAName || DEFAULT_TEAM_A;
-  let teamBName = requestedTeamBName || DEFAULT_TEAM_B;
-
-  if (!requestedTeamAName && topNames.length >= 1) teamAName = topNames[0];
-  if (!requestedTeamBName && topNames.length >= 2) teamBName = topNames[1];
-
-  const teamALines = [];
-  const teamBLines = [];
-  let lastAssigned = "B";
-  let structuredMode = false;
-
-  for (const rawLine of lines) {
-    if (!rawLine) continue;
-
-    const cue = detectSpeakerCue(rawLine);
-    const line = cleanWhitespace(cue.stripped || rawLine);
-    if (!line) continue;
-
-    if (isLikelySetupLine(line)) continue;
-    if (isLikelyModeratorLine(rawLine) || isLikelyModeratorLine(line)) continue;
-
-    if (cue.side === "A") {
-      structuredMode = true;
-      if (!isTooShort(line)) teamALines.push(line);
-      lastAssigned = "A";
+    if (aPatterns.some((re) => re.test(line))) {
+      teamA.push(cleanWhitespace(line.replace(/^[^:\-]+[:\-]\s*/, "")));
       continue;
     }
 
-    if (cue.side === "B") {
-      structuredMode = true;
-      if (!isTooShort(line)) teamBLines.push(line);
-      lastAssigned = "B";
+    if (bPatterns.some((re) => re.test(line))) {
+      teamB.push(cleanWhitespace(line.replace(/^[^:\-]+[:\-]\s*/, "")));
       continue;
     }
-
-    const namedMatch = asString(rawLine).match(/^\s*([A-Z][A-Za-z0-9_.\- ]{0,30})\s*[:\-]\s*(.+)$/);
-    if (namedMatch) {
-      const speakerName = namedMatch[1].trim();
-      const spoken = cleanWhitespace(namedMatch[2]);
-
-      if (!spoken || isLikelySetupLine(spoken) || isLikelyModeratorLine(speakerName)) continue;
-
-      if (speakerName === teamAName) {
-        structuredMode = true;
-        if (!isTooShort(spoken)) teamALines.push(spoken);
-        lastAssigned = "A";
-        continue;
-      }
-
-      if (speakerName === teamBName) {
-        structuredMode = true;
-        if (!isTooShort(spoken)) teamBLines.push(spoken);
-        lastAssigned = "B";
-        continue;
-      }
-    }
-
-    const sentences = sentenceSplit(line);
-
-    if (structuredMode) {
-      const target = lastAssigned === "A" ? teamALines : teamBLines;
-      for (const s of sentences) {
-        const ns = normalizeSentence(s);
-        if (!ns || isTooShort(ns) || isLikelySetupLine(ns) || isLikelyModeratorLine(ns)) continue;
-        target.push(ns);
-      }
-      continue;
-    }
-
-    for (const s of sentences) {
-      const ns = normalizeSentence(s);
-      if (!ns || isTooShort(ns) || isLikelySetupLine(ns) || isLikelyModeratorLine(ns)) continue;
-
-      if (lastAssigned === "A") {
-        teamBLines.push(ns);
-        lastAssigned = "B";
-      } else {
-        teamALines.push(ns);
-        lastAssigned = "A";
-      }
-    }
-  }
-
-  const allCandidateSentences = uniquePreserveOrder(
-    lines
-      .flatMap((line) => sentenceSplit(stripSpeakerPrefix(line)))
-      .map(normalizeSentence)
-      .filter(Boolean)
-      .filter((s) => !isLikelySetupLine(s))
-      .filter((s) => !isLikelyModeratorLine(s))
-      .filter((s) => wordCount(s) >= 6)
-  );
-
-  if (teamALines.length < 2 || teamBLines.length < 2) {
-    const splitIndex = Math.ceil(allCandidateSentences.length / 2);
-    const firstHalf = allCandidateSentences.slice(0, splitIndex);
-    const secondHalf = allCandidateSentences.slice(splitIndex);
-
-    if (teamALines.length < 2) teamALines.push(...firstHalf);
-    if (teamBLines.length < 2) teamBLines.push(...secondHalf);
   }
 
   return {
-    teamAName,
-    teamBName,
-    teamASentences: uniquePreserveOrder(teamALines),
-    teamBSentences: uniquePreserveOrder(teamBLines),
-    extractionMeta: {
-      structuredMode,
-      totalLines: lines.length,
-      teamALineCount: teamALines.length,
-      teamBLineCount: teamBLines.length
-    }
+    teamA: teamA.filter(isRealArgumentSentence),
+    teamB: teamB.filter(isRealArgumentSentence)
   };
 }
 
-function summarizePosition(sentences, fallback) {
-  const ranked = rankSentences(sentences).slice(0, 3).map((x) => x.text);
-  if (!ranked.length) return fallback;
-  if (ranked.length === 1) return ranked[0];
-  return safeExcerpt(`${ranked[0]} ${ranked[1]}`, 300);
-}
-
-function extractTruth(sentences) {
-  const strong = rankSentences(sentences)
-    .filter((x) => hasEvidence(x.text) || hasReasoning(x.text))
-    .slice(0, 2)
-    .map((x) => x.text);
-
-  if (strong.length) {
-    return safeExcerpt(`Grounded point: ${strong.join(" ")}`, 280);
-  }
-
-  const best = bestSentence(sentences, "");
-  if (best) return safeExcerpt(`Best concrete point: ${best}`, 280);
-
-  return "Grounded point exists, but it was thin and underdeveloped.";
-}
-
-function extractLies(sentences) {
-  const weak = rankSentences(sentences)
-    .filter((x) => !hasEvidence(x.text) && !hasReasoning(x.text))
-    .slice(0, 2)
-    .map((x) => x.text);
-
-  if (weak.length) {
-    return safeExcerpt(`Unsupported claim area: ${weak.join(" ")}`, 280);
-  }
-
-  return "No outright proven lie was isolated from transcript alone, but several claims lacked proof.";
-}
-
-function extractOpinion(sentences) {
-  const opinionLike = uniquePreserveOrder(sentences).filter((s) => {
-    const l = lower(s);
-    return (
-      l.includes("i think") ||
-      l.includes("i believe") ||
-      l.includes("in my view") ||
-      l.includes("obviously") ||
-      l.includes("clearly")
-    );
-  });
-
-  if (opinionLike.length) {
-    return safeExcerpt(`Opinion-heavy framing: ${opinionLike.slice(0, 2).join(" ")}`, 280);
-  }
-
-  return "Opinion was present mostly in framing rather than in direct evidence.";
-}
-
-function extractLala(sentences) {
-  const fillerHeavy = uniquePreserveOrder(sentences).filter((s) => {
-    const l = lower(s);
-    return FILLER_WORDS.some((f) => l.includes(f));
-  });
-
-  if (fillerHeavy.length) {
-    return safeExcerpt(`Filler / drag: ${fillerHeavy.slice(0, 2).join(" ")}`, 240);
-  }
-
-  return "Minimal filler compared with the rest of the exchange.";
-}
-
-function inferLane(sentences) {
-  const joined = lower(sentences.join(" "));
-  let evidenceScore = 0;
-  let theologyScore = 0;
-  let philosophyScore = 0;
-  let rhetoricScore = 0;
-
-  if (containsAny(joined, EVIDENCE_WORDS)) evidenceScore += 3;
-  if (containsAny(joined, THEOLOGY_WORDS)) theologyScore += 3;
-  if (containsAny(joined, PHILOSOPHY_WORDS)) philosophyScore += 3;
-  if (containsAny(joined, RHETORIC_WORDS)) rhetoricScore += 3;
-
-  const buckets = [
-    ["evidence", evidenceScore],
-    ["theological", theologyScore],
-    ["philosophical", philosophyScore],
-    ["rhetorical", rhetoricScore]
-  ].sort((a, b) => b[1] - a[1]);
-
-  return buckets[0][1] > 0 ? buckets[0][0] : "argument";
-}
-
-function analyzeSideDeterministically(sideName, sentences) {
-  const safeFallback = `${sideName} never built a clean argument, so the engine had to reconstruct the position from weak fragments.`;
-  const mainPosition = summarizePosition(sentences, safeFallback);
-  const ranked = rankSentences(sentences);
-  const top = ranked.slice(0, 5).map((x) => x.text);
-  const best = bestSentence(sentences, safeFallback);
-
-  const reasoningStrength = clamp(
-    top.reduce((sum, s) => sum + (hasReasoning(s) ? 1 : 0) + (hasEvidence(s) ? 1 : 0), 0) * 12 +
-      Math.min(top.length * 6, 24),
-    0,
-    100
+function fallbackSplitSides(lines) {
+  const eligible = lines.filter(
+    (line) =>
+      !isLikelyModeratorLine(line) &&
+      !isLikelySetupLine(line) &&
+      isRealArgumentSentence(line)
   );
 
-  const fillerPenalty = clamp(
-    uniquePreserveOrder(sentences).reduce((sum, s) => {
-      const l = lower(s);
-      return sum + FILLER_WORDS.filter((f) => l.includes(f)).length * 5;
-    }, 0),
-    0,
-    35
+  const teamA = [];
+  const teamB = [];
+
+  for (let i = 0; i < eligible.length; i += 1) {
+    if (i % 2 === 0) teamA.push(eligible[i]);
+    else teamB.push(eligible[i]);
+  }
+
+  if (!teamA.length && eligible.length) teamA.push(eligible[0]);
+  if (!teamB.length && eligible.length > 1) teamB.push(eligible[1]);
+
+  return { teamA, teamB };
+}
+
+function isRealArgumentSentence(line) {
+  const t = cleanWhitespace(line);
+  if (!t) return false;
+  if (wordCount(t) < 8) return false;
+  if (isLikelySetupLine(t)) return false;
+  if (/^(thanks|thank you|okay|alright|right|sure)\b/i.test(t)) return false;
+  return true;
+}
+
+/* ------------------------------------------------------------------ */
+/* Sentence Selection                                                 */
+/* ------------------------------------------------------------------ */
+
+function selectArgumentSentences(text) {
+  const sentences = toSentences(text);
+
+  const scored = sentences
+    .filter((s) => isRealArgumentSentence(s))
+    .map((sentence) => ({
+      sentence,
+      score: scoreSentence(sentence)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const selected = uniquePreserveOrder(scored.slice(0, 12).map((x) => x.sentence));
+
+  if (selected.length >= 3) return selected;
+
+  const fallback = uniquePreserveOrder(
+    sentences.filter((s) => isRealArgumentSentence(s)).slice(0, 12)
   );
 
-  const integrityScore = clamp(reasoningStrength - fillerPenalty + (hasEvidence(best) ? 8 : 0), 0, 100);
+  return fallback;
+}
 
-  const reasoningText =
-    reasoningStrength >= 75
-      ? `${sideName} actually chained claims to reasons and evidence instead of just throwing assertions around.`
-      : reasoningStrength >= 50
-        ? `${sideName} had a visible argument structure, but it left too many links implied instead of proved.`
-        : `${sideName} talked around the issue more than it proved the issue. The reasoning chain kept breaking.`;
+function scoreSentence(sentence) {
+  let score = 0;
+  const wc = wordCount(sentence);
 
-  const integrityText =
-    integrityScore >= 75
-      ? `${sideName} stayed mostly in its lane and argued with relative discipline.`
-      : integrityScore >= 50
-        ? `${sideName} had some integrity, but drifted into assertion and convenience when pressure rose.`
-        : `${sideName} showed weak argumentative integrity. It leaned on claim repetition more than proof.`;
+  score += Math.min(wc, 30);
+  score += countHits(sentence, REASONING_WORDS) * 8;
+  score += countHits(sentence, EVIDENCE_WORDS) * 7;
+  score += countHits(sentence, OPINION_WORDS) * 2;
+  score -= countHits(sentence, FILLER_WORDS) * 3;
+
+  if (/\d/.test(sentence)) score += 3;
+  if (sentence.includes("because")) score += 6;
+  if (/for example|for instance|according to/i.test(sentence)) score += 6;
+  if (wc < 8) score -= 20;
+  if (wc > 10 && wc < 50) score += 4;
+
+  return score;
+}
+
+/* ------------------------------------------------------------------ */
+/* Deterministic Analysis                                             */
+/* ------------------------------------------------------------------ */
+
+function deterministicAnalysis(sentences, sideName) {
+  const safeSentences = Array.isArray(sentences) ? sentences.filter(Boolean) : [];
+  const joined = safeSentences.join(" ");
+
+  const mainPosition = summarizeMainPosition(safeSentences, sideName);
+  const truth = extractTruth(safeSentences);
+  const lies = extractLies(safeSentences);
+  const opinion = extractOpinion(safeSentences);
+  const lala = extractLala(safeSentences);
+
+  const bestSentence = chooseBestSentence(safeSentences);
+  const lane = inferLane(joined);
+  const reasoningText = buildReasoningText(safeSentences);
+  const integrityText = buildIntegrityText(safeSentences, truth, lies, opinion);
+  const manipulationText = buildManipulationText(safeSentences);
+  const fluffText = buildFluffText(safeSentences);
+
+  const scoreRaw = scoreSide(safeSentences, truth, lies, opinion);
 
   return {
     sideName,
-    sentences: uniquePreserveOrder(sentences),
-    ranked,
-    topSentences: top,
-    main_position: mainPosition,
-    truth: extractTruth(sentences),
-    lies: extractLies(sentences),
-    opinion: extractOpinion(sentences),
-    lala: extractLala(sentences),
-    bestSentence: best,
-    scoreRaw: clamp(reasoningStrength + integrityScore / 2, 0, 100),
-    integrityNumeric: integrityScore,
-    reasoningNumeric: reasoningStrength,
-    integrityText,
-    reasoningText,
-    lane: inferLane(sentences)
+    sentences: safeSentences,
+    main_position: meaningful(mainPosition, `${sideName} argues a recognizable position, but the transcript still needs clearer segmentation.`),
+    truth: meaningful(truth, `${sideName} presents at least one concrete claim, but the available text does not preserve a cleaner evidence sentence.`),
+    lies: meaningful(lies, `${sideName} shows some overreach or unsupported phrasing, but no single sentence is clean enough to isolate as the main weak point.`),
+    opinion: meaningful(opinion, `${sideName} includes interpretive or judgment language mixed into the argument.`),
+    lala: meaningful(lala, `${sideName} has limited obvious filler after cleanup, but some loose phrasing still remains.`),
+    bestSentence: meaningful(bestSentence, `${sideName} has a serviceable argument sentence, though the transcript remains partially noisy.`),
+    lane: meaningful(lane, "mixed / unclear lane"),
+    reasoningText: meaningful(reasoningText, `${sideName} uses some reasoning structure, though not every step is fully developed.`),
+    integrityText: meaningful(integrityText, `${sideName} shows a mixed integrity profile with some grounded points and some unsupported reach.`),
+    manipulationText: meaningful(manipulationText, `${sideName} does not show a dominant manipulation pattern, but some framing language may still pressure the conclusion.`),
+    fluffText: meaningful(fluffText, `${sideName} contains some filler or loose wording, but the core argument still comes through.`),
+    scoreRaw
   };
 }
 
-function factCheckLayer(teamAAnalysis, teamBAnalysis, videoLink) {
-  const claims = [];
-  const maybeClaimA = teamAAnalysis.ranked.slice(0, 2).map((x) => x.text);
-  const maybeClaimB = teamBAnalysis.ranked.slice(0, 2).map((x) => x.text);
-
-  for (const claim of [...maybeClaimA, ...maybeClaimB]) {
-    if (!claim) continue;
-    claims.push({
-      claim: safeExcerpt(claim, 160),
-      type: hasEvidence(claim) ? "evidence-claim" : "claim",
-      confidence: hasEvidence(claim) ? "medium" : "low",
-      likely_source: videoLink || "Requires manual review"
-    });
+function summarizeMainPosition(sentences, sideName) {
+  if (!sentences.length) {
+    return `${sideName} does not have enough preserved argument text to summarize the main position cleanly.`;
   }
 
+  const best = chooseBestSentence(sentences);
+  return `${sideName} mainly argues: ${clip(best, 260)}`;
+}
+
+function extractTruth(sentences) {
+  const candidate =
+    sentences.find((s) => countHits(s, EVIDENCE_WORDS) >= 1) ||
+    sentences.find((s) => countHits(s, REASONING_WORDS) >= 1) ||
+    sentences[0];
+
+  if (!candidate) return "";
+  return clip(candidate, 300);
+}
+
+function extractLies(sentences) {
+  const candidate =
+    sentences.find((s) => countHits(s, OVERREACH_WORDS) >= 1) ||
+    sentences.find((s) => !countHits(s, EVIDENCE_WORDS) && countHits(s, OPINION_WORDS) === 0 && wordCount(s) > 8) ||
+    "";
+
+  if (!candidate) return "";
+  return clip(candidate, 300);
+}
+
+function extractOpinion(sentences) {
+  const candidate =
+    sentences.find((s) => countHits(s, OPINION_WORDS) >= 1) ||
+    sentences.find((s) => /\bshould\b|\bseems\b|\bappears\b/i.test(s)) ||
+    "";
+
+  if (!candidate) return "";
+  return clip(candidate, 300);
+}
+
+function extractLala(sentences) {
+  const candidate =
+    sentences.find((s) => countHits(s, FILLER_WORDS) >= 2) ||
+    sentences.find((s) => /\bwhatever\b|\byou know\b|\bi mean\b/i.test(s)) ||
+    "";
+
+  if (!candidate) return "";
+  return clip(candidate, 300);
+}
+
+function chooseBestSentence(sentences) {
+  if (!sentences.length) return "";
+  return [...sentences]
+    .map((s) => ({ s, score: scoreSentence(s) }))
+    .sort((a, b) => b.score - a.score)[0].s;
+}
+
+function inferLane(text) {
+  const t = cleanWhitespace(text).toLowerCase();
+
+  const scienceScore =
+    countHits(t, ["data", "study", "research", "model", "evidence", "physics", "biology", "experiment", "observation", "statistics"]);
+  const theologyScore =
+    countHits(t, ["god", "bible", "scripture", "jesus", "biblical", "genesis", "theology", "creation", "faith", "flood"]);
+  const philosophyScore =
+    countHits(t, ["logic", "reason", "premise", "conclusion", "causality", "determinism", "free will", "metaphysics", "epistemology"]);
+
+  const ranked = [
+    { name: "science / evidence lane", score: scienceScore },
+    { name: "theology / scripture lane", score: theologyScore },
+    { name: "logic / philosophy lane", score: philosophyScore }
+  ].sort((a, b) => b.score - a.score);
+
+  if (!ranked[0].score) return "mixed / unclear lane";
+  if (ranked[0].score === ranked[1].score && ranked[0].score > 0) return "mixed lane with overlapping frameworks";
+  return ranked[0].name;
+}
+
+function buildReasoningText(sentences) {
+  const reasoningHits = sentences.reduce((n, s) => n + countHits(s, REASONING_WORDS), 0);
+  const evidenceHits = sentences.reduce((n, s) => n + countHits(s, EVIDENCE_WORDS), 0);
+
+  if (reasoningHits >= 4 && evidenceHits >= 2) {
+    return "Strongest on explicit reasoning structure and at least some evidentiary support.";
+  }
+
+  if (reasoningHits >= 3) {
+    return "Reasoning is present and mostly traceable, though support is not always equally strong.";
+  }
+
+  if (evidenceHits >= 2) {
+    return "Uses examples or evidence language, but the chain from premise to conclusion is less consistent.";
+  }
+
+  return "Reasoning exists, but much of it is asserted more than fully demonstrated.";
+}
+
+function buildIntegrityText(sentences, truth, lies, opinion) {
+  const truthStrength = truth ? wordCount(truth) : 0;
+  const lieStrength = lies ? wordCount(lies) : 0;
+  const opinionStrength = opinion ? wordCount(opinion) : 0;
+
+  if (truthStrength > lieStrength + opinionStrength) {
+    return "Leans more grounded than inflated, though not every claim is equally supported.";
+  }
+
+  if (lieStrength > truthStrength) {
+    return "Shows noticeable overreach or unsupported certainty relative to the evidence preserved.";
+  }
+
+  return "Mixed integrity profile: some grounded points, some interpretive stretch, some unresolved support gaps.";
+}
+
+function buildManipulationText(sentences) {
+  const joined = sentences.join(" ").toLowerCase();
+
+  const hits = countHits(joined, [
+    "obviously",
+    "everyone knows",
+    "clearly",
+    "dishonest",
+    "ridiculous",
+    "absurd",
+    "you have to",
+    "you must"
+  ]);
+
+  if (hits >= 3) {
+    return "Noticeable pressure language and framing tactics show up alongside the argument.";
+  }
+
+  if (hits >= 1) {
+    return "Some rhetorical pressure appears, but it does not fully dominate the case.";
+  }
+
+  return "Low obvious manipulation in the preserved text.";
+}
+
+function buildFluffText(sentences) {
+  const joined = sentences.join(" ").toLowerCase();
+  const fillerHits = countHits(joined, FILLER_WORDS);
+
+  if (fillerHits >= 8) {
+    return "Heavy filler and loose speech patterns still bleed into the argument selection.";
+  }
+
+  if (fillerHits >= 3) {
+    return "Some fluff remains, but the main claims are still identifiable.";
+  }
+
+  return "Low fluff after cleanup.";
+}
+
+function scoreSide(sentences, truth, lies, opinion) {
+  const reasoning = sentences.reduce((n, s) => n + countHits(s, REASONING_WORDS), 0);
+  const evidence = sentences.reduce((n, s) => n + countHits(s, EVIDENCE_WORDS), 0);
+  const overreach = sentences.reduce((n, s) => n + countHits(s, OVERREACH_WORDS), 0);
+  const filler = sentences.reduce((n, s) => n + countHits(s, FILLER_WORDS), 0);
+
+  let score =
+    50 +
+    reasoning * 4 +
+    evidence * 4 +
+    Math.min(wordCount(truth || ""), 25) * 0.3 -
+    overreach * 3 -
+    filler * 1.2 -
+    Math.min(wordCount(opinion || ""), 18) * 0.15 -
+    Math.min(wordCount(lies || ""), 25) * 0.1;
+
+  if (!sentences.length) score = 35;
+
+  return Math.max(1, Math.min(99, Math.round(score)));
+}
+
+/* ------------------------------------------------------------------ */
+/* Fact Check Layer                                                   */
+/* ------------------------------------------------------------------ */
+
+function factCheckLayer(teamAAnalysis, teamBAnalysis, meta) {
+  const checkedClaims = [];
+
+  const inspect = (analysis) => {
+    const claims = analysis.sentences.slice(0, 3);
+    for (const claim of claims) {
+      checkedClaims.push({
+        claim: clip(claim, 220),
+        status: inferFactCheckStatus(claim),
+        note: buildFactCheckNote(claim),
+        source: meta.videoLink ? clip(meta.videoLink, 180) : "Transcript-only analysis"
+      });
+    }
+  };
+
+  inspect(teamAAnalysis);
+  inspect(teamBAnalysis);
+
   return {
-    enabled: true,
-    checkedClaims: claims.slice(0, 4),
-    teamA_notes: teamAAnalysis.truth,
-    teamB_notes: teamBAnalysis.truth,
-    verdict: "Fact-check layer is active in stub mode. Claims were isolated, but no live external verification ran."
+    checkedClaims,
+    summary: "Fact-check layer executed in transcript mode. Claims were flagged structurally, not externally verified."
   };
 }
 
-function buildRefinementPrompt(teamAAnalysis, teamBAnalysis) {
-  return `
-You are a harsh debate judge. Rewrite only weak analysis text into sharper judicial language.
-Rules:
-- Be decisive, critical, and specific.
-- Do not hedge.
-- Do not say "both sides had strengths."
-- Keep content anchored to the supplied transcript analysis.
-- Return strict JSON only with keys:
-{
-  "teamA_reasoning": "...",
-  "teamB_reasoning": "...",
-  "teamA_integrity": "...",
-  "teamB_integrity": "...",
-  "core_disagreement": "...",
-  "why": "...",
-  "strongestArgumentSide": "...",
-  "strongestArgument": "...",
-  "whyStrongest": "...",
-  "failedResponseByOtherSide": "...",
-  "weakestOverall": "...",
-  "bsMeter": "...",
-  "manipulation": "...",
-  "fluff": "..."
+function inferFactCheckStatus(claim) {
+  const c = cleanWhitespace(claim).toLowerCase();
+  if (!c) return "needs-review";
+  if (countHits(c, OVERREACH_WORDS) >= 1) return "flagged-overreach";
+  if (countHits(c, EVIDENCE_WORDS) >= 1) return "supported-language";
+  return "needs-review";
 }
+
+function buildFactCheckNote(claim) {
+  const c = cleanWhitespace(claim);
+  if (!c) return "No claim text preserved.";
+  if (countHits(c, OVERREACH_WORDS) >= 1) {
+    return "Contains strong certainty or sweep language that would need outside verification.";
+  }
+  if (countHits(c, EVIDENCE_WORDS) >= 1) {
+    return "Uses evidence-oriented language, but outside verification is still required.";
+  }
+  return "This claim is analyzable, but not independently verified in this backend-only version.";
+}
+
+/* ------------------------------------------------------------------ */
+/* AI Refinement Layer                                                */
+/* ------------------------------------------------------------------ */
+
+async function aiRefinementLayer(teamAAnalysis, teamBAnalysis, meta) {
+  const promptBundle = buildRefinementPrompt(teamAAnalysis, teamBAnalysis, meta);
+
+  const heuristic = heuristicAIRefinement(teamAAnalysis, teamBAnalysis);
+
+  return {
+    usedAI: false,
+    promptPreview: clip(promptBundle, 500),
+    override: heuristic
+  };
+}
+
+function buildRefinementPrompt(teamAAnalysis, teamBAnalysis, meta) {
+  return `
+You are refining a debate analysis JSON.
+
+Instructions:
+- Keep all required fields populated.
+- Prefer better wording over emptiness.
+- Replace weak deterministic text with stronger concise analysis.
+- Do not remove structure.
+
+Prompt override:
+${meta.promptOverride || "No custom override provided."}
 
 TEAM A:
 main_position: ${JSON.stringify(teamAAnalysis.main_position)}
@@ -812,165 +867,67 @@ bestSentence: ${JSON.stringify(teamBAnalysis.bestSentence)}
 reasoningText: ${JSON.stringify(teamBAnalysis.reasoningText)}
 integrityText: ${JSON.stringify(teamBAnalysis.integrityText)}
 lane: ${JSON.stringify(teamBAnalysis.lane)}
-  `.trim();
+`.trim();
 }
 
 function heuristicAIRefinement(teamAAnalysis, teamBAnalysis) {
   const strongestSide =
-    teamAAnalysis.scoreRaw >= teamBAnalysis.scoreRaw ? teamAAnalysis.sideName : teamBAnalysis.sideName;
+    teamAAnalysis.scoreRaw >= teamBAnalysis.scoreRaw
+      ? teamAAnalysis.sideName
+      : teamBAnalysis.sideName;
 
   const strongestArgument =
-    strongestSide === teamAAnalysis.sideName ? teamAAnalysis.bestSentence : teamBAnalysis.bestSentence;
+    strongestSide === teamAAnalysis.sideName
+      ? teamAAnalysis.bestSentence
+      : teamBAnalysis.bestSentence;
 
   const weakerSide =
-    strongestSide === teamAAnalysis.sideName ? teamBAnalysis.sideName : teamAAnalysis.sideName;
-
-  const coreDisagreement =
-    `${teamAAnalysis.sideName} argues that ${safeExcerpt(teamAAnalysis.main_position, 140)} while ` +
-    `${teamBAnalysis.sideName} argues that ${safeExcerpt(teamBAnalysis.main_position, 140)}.`;
-
-  const whyText =
-    teamAAnalysis.lane !== teamBAnalysis.lane
-      ? `${teamAAnalysis.sideName} argued in a ${teamAAnalysis.lane} lane while ${teamBAnalysis.sideName} argued in a ${teamBAnalysis.lane} lane. Part of the clash was real disagreement, and part of it was talking past each other.`
-      : `The dispute stayed in the same lane, but only one side consistently tied claims to reasons. The other side kept leaving proof gaps.`;
-
-  const failedResponse =
-    `${weakerSide} never landed a direct answer to the strongest point. It circled the issue and left the pressure point standing.`;
-
-  const weakestOverall =
-    `Weakest overall point: ${safeExcerpt(
-      [...teamAAnalysis.ranked, ...teamBAnalysis.ranked]
-        .sort((a, b) => a.score - b.score)
-        .map((x) => x.text)[0] || `${weakerSide} asserted more than it proved.`,
-      190
-    )}`;
-
-  const avgFillerPenalty =
-    Math.round(((100 - teamAAnalysis.integrityNumeric) + (100 - teamBAnalysis.integrityNumeric)) / 2) || 0;
+    strongestSide === teamAAnalysis.sideName
+      ? teamBAnalysis.sideName
+      : teamAAnalysis.sideName;
 
   return {
-    teamA_reasoning: teamAAnalysis.reasoningText,
-    teamB_reasoning: teamBAnalysis.reasoningText,
-    teamA_integrity: teamAAnalysis.integrityText,
-    teamB_integrity: teamBAnalysis.integrityText,
-    core_disagreement: coreDisagreement,
-    why: whyText,
     strongestArgumentSide: strongestSide,
-    strongestArgument,
-    whyStrongest: `${strongestSide} won the best-argument battle because the point had an actual reasoning spine and some grounding instead of posture alone.`,
-    failedResponseByOtherSide: failedResponse,
-    weakestOverall,
-    bsMeter: avgFillerPenalty > 45 ? "High" : avgFillerPenalty > 25 ? "Medium" : "Low",
+    strongestArgument: strongestArgument,
+    whyStrongest: "It is more grounded and supported than the strongest competing point on the other side.",
+    failedResponseByOtherSide: `${weakerSide} does not clearly neutralize the opposing best point in the preserved transcript.`,
+    weakestOverall:
+      teamAAnalysis.scoreRaw <= teamBAnalysis.scoreRaw
+        ? `${teamAAnalysis.sideName}: ${teamAAnalysis.lies}`
+        : `${teamBAnalysis.sideName}: ${teamBAnalysis.lies}`,
     manipulation:
-      teamAAnalysis.lane === "rhetorical" || teamBAnalysis.lane === "rhetorical"
-        ? "Noticeable rhetorical steering and framing pressure."
-        : "Limited manipulation. The bigger problem was proof gaps, not spin discipline.",
+      teamAAnalysis.manipulationText === "Low obvious manipulation in the preserved text." &&
+      teamBAnalysis.manipulationText === "Low obvious manipulation in the preserved text."
+        ? "Neither side shows dominant manipulation in the preserved text."
+        : `${teamAAnalysis.sideName}: ${teamAAnalysis.manipulationText} ${teamBAnalysis.sideName}: ${teamBAnalysis.manipulationText}`,
     fluff:
-      avgFillerPenalty > 30
-        ? "Too much verbal padding and not enough direct proof."
-        : "Some fluff appeared, but it was not the main reason the weaker side lost."
+      teamAAnalysis.fluffText === "Low fluff after cleanup." &&
+      teamBAnalysis.fluffText === "Low fluff after cleanup."
+        ? "Low overall fluff after cleanup."
+        : `${teamAAnalysis.sideName}: ${teamAAnalysis.fluffText} ${teamBAnalysis.sideName}: ${teamBAnalysis.fluffText}`
   };
 }
 
-async function callOpenAIRefinement(prompt) {
-  if (!OPENAI_API_KEY || typeof fetch !== "function") return null;
-
-  try {
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: "You are a precise debate judging assistant." },
-          { role: "user", content: prompt }
-        ]
-      })
-    });
-
-    if (!resp.ok) return null;
-
-    const data = await resp.json();
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) return null;
-
-    const parsed = JSON.parse(content);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-async function aiRefinementLayer(teamAAnalysis, teamBAnalysis) {
-  const prompt = buildRefinementPrompt(teamAAnalysis, teamBAnalysis);
-  const heuristic = heuristicAIRefinement(teamAAnalysis, teamBAnalysis);
-  const remote = await callOpenAIRefinement(prompt);
-
-  return {
-    promptUsed: true,
-    prompt,
-    heuristic,
-    remote
-  };
-}
-
-function shouldPreferAIText(text) {
-  const t = asString(text).trim();
-  if (!t) return false;
-  if (t.length < 25) return false;
-  if (/both sides had strengths/i.test(t)) return false;
-  if (/moderate mismatch/i.test(t)) return false;
-  if (/it seems|appears|may have|might have/i.test(t)) return false;
-  return true;
-}
-
-function mergeLayer(base, aiRefinement) {
-  const ai = aiRefinement?.remote || aiRefinement?.heuristic || {};
-  const merged = { ...base };
-
-  const overrideKeys = [
-    "teamA_integrity",
-    "teamB_integrity",
-    "teamA_reasoning",
-    "teamB_reasoning",
-    "core_disagreement",
-    "why",
-    "strongestArgumentSide",
-    "strongestArgument",
-    "whyStrongest",
-    "failedResponseByOtherSide",
-    "weakestOverall",
-    "bsMeter",
-    "manipulation",
-    "fluff"
-  ];
-
-  for (const key of overrideKeys) {
-    if (shouldPreferAIText(ai[key])) merged[key] = ai[key];
-  }
-
-  return merged;
-}
+/* ------------------------------------------------------------------ */
+/* Base Result + Merge                                                */
+/* ------------------------------------------------------------------ */
 
 function buildBaseResult(teamAName, teamBName, teamAAnalysis, teamBAnalysis, factLayer) {
-  const aScore = clamp(Math.round(teamAAnalysis.scoreRaw), 0, 100);
-  const bScore = clamp(Math.round(teamBAnalysis.scoreRaw), 0, 100);
-  const winner = aScore >= bScore ? teamAName : teamBName;
-  const winnerAnalysis = winner === teamAName ? teamAAnalysis : teamBAnalysis;
-  const loserName = winner === teamAName ? teamBName : teamAName;
+  const winner = decideWinner(teamAAnalysis, teamBAnalysis);
+  const confidence = buildConfidence(teamAAnalysis.scoreRaw, teamBAnalysis.scoreRaw);
+  const sameLane = buildSameLaneEngagement(teamAAnalysis.lane, teamBAnalysis.lane);
+  const laneMismatch = buildLaneMismatch(teamAAnalysis.lane, teamBAnalysis.lane);
+  const coreDisagreement = buildCoreDisagreement(teamAAnalysis, teamBAnalysis);
+  const why = buildOverallWhy(winner, teamAAnalysis, teamBAnalysis, factLayer);
+  const bsMeter = buildBSMeter(teamAAnalysis, teamBAnalysis);
 
   return {
     teamAName,
     teamBName,
     winner,
-    confidence: "Medium",
-    teamAScore: numericScoreToString(aScore),
-    teamBScore: numericScoreToString(bScore),
+    confidence,
+    teamAScore: String(normalizeDisplayScore(teamAAnalysis.scoreRaw)),
+    teamBScore: String(normalizeDisplayScore(teamBAnalysis.scoreRaw)),
 
     teamA: {
       main_position: teamAAnalysis.main_position,
@@ -995,315 +952,354 @@ function buildBaseResult(teamAName, teamBName, teamAAnalysis, teamBAnalysis, fac
 
     teamA_lane: teamAAnalysis.lane,
     teamB_lane: teamBAnalysis.lane,
-    same_lane_engagement: teamAAnalysis.lane === teamBAnalysis.lane ? "Yes" : "No",
-    lane_mismatch:
-      teamAAnalysis.lane === teamBAnalysis.lane
-        ? "No meaningful lane mismatch."
-        : `${teamAName} argued in a ${teamAAnalysis.lane} lane while ${teamBName} argued in a ${teamBAnalysis.lane} lane. That mismatch damaged direct engagement.`,
+    same_lane_engagement: sameLane,
+    lane_mismatch: laneMismatch,
 
-    strongestArgumentSide: winner,
-    strongestArgument: winnerAnalysis.bestSentence,
-    whyStrongest: `${winner} delivered the most defensible argument because it actually tied claims to reasons instead of just posture.`,
-    failedResponseByOtherSide: `${loserName} failed to directly answer the strongest point and never killed the pressure.`,
-    weakestOverall: `${loserName} produced the weakest overall material by asserting more than it proved.`,
+    strongestArgumentSide:
+      teamAAnalysis.scoreRaw >= teamBAnalysis.scoreRaw ? teamAName : teamBName,
+    strongestArgument:
+      teamAAnalysis.scoreRaw >= teamBAnalysis.scoreRaw
+        ? teamAAnalysis.bestSentence
+        : teamBAnalysis.bestSentence,
+    whyStrongest:
+      "The strongest argument has the clearest reasoning chain and the least unsupported inflation.",
+    failedResponseByOtherSide:
+      teamAAnalysis.scoreRaw >= teamBAnalysis.scoreRaw
+        ? `${teamBName} does not fully answer ${teamAName}'s strongest point in the preserved transcript.`
+        : `${teamAName} does not fully answer ${teamBName}'s strongest point in the preserved transcript.`,
+    weakestOverall:
+      teamAAnalysis.scoreRaw <= teamBAnalysis.scoreRaw
+        ? `${teamAName}: ${teamAAnalysis.lies}`
+        : `${teamBName}: ${teamBAnalysis.lies}`,
 
-    bsMeter: "Medium",
-    manipulation: "Some framing pressure was present, but proof quality mattered more.",
-    fluff: "Some fluff appeared, but it did not outweigh the central argument failure.",
+    bsMeter: bsMeter,
+    manipulation: "Manipulation assessment completed from transcript framing only.",
+    fluff:
+      `${teamAName}: ${teamAAnalysis.fluffText} ${teamBName}: ${teamBAnalysis.fluffText}`,
 
-    core_disagreement: `${teamAName} and ${teamBName} are pushing incompatible conclusions.`,
-    why: `The loser never fully answered the winner's central claim, so the disagreement stayed unresolved.`,
+    core_disagreement: coreDisagreement,
+    why: why,
 
     analysisMode: ANALYSIS_MODE,
-    sources: Array.isArray(factLayer?.checkedClaims) ? factLayer.checkedClaims : []
+    sources: Array.isArray(factLayer.checkedClaims) ? factLayer.checkedClaims : []
   };
 }
 
-function enforceConsistency(result, teamAAnalysis, teamBAnalysis, extractionMeta) {
-  const out = { ...result };
+function mergeLayer(base, aiLayer) {
+  const merged = { ...base };
 
-  out.teamAName = pickBestNonEmpty([out.teamAName], DEFAULT_TEAM_A);
-  out.teamBName = pickBestNonEmpty([out.teamBName], DEFAULT_TEAM_B);
+  const override = aiLayer && aiLayer.override ? aiLayer.override : {};
 
-  out.teamA = out.teamA || {};
-  out.teamB = out.teamB || {};
+  const weak = (value) =>
+    !value ||
+    !String(value).trim() ||
+    /^none$/i.test(String(value).trim()) ||
+    String(value).trim() === "-";
 
-  out.teamA.main_position = pickBestNonEmpty(
-    [out.teamA.main_position, teamAAnalysis.main_position],
-    `${out.teamAName} never produced a clean main position, so the engine reconstructed the claim from fragments.`
+  const replaceIfBetter = (current, next) => {
+    if (weak(current) && !weak(next)) return next;
+    if (!weak(next) && String(next).length > String(current || "").length + 20) return next;
+    return current;
+  };
+
+  merged.strongestArgumentSide = replaceIfBetter(
+    merged.strongestArgumentSide,
+    override.strongestArgumentSide
   );
-  out.teamA.truth = pickBestNonEmpty(
-    [out.teamA.truth, teamAAnalysis.truth],
-    "Grounded point existed, but it was underdeveloped."
+  merged.strongestArgument = replaceIfBetter(
+    merged.strongestArgument,
+    sanitizeForDisplay(override.strongestArgument)
   );
-  out.teamA.lies = pickBestNonEmpty(
-    [out.teamA.lies, teamAAnalysis.lies],
-    "No outright lie could be isolated, but unsupported claims were present."
+  merged.whyStrongest = replaceIfBetter(merged.whyStrongest, override.whyStrongest);
+  merged.failedResponseByOtherSide = replaceIfBetter(
+    merged.failedResponseByOtherSide,
+    sanitizeForDisplay(override.failedResponseByOtherSide)
   );
-  out.teamA.opinion = pickBestNonEmpty(
-    [out.teamA.opinion, teamAAnalysis.opinion],
-    "Opinion shaped the framing more than the evidence did."
+  merged.weakestOverall = replaceIfBetter(
+    merged.weakestOverall,
+    sanitizeForDisplay(override.weakestOverall)
   );
-  out.teamA.lala = pickBestNonEmpty(
-    [out.teamA.lala, teamAAnalysis.lala],
-    "Some filler weakened the presentation."
-  );
+  merged.manipulation = replaceIfBetter(merged.manipulation, override.manipulation);
+  merged.fluff = replaceIfBetter(merged.fluff, override.fluff);
 
-  out.teamB.main_position = pickBestNonEmpty(
-    [out.teamB.main_position, teamBAnalysis.main_position],
-    `${out.teamBName} never produced a clean main position, so the engine reconstructed the claim from fragments.`
-  );
-  out.teamB.truth = pickBestNonEmpty(
-    [out.teamB.truth, teamBAnalysis.truth],
-    "Grounded point existed, but it was underdeveloped."
-  );
-  out.teamB.lies = pickBestNonEmpty(
-    [out.teamB.lies, teamBAnalysis.lies],
-    "No outright lie could be isolated, but unsupported claims were present."
-  );
-  out.teamB.opinion = pickBestNonEmpty(
-    [out.teamB.opinion, teamBAnalysis.opinion],
-    "Opinion shaped the framing more than the evidence did."
-  );
-  out.teamB.lala = pickBestNonEmpty(
-    [out.teamB.lala, teamBAnalysis.lala],
-    "Some filler weakened the presentation."
-  );
-
-  out.teamA_integrity = pickBestNonEmpty(
-    [out.teamA_integrity, teamAAnalysis.integrityText],
-    `${out.teamAName} showed weak argumentative integrity.`
-  );
-  out.teamB_integrity = pickBestNonEmpty(
-    [out.teamB_integrity, teamBAnalysis.integrityText],
-    `${out.teamBName} showed weak argumentative integrity.`
-  );
-  out.teamA_reasoning = pickBestNonEmpty(
-    [out.teamA_reasoning, teamAAnalysis.reasoningText],
-    `${out.teamAName} did not maintain a clean reasoning chain.`
-  );
-  out.teamB_reasoning = pickBestNonEmpty(
-    [out.teamB_reasoning, teamBAnalysis.reasoningText],
-    `${out.teamBName} did not maintain a clean reasoning chain.`
-  );
-
-  out.teamA_lane = pickBestNonEmpty([out.teamA_lane, teamAAnalysis.lane], "argument");
-  out.teamB_lane = pickBestNonEmpty([out.teamB_lane, teamBAnalysis.lane], "argument");
-
-  out.same_lane_engagement = out.teamA_lane === out.teamB_lane ? "Yes" : "No";
-  out.lane_mismatch =
-    out.teamA_lane === out.teamB_lane
-      ? "No meaningful lane mismatch."
-      : `${out.teamAName} argued in a ${out.teamA_lane} lane while ${out.teamBName} argued in a ${out.teamB_lane} lane. That mismatch damaged direct engagement.`;
-
-  out.strongestArgumentSide = pickBestNonEmpty(
-    [out.strongestArgumentSide],
-    teamAAnalysis.scoreRaw >= teamBAnalysis.scoreRaw ? out.teamAName : out.teamBName
-  );
-
-  out.strongestArgument = pickBestNonEmpty(
-    [out.strongestArgument],
-    out.strongestArgumentSide === out.teamAName ? teamAAnalysis.bestSentence : teamBAnalysis.bestSentence
-  );
-
-  out.whyStrongest = pickBestNonEmpty(
-    [out.whyStrongest],
-    `${out.strongestArgumentSide} delivered the sharpest claim-reason link in the debate.`
-  );
-
-  out.failedResponseByOtherSide = pickBestNonEmpty(
-    [out.failedResponseByOtherSide],
-    `${out.strongestArgumentSide === out.teamAName ? out.teamBName : out.teamAName} failed to directly answer the strongest point and left the pressure unresolved.`
-  );
-
-  out.weakestOverall = pickBestNonEmpty(
-    [out.weakestOverall],
-    `${teamAAnalysis.scoreRaw <= teamBAnalysis.scoreRaw ? out.teamAName : out.teamBName} produced the weakest overall point by asserting more than it proved.`
-  );
-
-  out.core_disagreement = pickBestNonEmpty(
-    [out.core_disagreement],
-    `${out.teamAName} and ${out.teamBName} are pushing incompatible conclusions and never genuinely reconciled the evidence gap.`
-  );
-
-  out.why = pickBestNonEmpty(
-    [out.why],
-    "The loser never fully answered the winner's central claim. That is why the disagreement stayed alive instead of being resolved."
-  );
-
-  out.bsMeter = pickBestNonEmpty([out.bsMeter], "Medium");
-  out.manipulation = pickBestNonEmpty([out.manipulation], "Some framing pressure was present, but proof quality mattered more.");
-  out.fluff = pickBestNonEmpty([out.fluff], "Some fluff appeared, but it did not outweigh the central argument failure.");
-
-  const aScore = clamp(Math.round(teamAAnalysis.scoreRaw), 0, 100);
-  const bScore = clamp(Math.round(teamBAnalysis.scoreRaw), 0, 100);
-
-  out.teamAScore = numericScoreToString(aScore);
-  out.teamBScore = numericScoreToString(bScore);
-
-  if (!out.winner || !out.winner.trim()) {
-    out.winner = aScore >= bScore ? out.teamAName : out.teamBName;
-  }
-
-  const diff = Math.abs(aScore - bScore);
-  out.confidence = diff >= 25 ? "High" : diff >= 12 ? "Medium" : "Low";
-
-  out.analysisMode = ANALYSIS_MODE;
-  out.sources = Array.isArray(out.sources) ? out.sources : [];
-
-  if (extractionMeta.teamALineCount < 2) {
-    out.teamA_reasoning = `${out.teamAName} barely produced a usable argument. Extraction had to reconstruct this side from weak fragments, which already counts against it.`;
-  }
-
-  if (extractionMeta.teamBLineCount < 2) {
-    out.teamB_reasoning = `${out.teamBName} barely produced a usable argument. Extraction had to reconstruct this side from weak fragments, which already counts against it.`;
-  }
-
-  for (const [k, v] of Object.entries(out)) {
-    if (typeof v === "string" && v.trim().toLowerCase() === "none") {
-      out[k] = "No clean direct instance was isolated, but the weakness was still visible in the exchange.";
-    }
-  }
-
-  for (const bucket of ["teamA", "teamB"]) {
-    if (out[bucket] && typeof out[bucket] === "object") {
-      for (const [k, v] of Object.entries(out[bucket])) {
-        if (!asString(v).trim() || asString(v).trim().toLowerCase() === "none") {
-          out[bucket][k] = "Weak material here. The side did not present this area cleanly.";
-        }
-      }
-    }
-  }
-
-  return out;
+  return merged;
 }
 
-function buildFailureContract(message, requestedTeamAName, requestedTeamBName) {
-  const text =
-    message && typeof message === "string"
-      ? message
-      : "Analysis degraded because the transcript was too weak or malformed.";
+/* ------------------------------------------------------------------ */
+/* Decision / Result Builders                                         */
+/* ------------------------------------------------------------------ */
+
+function decideWinner(teamAAnalysis, teamBAnalysis) {
+  const diff = Math.abs(teamAAnalysis.scoreRaw - teamBAnalysis.scoreRaw);
+  if (diff <= 3) return "Mixed";
+  return teamAAnalysis.scoreRaw > teamBAnalysis.scoreRaw
+    ? teamAAnalysis.sideName
+    : teamBAnalysis.sideName;
+}
+
+function buildConfidence(a, b) {
+  const diff = Math.abs(a - b);
+  const confidence = Math.min(95, 50 + diff * 4);
+  return `${confidence}%`;
+}
+
+function normalizeDisplayScore(raw) {
+  return Math.max(1, Math.min(10, Math.round(raw / 10)));
+}
+
+function buildSameLaneEngagement(aLane, bLane) {
+  if (aLane === bLane) {
+    return `Both sides largely argue in the same lane: ${aLane}.`;
+  }
+  if (aLane.includes("mixed") || bLane.includes("mixed")) {
+    return "At least one side blends lanes, so engagement is only partial rather than cleanly matched.";
+  }
+  return "The sides partly engage each other, but they often argue from different frameworks.";
+}
+
+function buildLaneMismatch(aLane, bLane) {
+  if (aLane === bLane) {
+    return "Low lane mismatch. They are mostly fighting on shared ground.";
+  }
+  return `Lane mismatch exists: Team A is mainly in ${aLane}, while Team B is mainly in ${bLane}.`;
+}
+
+function buildCoreDisagreement(teamAAnalysis, teamBAnalysis) {
+  return `The core disagreement is whether ${teamAAnalysis.sideName}'s central claim or ${teamBAnalysis.sideName}'s central claim is better grounded by reasoning and support in the preserved transcript.`;
+}
+
+function buildOverallWhy(winner, teamAAnalysis, teamBAnalysis, factLayer) {
+  if (winner === "Mixed") {
+    return "Both sides show some usable reasoning but also leave support gaps, overreach, or unresolved rebuttal issues.";
+  }
+
+  const winnerAnalysis =
+    winner === teamAAnalysis.sideName ? teamAAnalysis : teamBAnalysis;
+  const loserAnalysis =
+    winner === teamAAnalysis.sideName ? teamBAnalysis : teamAAnalysis;
+
+  return `${winner} wins because its better points are more structured and less inflated, while the other side leaves more unresolved weakness. ${factLayer.summary}`;
+}
+
+function buildBSMeter(teamAAnalysis, teamBAnalysis) {
+  const aOver = countHits(teamAAnalysis.lies, OVERREACH_WORDS) + countHits(teamAAnalysis.sentences.join(" "), OVERREACH_WORDS);
+  const bOver = countHits(teamBAnalysis.lies, OVERREACH_WORDS) + countHits(teamBAnalysis.sentences.join(" "), OVERREACH_WORDS);
+
+  if (aOver === bOver) return "Both sides show comparable overreach.";
+  return aOver > bOver
+    ? `${teamAAnalysis.sideName} is reaching more`
+    : `${teamBAnalysis.sideName} is reaching more`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Consistency Enforcement                                            */
+/* ------------------------------------------------------------------ */
+
+function enforceConsistency(result) {
+  const safe = JSON.parse(JSON.stringify(result || {}));
+
+  safe.teamAName = meaningful(safe.teamAName, DEFAULT_TEAM_A);
+  safe.teamBName = meaningful(safe.teamBName, DEFAULT_TEAM_B);
+  safe.winner = meaningful(safe.winner, "Mixed");
+  safe.confidence = normalizeConfidence(safe.confidence);
+  safe.teamAScore = meaningful(String(safe.teamAScore || ""), "5");
+  safe.teamBScore = meaningful(String(safe.teamBScore || ""), "5");
+
+  safe.teamA = safe.teamA || {};
+  safe.teamB = safe.teamB || {};
+
+  safe.teamA.main_position = sanitizeForDisplay(meaningful(safe.teamA.main_position, `${safe.teamAName} presents a position, but the transcript remains partially noisy.`));
+  safe.teamA.truth = sanitizeForDisplay(meaningful(safe.teamA.truth, `${safe.teamAName} makes at least one concrete claim, though the cleanest evidence sentence is limited.`));
+  safe.teamA.lies = sanitizeForDisplay(meaningful(safe.teamA.lies, `${safe.teamAName} contains some unsupported reach or unresolved assertion.`));
+  safe.teamA.opinion = sanitizeForDisplay(meaningful(safe.teamA.opinion, `${safe.teamAName} includes judgment or interpretation in the argument.`));
+  safe.teamA.lala = sanitizeForDisplay(meaningful(safe.teamA.lala, `${safe.teamAName} has some leftover loose wording or filler.`));
+
+  safe.teamB.main_position = sanitizeForDisplay(meaningful(safe.teamB.main_position, `${safe.teamBName} presents a position, but the transcript remains partially noisy.`));
+  safe.teamB.truth = sanitizeForDisplay(meaningful(safe.teamB.truth, `${safe.teamBName} makes at least one concrete claim, though the cleanest evidence sentence is limited.`));
+  safe.teamB.lies = sanitizeForDisplay(meaningful(safe.teamB.lies, `${safe.teamBName} contains some unsupported reach or unresolved assertion.`));
+  safe.teamB.opinion = sanitizeForDisplay(meaningful(safe.teamB.opinion, `${safe.teamBName} includes judgment or interpretation in the argument.`));
+  safe.teamB.lala = sanitizeForDisplay(meaningful(safe.teamB.lala, `${safe.teamBName} has some leftover loose wording or filler.`));
+
+  safe.teamA_integrity = sanitizeForDisplay(meaningful(safe.teamA_integrity, `${safe.teamAName} has a mixed integrity profile.`));
+  safe.teamB_integrity = sanitizeForDisplay(meaningful(safe.teamB_integrity, `${safe.teamBName} has a mixed integrity profile.`));
+  safe.teamA_reasoning = sanitizeForDisplay(meaningful(safe.teamA_reasoning, `${safe.teamAName} shows some reasoning but not every step is fully developed.`));
+  safe.teamB_reasoning = sanitizeForDisplay(meaningful(safe.teamB_reasoning, `${safe.teamBName} shows some reasoning but not every step is fully developed.`));
+
+  safe.teamA_lane = sanitizeForDisplay(meaningful(safe.teamA_lane, "mixed / unclear lane"));
+  safe.teamB_lane = sanitizeForDisplay(meaningful(safe.teamB_lane, "mixed / unclear lane"));
+  safe.same_lane_engagement = sanitizeForDisplay(meaningful(safe.same_lane_engagement, "Both sides engage only partially in the same lane."));
+  safe.lane_mismatch = sanitizeForDisplay(meaningful(safe.lane_mismatch, "Some lane mismatch remains in how the sides frame the issue."));
+
+  safe.strongestArgumentSide = sanitizeForDisplay(meaningful(safe.strongestArgumentSide, safe.winner === "Mixed" ? safe.teamAName : safe.winner));
+  safe.strongestArgument = sanitizeForDisplay(meaningful(safe.strongestArgument, "A usable strongest argument exists, but transcript cleanup limits precision."));
+  safe.whyStrongest = sanitizeForDisplay(meaningful(safe.whyStrongest, "It stands out because it is more structured and less inflated than the nearest competing point."));
+  safe.failedResponseByOtherSide = sanitizeForDisplay(meaningful(safe.failedResponseByOtherSide, "The opposing side does not fully neutralize the strongest point in the preserved text."));
+  safe.weakestOverall = sanitizeForDisplay(meaningful(safe.weakestOverall, "The weakest overall point is the one with the most unsupported certainty or least developed support."));
+
+  safe.bsMeter = sanitizeForDisplay(meaningful(safe.bsMeter, "Both sides show some degree of overreach."));
+  safe.manipulation = sanitizeForDisplay(meaningful(safe.manipulation, "Manipulation is limited or not clearly dominant in the preserved transcript."));
+  safe.fluff = sanitizeForDisplay(meaningful(safe.fluff, "Some fluff remains, but core claims are still visible."));
+
+  safe.core_disagreement = sanitizeForDisplay(meaningful(safe.core_disagreement, "The sides disagree over which core claim is better supported."));
+  safe.why = sanitizeForDisplay(meaningful(safe.why, "The result comes from comparing reasoning quality, support, overreach, and rebuttal strength."));
+
+  safe.analysisMode = meaningful(safe.analysisMode, ANALYSIS_MODE);
+  safe.sources = Array.isArray(safe.sources) ? safe.sources : [];
 
   return {
-    teamAName: requestedTeamAName || DEFAULT_TEAM_A,
-    teamBName: requestedTeamBName || DEFAULT_TEAM_B,
-    winner: requestedTeamAName || DEFAULT_TEAM_A,
-    confidence: "Low",
-    teamAScore: "51",
-    teamBScore: "49",
+    teamAName: safe.teamAName,
+    teamBName: safe.teamBName,
+    winner: safe.winner,
+    confidence: safe.confidence,
+    teamAScore: safe.teamAScore,
+    teamBScore: safe.teamBScore,
 
     teamA: {
-      main_position: "Team A's position had to be reconstructed from weak transcript fragments.",
-      truth: "Some claim material existed, but transcript quality prevented clean extraction.",
-      lies: "No explicit lie could be isolated because the transcript quality was poor.",
-      opinion: "Opinion and interpretation dominated the available fragments.",
-      lala: "Filler and transcript noise damaged extraction."
+      main_position: safe.teamA.main_position,
+      truth: safe.teamA.truth,
+      lies: safe.teamA.lies,
+      opinion: safe.teamA.opinion,
+      lala: safe.teamA.lala
     },
 
     teamB: {
-      main_position: "Team B's position had to be reconstructed from weak transcript fragments.",
-      truth: "Some claim material existed, but transcript quality prevented clean extraction.",
-      lies: "No explicit lie could be isolated because the transcript quality was poor.",
-      opinion: "Opinion and interpretation dominated the available fragments.",
-      lala: "Filler and transcript noise damaged extraction."
+      main_position: safe.teamB.main_position,
+      truth: safe.teamB.truth,
+      lies: safe.teamB.lies,
+      opinion: safe.teamB.opinion,
+      lala: safe.teamB.lala
     },
 
-    teamA_integrity: "Team A survives here mostly because the engine had slightly more usable material on that side.",
-    teamB_integrity: "Team B suffered from weak extraction and incomplete usable material.",
-    teamA_reasoning: "Reasoning analysis was degraded by transcript quality, but Team A still had marginally more reconstructable structure.",
-    teamB_reasoning: "Reasoning analysis was degraded by transcript quality, and Team B had less usable structure to work with.",
+    teamA_integrity: safe.teamA_integrity,
+    teamB_integrity: safe.teamB_integrity,
+    teamA_reasoning: safe.teamA_reasoning,
+    teamB_reasoning: safe.teamB_reasoning,
 
-    teamA_lane: "argument",
-    teamB_lane: "argument",
-    same_lane_engagement: "Yes",
-    lane_mismatch: "No meaningful lane mismatch could be established because extraction quality was poor.",
+    teamA_lane: safe.teamA_lane,
+    teamB_lane: safe.teamB_lane,
+    same_lane_engagement: safe.same_lane_engagement,
+    lane_mismatch: safe.lane_mismatch,
 
-    strongestArgumentSide: requestedTeamAName || DEFAULT_TEAM_A,
-    strongestArgument: "The strongest available material was only marginally stronger than the rest because the transcript was weak.",
-    whyStrongest: "It was less broken than the competing fragments. Not glorious, just less bad.",
-    failedResponseByOtherSide: "The other side failed to directly answer the strongest available point.",
-    weakestOverall: "The weakest overall material was unsupported assertion buried in noisy transcript fragments.",
+    strongestArgumentSide: safe.strongestArgumentSide,
+    strongestArgument: safe.strongestArgument,
+    whyStrongest: safe.whyStrongest,
+    failedResponseByOtherSide: safe.failedResponseByOtherSide,
+    weakestOverall: safe.weakestOverall,
 
-    bsMeter: "High",
-    manipulation: "Transcript quality was too poor to separate manipulation from noise with confidence.",
-    fluff: "Heavy fluff and transcript noise interfered with clean judgment.",
+    bsMeter: safe.bsMeter,
+    manipulation: safe.manipulation,
+    fluff: safe.fluff,
 
-    core_disagreement: "The sides were in conflict, but the transcript did a poor job preserving the clean center of the disagreement.",
-    why: text,
+    core_disagreement: safe.core_disagreement,
+    why: safe.why,
 
-    analysisMode: ANALYSIS_MODE,
-    sources: []
+    analysisMode: safe.analysisMode,
+    sources: safe.sources
   };
 }
 
-async function analyzeHandler(req, res) {
-  res.setHeader("Content-Type", "application/json");
-
-  const requestedTeamAName = cleanWhitespace(req.body?.teamAName || "");
-  const requestedTeamBName = cleanWhitespace(req.body?.teamBName || "");
-  const videoLink = cleanWhitespace(req.body?.videoLink || "");
-
-  try {
-    const rawTranscript = getTranscriptFromBody(req.body);
-
-    if (!rawTranscript || !rawTranscript.trim()) {
-      return res.status(200).json(
-        buildFailureContract("No usable transcript was provided to the endpoint.", requestedTeamAName, requestedTeamBName)
-      );
-    }
-
-    const cleaned = cleanTranscript(rawTranscript);
-
-    const extracted = extractSides(
-      cleaned.cleanedLines,
-      requestedTeamAName,
-      requestedTeamBName
-    );
-
-    const teamASentences = extracted.teamASentences.length
-      ? extracted.teamASentences
-      : sentenceSplit(cleaned.cleanedTranscript).slice(0, 5);
-
-    const teamBSentences = extracted.teamBSentences.length
-      ? extracted.teamBSentences
-      : sentenceSplit(cleaned.cleanedTranscript).slice(5, 10);
-
-    const teamAAnalysis = analyzeSideDeterministically(extracted.teamAName, teamASentences);
-    const teamBAnalysis = analyzeSideDeterministically(extracted.teamBName, teamBSentences);
-
-    const factLayer = factCheckLayer(teamAAnalysis, teamBAnalysis, videoLink);
-    const aiRefinement = await aiRefinementLayer(teamAAnalysis, teamBAnalysis);
-
-    const baseResult = buildBaseResult(
-      extracted.teamAName,
-      extracted.teamBName,
-      teamAAnalysis,
-      teamBAnalysis,
-      factLayer
-    );
-
-    const merged = mergeLayer(baseResult, aiRefinement);
-
-    const finalResult = enforceConsistency(
-      merged,
-      teamAAnalysis,
-      teamBAnalysis,
-      extracted.extractionMeta
-    );
-
-    return res.status(200).json(finalResult);
-  } catch (err) {
-    const message =
-      err && err.message
-        ? `Analysis crashed and fell back to contract-safe output: ${err.message}`
-        : "Analysis crashed and fell back to contract-safe output.";
-
-    return res.status(200).json(
-      buildFailureContract(message, requestedTeamAName, requestedTeamBName)
-    );
-  }
+function meaningful(value, fallback) {
+  const v = cleanWhitespace(value);
+  if (!v) return fallback;
+  if (/^none$/i.test(v)) return fallback;
+  if (v === "-") return fallback;
+  return v;
 }
 
-router.post("/", analyzeHandler);
+function normalizeConfidence(value) {
+  const v = cleanWhitespace(value);
+  if (!v) return "50%";
+  if (/%$/.test(v)) return v;
+  if (/^\d+$/.test(v)) return `${v}%`;
+  return "50%";
+}
 
-module.exports = router;
+function sanitizeForDisplay(value) {
+  let text = cleanWhitespace(value);
+
+  if (!text) return "";
+
+  text = text
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+    .replace(/\b\d+\s*hours?,?\s*\d+\s*minutes?,?\s*\d+\s*seconds?\b/gi, " ")
+    .replace(/\b\d+\s*minutes?,?\s*\d+\s*seconds?\b/gi, " ")
+    .replace(/\b\d+\s*seconds?\b/gi, " ")
+    .replace(/\b\d+\s*minutes?\b/gi, " ")
+    .replace(/[|]+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return text || "";
+}
+
+/* ------------------------------------------------------------------ */
+/* Failure Response                                                   */
+/* ------------------------------------------------------------------ */
+
+function buildFailureResponse(req, err) {
+  const body = req && req.body && typeof req.body === "object" ? req.body : {};
+
+  const teamAName = safeText(body.teamAName || DEFAULT_TEAM_A) || DEFAULT_TEAM_A;
+  const teamBName = safeText(body.teamBName || DEFAULT_TEAM_B) || DEFAULT_TEAM_B;
+
+  const message = err && err.message ? cleanWhitespace(err.message) : "Unknown backend error";
+
+  return enforceConsistency({
+    teamAName,
+    teamBName,
+    winner: "Mixed",
+    confidence: "50%",
+    teamAScore: "5",
+    teamBScore: "5",
+
+    teamA: {
+      main_position: `${teamAName} could not be fully analyzed because the backend hit an error path.`,
+      truth: `${teamAName} still appears to contain at least one argument claim in the submitted transcript.`,
+      lies: `${teamAName} could not be fully stress-tested because processing failed before completion.`,
+      opinion: `${teamAName} likely includes interpretation alongside argument.`,
+      lala: `${teamAName} transcript may still contain some loose or noisy language.`
+    },
+
+    teamB: {
+      main_position: `${teamBName} could not be fully analyzed because the backend hit an error path.`,
+      truth: `${teamBName} still appears to contain at least one argument claim in the submitted transcript.`,
+      lies: `${teamBName} could not be fully stress-tested because processing failed before completion.`,
+      opinion: `${teamBName} likely includes interpretation alongside argument.`,
+      lala: `${teamBName} transcript may still contain some loose or noisy language.`
+    },
+
+    teamA_integrity: `${teamAName} integrity assessment is incomplete because the handler failed.`,
+    teamB_integrity: `${teamBName} integrity assessment is incomplete because the handler failed.`,
+    teamA_reasoning: `${teamAName} reasoning assessment is incomplete because the handler failed.`,
+    teamB_reasoning: `${teamBName} reasoning assessment is incomplete because the handler failed.`,
+
+    teamA_lane: "mixed / unclear lane",
+    teamB_lane: "mixed / unclear lane",
+    same_lane_engagement: "Could not fully evaluate lane engagement after backend failure.",
+    lane_mismatch: "Could not fully evaluate lane mismatch after backend failure.",
+
+    strongestArgumentSide: "Mixed",
+    strongestArgument: "No strongest argument could be finalized because processing failed before stable selection.",
+    whyStrongest: "The backend error prevented a final strongest-argument comparison.",
+    failedResponseByOtherSide: "The backend error prevented final rebuttal comparison.",
+    weakestOverall: "The backend error prevented final weakest-point selection.",
+
+    bsMeter: "Backend failure prevented a stable BS comparison.",
+    manipulation: "Backend failure prevented a stable manipulation read.",
+    fluff: "Backend failure prevented a stable fluff read.",
+
+    core_disagreement: "The sides still disagree, but the backend failure prevented a cleaner summary.",
+    why: `Returned safe fallback JSON after backend failure: ${clip(message, 180)}`,
+
+    analysisMode: `${ANALYSIS_MODE}+failure-fallback`,
+    sources: []
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Misc                                                               */
+/* ------------------------------------------------------------------ */
+
+function escapeRegExp(string) {
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
