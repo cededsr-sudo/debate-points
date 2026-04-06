@@ -1761,4 +1761,375 @@ function decideWinner(teamAAnalysis, teamBAnalysis) {
     : teamBAnalysis.sideName;
 }
 
-/* =================== END APPEND: STOP CLAIM COLLAPSE PATCH =================== */
+/* ================= APPEND: EXTRACTION HARDENING OVERRIDE ================= */
+
+const EXTRA_BLOCK_PATTERNS = [
+  /\bi invited him\b/i,
+  /\bseparate debate\b/i,
+  /\bgish gallop\b/i,
+  /\bthanks for joining\b/i,
+  /\bthanks for having me\b/i,
+  /\bwelcome everyone\b/i,
+  /\bwelcome back\b/i,
+  /\blet me clarify\b/i,
+  /\bcan you clarify\b/i,
+  /\bcould you clarify\b/i,
+  /\bwhat do you mean\b/i,
+  /\bdefine what you mean\b/i,
+  /\bhow would you define\b/i,
+  /\bmy channel\b/i,
+  /\bour channel\b/i,
+  /\bmy book\b/i,
+  /\bforthcoming book\b/i,
+  /\bmaster'?s thesis\b/i,
+  /\bphd student\b/i,
+  /\bco-?author\b/i,
+  /\bopen discussion\b/i,
+  /\bi will facilitate\b/i,
+  /\bi'?ll facilitate\b/i,
+  /\bthe speakers can ask each other questions\b/i,
+  /\btime starts now\b/i,
+  /\bnext question\b/i,
+  /\bquestion for\b/i,
+  /\bi was wondering if you could maybe clarify\b/i,
+  /\bwe can go from there\b/i,
+  /\bthank you both\b/i,
+  /\bthis concludes\b/i,
+  /\bthat concludes\b/i
+];
+
+const ARGUMENT_SIGNAL_PATTERNS = [
+  /\bbecause\b/i,
+  /\btherefore\b/i,
+  /\bthus\b/i,
+  /\bhence\b/i,
+  /\bsince\b/i,
+  /\bif\b.*\bthen\b/i,
+  /\bthat means\b/i,
+  /\bwhich means\b/i,
+  /\bit follows\b/i,
+  /\bshows\b/i,
+  /\bdemonstrates\b/i,
+  /\bproves\b/i,
+  /\bevidence\b/i,
+  /\bstudy\b/i,
+  /\bstudies\b/i,
+  /\bresearch\b/i,
+  /\bhistorical\b/i,
+  /\beyewitness\b/i,
+  /\bfossil\b/i,
+  /\bgenesis\b/i,
+  /\bgospels?\b/i,
+  /\bjesus\b/i,
+  /\bpapias\b/i,
+  /\bjohannine\b/i,
+  /\bmoral law\b/i,
+  /\bbabylonian\b/i,
+  /\bmesopotamian\b/i,
+  /\bprimeval\b/i,
+  /\bcommon ancestry\b/i,
+  /\bevolution\b/i,
+  /\bmechanisms?\b/i,
+  /\bextrapolat(e|es|ing)\b/i,
+  /\bassimilat(e|ion|ed)\b/i,
+  /\bdepends on\b/i,
+  /\bundermines\b/i,
+  /\bdoes not follow\b/i,
+  /\bdoes not prove\b/i,
+  /\bshould not\b/i,
+  /\bcannot\b/i,
+  /\bcan not\b/i
+];
+
+function aggressiveTranscriptNormalize(text) {
+  return cleanText(
+    String(text || "")
+      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+      .replace(/\b\d+\s*hour[s]?,?\s*\d+\s*minute[s]?,?\s*\d+\s*second[s]?\b/gi, " ")
+      .replace(/\b\d+\s*minute[s]?,?\s*\d+\s*second[s]?\b/gi, " ")
+      .replace(/\b\d+\s*hour[s]?\b/gi, " ")
+      .replace(/\b\d+\s*minute[s]?\b/gi, " ")
+      .replace(/\b\d+\s*second[s]?\b/gi, " ")
+      .replace(/([a-z])(\d)/g, "$1 ")
+      .replace(/(\d)([a-zA-Z])/g, " $2")
+      .replace(/\b\d+\b/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+  );
+}
+
+function isHardBlockedLine(line) {
+  const t = aggressiveTranscriptNormalize(line);
+  if (!t) return true;
+  if (isLikelySetupLine(t)) return true;
+  if (isLikelyModeratorLine(t)) return true;
+  if (isRhetoricalIntro(t)) return true;
+  if (EXTRA_BLOCK_PATTERNS.some((re) => re.test(t))) return true;
+
+  if (
+    /\b(welcome|subscribe|notification bell|share this video|patreon|podcast|sponsored)\b/i.test(t)
+  ) return true;
+
+  return false;
+}
+
+function hasArgumentSignal(line) {
+  const t = aggressiveTranscriptNormalize(line);
+  if (!t) return false;
+  return ARGUMENT_SIGNAL_PATTERNS.some((re) => re.test(t));
+}
+
+function sentenceFragmentsFromLine(line) {
+  const normalized = aggressiveTranscriptNormalize(line);
+  if (!normalized) return [];
+
+  return normalized
+    .split(/(?<=[.!?])\s+|(?<=;)\s+|(?<=:)\s+(?=[A-Z])|,\s+(?=(?:because|but|however|therefore|so|if|since|then)\b)/i)
+    .map((s) => aggressiveTranscriptNormalize(s))
+    .filter(Boolean);
+}
+
+function looksLikeArgumentSentence(sentence) {
+  const s = aggressiveTranscriptNormalize(sentence);
+  if (!s) return false;
+  if (wordCount(s) < 8) return false;
+  if (isHardBlockedLine(s)) return false;
+
+  const lower = s.toLowerCase();
+
+  if (/^\b(sabore|moderator|host|question)\b/i.test(s)) return false;
+  if (/\b(i invited him|separate debate|thanks for|clarify for us|go from there)\b/i.test(s)) return false;
+  if (/\bthis channel is|my book|my channel|our channel|phd student|master'?s thesis\b/i.test(s)) return false;
+
+  const reasoningHits = countHits(lower, REASONING_WORDS);
+  const evidenceHits = countHits(lower, EVIDENCE_WORDS);
+  const topicHits = countHits(lower, TOPIC_WORDS);
+  const attackHits = countHits(lower, ATTACK_WORDS);
+
+  return reasoningHits + evidenceHits + topicHits + attackHits >= 1 || hasArgumentSignal(s);
+}
+
+function scoreArgumentSentence(sentence) {
+  const s = aggressiveTranscriptNormalize(sentence);
+  if (!looksLikeArgumentSentence(s)) return -999;
+
+  const lower = s.toLowerCase();
+  let score = 0;
+
+  score += Math.min(wordCount(s), 24);
+  score += countHits(lower, REASONING_WORDS) * 9;
+  score += countHits(lower, EVIDENCE_WORDS) * 8;
+  score += countHits(lower, TOPIC_WORDS) * 6;
+  score += countHits(lower, ATTACK_WORDS) * 5;
+  score -= countHits(lower, FILLER_WORDS) * 4;
+  score -= countHits(lower, OVERREACH_WORDS) * 2;
+
+  if (/\b(because|therefore|since|if|then|shows|demonstrates|proves|undermines)\b/i.test(s)) score += 10;
+  if (/\b(for example|for instance|study|studies|evidence|historical|fossil|eyewitness)\b/i.test(s)) score += 7;
+  if (/\b(i invited him|clarify for us|thank you|welcome)\b/i.test(s)) score -= 20;
+
+  return score;
+}
+
+function cleanTranscript(text) {
+  const stripped = removeTimestampsAndStageDirections(text);
+  const lines = splitTranscriptIntoLines(stripped);
+  const cleaned = [];
+
+  for (const rawLine of lines) {
+    const line = aggressiveTranscriptNormalize(stripSpeakerPrefix(rawLine));
+    if (!line) continue;
+    if (isHardBlockedLine(line)) continue;
+    cleaned.push(line);
+  }
+
+  return uniquePreserveOrder(cleaned).join("\n");
+}
+
+function extractSidesByAlternation(lines) {
+  const eligible = [];
+
+  for (const raw of lines) {
+    const line = aggressiveTranscriptNormalize(stripSpeakerPrefix(raw));
+    if (!line) continue;
+    if (isHardBlockedLine(line)) continue;
+
+    const fragments = sentenceFragmentsFromLine(line).filter((s) => wordCount(s) >= 6);
+    for (const fragment of fragments) {
+      if (isHardBlockedLine(fragment)) continue;
+      eligible.push(fragment);
+    }
+  }
+
+  const strongEligible = eligible.filter((line) => looksLikeArgumentSentence(line));
+  const pool = strongEligible.length >= 6 ? strongEligible : eligible;
+
+  const teamALines = [];
+  const teamBLines = [];
+
+  for (let i = 0; i < pool.length; i += 1) {
+    if (i % 2 === 0) teamALines.push(pool[i]);
+    else teamBLines.push(pool[i]);
+  }
+
+  return {
+    teamALines: uniquePreserveOrder(teamALines),
+    teamBLines: uniquePreserveOrder(teamBLines)
+  };
+}
+
+function toCandidateSentences(lines) {
+  const source = Array.isArray(lines) ? lines : [];
+  const out = [];
+
+  for (const line of source) {
+    const fragments = sentenceFragmentsFromLine(line);
+    for (const fragment of fragments) {
+      if (!fragment) continue;
+      if (isHardBlockedLine(fragment)) continue;
+      out.push(fragment);
+    }
+  }
+
+  return uniquePreserveOrder(out)
+    .map((s) => aggressiveTranscriptNormalize(s))
+    .filter(Boolean)
+    .filter((s) => wordCount(s) >= 6)
+    .filter((s) => !isHardBlockedLine(s));
+}
+
+function isBadClaimCandidate(text) {
+  const t = aggressiveTranscriptNormalize(verdictClean(text));
+  const l = t.toLowerCase();
+
+  if (!t) return true;
+  if (wordCount(t) < 8) return true;
+  if (BAD_FALLBACK_TEXT.includes(l)) return true;
+  if (/^[,"'`;:\-]/.test(t)) return true;
+  if (/\.\.\.$/.test(t)) return true;
+  if (isHardBlockedLine(t)) return true;
+  if (!looksLikeArgumentSentence(t)) return true;
+
+  return false;
+}
+
+function classifyClaim(text) {
+  const t = aggressiveTranscriptNormalize(verdictClean(text));
+  const lower = t.toLowerCase();
+
+  if (!t) return "filler";
+  if (isBadClaimCandidate(t)) return "filler";
+
+  if (isAttackSentence(t)) return "attack";
+  if (isExampleHeavySentence(t)) return "example";
+
+  const reasoningHits = countHits(lower, REASONING_WORDS);
+  const evidenceHits = countHits(lower, EVIDENCE_WORDS);
+  const topicHits = countHits(lower, TOPIC_WORDS);
+
+  if (/\b(therefore|because|this means|it follows|undermines|depends on|cannot|should not|does not prove)\b/i.test(t)) {
+    return "thesis";
+  }
+
+  if (reasoningHits >= 1 && (evidenceHits >= 1 || topicHits >= 1)) return "thesis";
+  if (evidenceHits >= 1 || topicHits >= 1 || reasoningHits >= 1) return "support";
+
+  return "filler";
+}
+
+function bestRealClaim(sideClaims) {
+  const pools = []
+    .concat((sideClaims.thesis || []).map((x) => x.text))
+    .concat((sideClaims.support || []).map((x) => x.text))
+    .concat((sideClaims.example || []).map((x) => x.text))
+    .concat(sideClaims.sentences || []);
+
+  const ranked = uniquePreserveOrder(pools)
+    .map((text) => aggressiveTranscriptNormalize(text))
+    .filter(Boolean)
+    .map((text) => ({ text, score: scoreArgumentSentence(text) }))
+    .filter((x) => x.score > -999)
+    .sort((a, b) => b.score - a.score);
+
+  return ranked.length ? ranked[0].text : "";
+}
+
+function extractClaimsForSide(lines, sideName) {
+  const sentences = toCandidateSentences(lines);
+
+  const thesis = [];
+  const support = [];
+  const attack = [];
+  const example = [];
+  const filler = [];
+
+  for (const sentence of sentences) {
+    const cleaned = aggressiveTranscriptNormalize(sentence);
+    const kind = classifyClaim(cleaned);
+    const record = {
+      text: cleaned,
+      human: humanizeClaim(cleaned),
+      score: scoreArgumentSentence(cleaned)
+    };
+
+    if (kind === "thesis") thesis.push(record);
+    else if (kind === "support") support.push(record);
+    else if (kind === "attack") attack.push(record);
+    else if (kind === "example") example.push(record);
+    else filler.push(record);
+  }
+
+  const sortDesc = (a, b) => b.score - a.score;
+
+  thesis.sort(sortDesc);
+  support.sort(sortDesc);
+  attack.sort(sortDesc);
+  example.sort(sortDesc);
+  filler.sort(sortDesc);
+
+  return {
+    sideName,
+    sentences: uniquePreserveOrder(sentences),
+    thesis: uniqueRecords(thesis).filter((x) => !isBadClaimCandidate(x.text)).slice(0, 5),
+    support: uniqueRecords(support).filter((x) => !isBadClaimCandidate(x.text)).slice(0, 7),
+    attack: uniqueRecords(attack).filter((x) => !isBadClaimCandidate(x.text)).slice(0, 5),
+    example: uniqueRecords(example).filter((x) => !isBadClaimCandidate(x.text)).slice(0, 4),
+    filler: uniqueRecords(filler).slice(0, 4)
+  };
+}
+
+function buildFactCheckLayer(teamAAnalysis, teamBAnalysis, videoLink) {
+  const checkedClaims = [];
+
+  function inspect(sideAnalysis, sideName) {
+    const candidates = []
+      .concat((sideAnalysis.thesis || []).map((x) => x.text))
+      .concat((sideAnalysis.support || []).map((x) => x.text))
+      .concat((sideAnalysis.example || []).map((x) => x.text));
+
+    const unique = uniquePreserveOrder(candidates)
+      .map((c) => aggressiveTranscriptNormalize(c))
+      .filter(Boolean)
+      .filter((c) => !isBadClaimCandidate(c))
+      .slice(0, 4);
+
+    for (const claim of unique) {
+      checkedClaims.push({
+        claim: clip(sideName + ": " + humanizeClaim(claim), 220),
+        status: inferFactCheckStatus(claim),
+        note: buildFactCheckNote(claim),
+        source: videoLink ? clip(videoLink, 180) : "Transcript-only analysis"
+      });
+    }
+  }
+
+  inspect(teamAAnalysis, teamAAnalysis.sideName || DEFAULT_TEAM_A);
+  inspect(teamBAnalysis, teamBAnalysis.sideName || DEFAULT_TEAM_B);
+
+  return {
+    checkedClaims,
+    summary: "Fact-check layer executed in transcript mode. Cleaner argument sentences were selected before claim review."
+  };
+}
+
+/* =============== END APPEND: EXTRACTION HARDENING OVERRIDE ================= */
