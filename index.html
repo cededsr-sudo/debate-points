@@ -3,30 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Debate Points</title>
+  <title>Debate Judgment Engine</title>
   <style>
     :root {
-      --bg: #0f0505;
-      --bg2: #1b0707;
-      --shell-red-1: #991a18;
-      --shell-red-2: #6c0f10;
-      --shell-red-3: #3d090a;
-      --gold-1: #ffcf73;
-      --gold-2: #d69a36;
-      --gold-3: #8b5e1d;
-      --cyan: #7ee9ff;
-      --cyan-soft: rgba(126, 233, 255, 0.16);
-      --panel: rgba(33, 10, 10, 0.92);
-      --panel-2: rgba(52, 14, 12, 0.96);
-      --line: rgba(255, 201, 101, 0.28);
-      --line-soft: rgba(255, 201, 101, 0.14);
-      --text: #fff2df;
-      --muted: #e7c089;
-      --danger: #ff8b73;
-      --shadow: rgba(0, 0, 0, 0.42);
-      --radius-xl: 34px;
-      --radius-lg: 24px;
-      --radius-md: 18px;
+      --bg: #060708;
+      --bg-2: #0c0e11;
+      --panel: rgba(14, 16, 19, 0.92);
+      --panel-2: rgba(20, 23, 27, 0.96);
+      --panel-3: rgba(10, 12, 15, 0.98);
+      --glass: rgba(255, 255, 255, 0.04);
+
+      --line: rgba(212, 174, 99, 0.28);
+      --line-soft: rgba(212, 174, 99, 0.12);
+      --steel: rgba(161, 171, 184, 0.22);
+
+      --text: #f2eee7;
+      --muted: #b9ac96;
+      --gold: #d4ae63;
+      --gold-soft: rgba(212, 174, 99, 0.12);
+      --silver: #c6d0da;
+      --danger: #d95c5c;
+      --danger-soft: rgba(217, 92, 92, 0.14);
+      --success: #8db7a1;
+      --shadow: rgba(0, 0, 0, 0.5);
+
+      --radius-xl: 30px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
     }
 
     * { box-sizing: border-box; }
@@ -38,10 +42,9 @@
       color: var(--text);
       font-family: Inter, system-ui, Arial, sans-serif;
       background:
-        radial-gradient(circle at 50% 8%, rgba(126,233,255,.08), transparent 18%),
-        radial-gradient(circle at 18% 18%, rgba(255,176,76,.07), transparent 22%),
-        radial-gradient(circle at 82% 22%, rgba(255,78,52,.10), transparent 24%),
-        linear-gradient(180deg, #130606 0%, #0c0303 100%);
+        radial-gradient(circle at 20% 0%, rgba(255,255,255,0.03), transparent 24%),
+        radial-gradient(circle at 80% 12%, rgba(212,174,99,0.06), transparent 20%),
+        linear-gradient(180deg, #060708 0%, #090b0e 38%, #040506 100%);
     }
 
     body::before {
@@ -49,187 +52,177 @@
       position: fixed;
       inset: 0;
       pointer-events: none;
-      opacity: .32;
       background:
-        repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 4px),
-        linear-gradient(90deg, transparent 0%, rgba(126,233,255,.02) 50%, transparent 100%);
+        linear-gradient(180deg, rgba(255,255,255,0.02), transparent 18%, transparent 82%, rgba(255,255,255,0.015)),
+        repeating-linear-gradient(
+          0deg,
+          rgba(255,255,255,0.012) 0 1px,
+          transparent 1px 4px
+        );
+      opacity: 0.55;
       mix-blend-mode: screen;
     }
 
-    .device {
-      width: min(1500px, 95vw);
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at center, transparent 0 52%, rgba(255,255,255,0.02) 70%, transparent 100%);
+      opacity: 0.35;
+    }
+
+    .frame {
+      width: min(1560px, 95vw);
       margin: 18px auto 34px;
       padding: 18px;
-      position: relative;
-      border-radius: 42px;
+      border-radius: 34px;
       background:
-        linear-gradient(145deg, var(--shell-red-1) 0%, var(--shell-red-2) 34%, var(--shell-red-3) 100%);
-      border: 1px solid rgba(255, 209, 115, .22);
+        linear-gradient(145deg, rgba(18,20,24,0.98), rgba(9,10,12,1));
+      border: 1px solid rgba(212, 174, 99, 0.18);
       box-shadow:
-        0 28px 60px var(--shadow),
-        inset 0 1px 0 rgba(255,255,255,.08),
-        inset 0 -2px 0 rgba(0,0,0,.40),
-        0 0 0 1px rgba(126,233,255,.05);
+        0 32px 70px var(--shadow),
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        inset 0 -1px 0 rgba(0,0,0,0.55),
+        0 0 0 1px rgba(255,255,255,0.02);
+      position: relative;
       overflow: hidden;
     }
 
-    .device::before {
+    .frame::before {
       content: "";
       position: absolute;
       inset: 8px;
-      border-radius: 34px;
+      border-radius: 26px;
+      border: 1px solid rgba(255,255,255,0.04);
       pointer-events: none;
-      border: 1px solid rgba(255, 207, 115, 0.10);
       background:
-        radial-gradient(circle at 50% 0%, rgba(126,233,255,.10), transparent 16%),
-        linear-gradient(180deg, rgba(255,255,255,.04), transparent 12%, transparent 88%, rgba(0,0,0,.12));
+        radial-gradient(circle at 50% 0%, rgba(255,255,255,0.04), transparent 18%),
+        linear-gradient(180deg, rgba(255,255,255,0.03), transparent 14%, transparent 86%, rgba(255,255,255,0.02));
     }
 
-    .edge-bumps {
+    .frame::after {
+      content: "";
       position: absolute;
       inset: 0;
       pointer-events: none;
-      border-radius: 42px;
       background:
-        radial-gradient(circle at 8% 1.5%, rgba(255,207,115,.26) 0 7px, transparent 8px),
-        radial-gradient(circle at 16% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 24% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 32% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 40% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 48% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 56% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 64% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 72% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 80% 1.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 88% 1.5%, rgba(255,207,115,.26) 0 7px, transparent 8px),
-
-        radial-gradient(circle at 98.5% 12%, rgba(255,207,115,.22) 0 7px, transparent 8px),
-        radial-gradient(circle at 98.5% 24%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 98.5% 36%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 98.5% 48%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 98.5% 60%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 98.5% 72%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 98.5% 84%, rgba(255,207,115,.22) 0 7px, transparent 8px),
-
-        radial-gradient(circle at 88% 98.5%, rgba(255,207,115,.26) 0 7px, transparent 8px),
-        radial-gradient(circle at 80% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 72% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 64% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 56% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 48% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 40% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 32% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 24% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 16% 98.5%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 8% 98.5%, rgba(255,207,115,.26) 0 7px, transparent 8px),
-
-        radial-gradient(circle at 1.5% 84%, rgba(255,207,115,.22) 0 7px, transparent 8px),
-        radial-gradient(circle at 1.5% 72%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 1.5% 60%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 1.5% 48%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 1.5% 36%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 1.5% 24%, rgba(255,207,115,.18) 0 7px, transparent 8px),
-        radial-gradient(circle at 1.5% 12%, rgba(255,207,115,.22) 0 7px, transparent 8px);
-      opacity: .95;
+        linear-gradient(90deg, transparent 0%, rgba(212,174,99,0.03) 50%, transparent 100%);
+      opacity: 0.4;
     }
 
     .screen {
       position: relative;
-      z-index: 2;
-      min-height: calc(100vh - 90px);
+      z-index: 1;
+      min-height: calc(100vh - 86px);
       padding: 18px;
-      border-radius: 30px;
+      border-radius: 24px;
       background:
-        linear-gradient(180deg, rgba(15,15,18,.86), rgba(19,11,13,.94)),
-        radial-gradient(circle at 50% 0%, rgba(126,233,255,.05), transparent 16%);
-      border: 1px solid rgba(126,233,255,.14);
+        linear-gradient(180deg, rgba(9, 11, 14, 0.94), rgba(6, 8, 10, 0.98));
+      border: 1px solid rgba(198, 208, 218, 0.08);
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.05),
-        inset 0 -1px 0 rgba(0,0,0,.40);
+        inset 0 1px 0 rgba(255,255,255,0.03),
+        inset 0 -1px 0 rgba(0,0,0,0.45);
     }
 
-    .hud-top {
+    .topbar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 14px;
-      padding: 8px 10px 16px;
-      border-bottom: 1px solid rgba(126,233,255,.12);
-      margin-bottom: 16px;
+      gap: 18px;
+      padding: 8px 8px 18px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid rgba(212, 174, 99, 0.12);
     }
 
-    .title-wrap {
+    .brand {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
+      min-width: 0;
     }
 
-    .reactor {
-      width: 54px;
-      height: 54px;
+    .coin {
+      width: 58px;
+      height: 58px;
       border-radius: 50%;
-      position: relative;
       background:
-        radial-gradient(circle, rgba(126,233,255,.95) 0 24%, rgba(126,233,255,.28) 25% 44%, transparent 45%),
-        radial-gradient(circle, rgba(126,233,255,.35), transparent 72%);
+        radial-gradient(circle at 35% 35%, rgba(255,255,255,0.12), transparent 30%),
+        radial-gradient(circle, rgba(212,174,99,0.2), rgba(212,174,99,0.04) 50%, transparent 74%);
+      border: 1px solid rgba(212, 174, 99, 0.34);
       box-shadow:
-        0 0 20px rgba(126,233,255,.28),
-        inset 0 0 16px rgba(255,255,255,.08);
-      border: 1px solid rgba(126,233,255,.28);
+        0 0 22px rgba(212,174,99,0.08),
+        inset 0 0 18px rgba(255,255,255,0.03);
+      position: relative;
+      overflow: hidden;
     }
 
-    .reactor::before,
-    .reactor::after {
+    .coin::before,
+    .coin::after {
       content: "";
       position: absolute;
-      inset: 8px;
+      inset: 9px;
       border-radius: 50%;
-      border: 1px solid rgba(255, 208, 112, .35);
+      border: 1px solid rgba(212, 174, 99, 0.22);
+    }
+
+    .coin::after {
+      inset: 20px;
+      border-color: rgba(255,255,255,0.08);
     }
 
     .title {
-      font-size: clamp(28px, 4vw, 52px);
-      font-weight: 1000;
-      letter-spacing: .04em;
-      color: var(--gold-1);
-      text-transform: uppercase;
-      text-shadow: 0 0 16px rgba(255,207,115,.16);
       margin: 0;
-    }
-
-    .subhead {
-      font-size: 12px;
-      letter-spacing: .24em;
-      color: var(--cyan);
+      font-size: clamp(30px, 4.4vw, 54px);
+      line-height: 0.95;
+      font-weight: 1000;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      margin-top: 4px;
+      color: var(--text);
+      text-shadow: 0 0 18px rgba(255,255,255,0.06);
     }
 
-    .hud-readout {
+    .subtitle {
+      margin-top: 6px;
+      font-size: 12px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .top-status {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
       justify-content: flex-end;
     }
 
-    .status-pill {
+    .chip {
       min-height: 42px;
       display: inline-flex;
       align-items: center;
       padding: 0 16px;
       border-radius: 999px;
-      font-size: 12px;
-      letter-spacing: .14em;
+      font-size: 11px;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
       font-weight: 900;
       color: var(--text);
       background:
-        linear-gradient(180deg, rgba(74,16,16,.95), rgba(42,10,10,.96));
-      border: 1px solid rgba(255,207,115,.22);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+        linear-gradient(180deg, rgba(21,24,29,0.96), rgba(10,12,15,0.98));
+      border: 1px solid rgba(212,174,99,0.18);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 8px 18px rgba(0,0,0,0.24);
     }
 
-    .grid {
+    .chip.gold {
+      border-color: rgba(212,174,99,0.3);
+      color: var(--gold);
+    }
+
+    .layout {
       display: grid;
       gap: 18px;
     }
@@ -242,17 +235,16 @@
 
     .panel {
       position: relative;
+      overflow: hidden;
       background:
-        linear-gradient(180deg, rgba(55,14,14,.94), rgba(26,9,10,.96));
-      border: 1px solid var(--line);
+        linear-gradient(180deg, rgba(14,16,19,0.96), rgba(9,11,14,0.98));
+      border: 1px solid var(--line-soft);
       border-radius: var(--radius-xl);
       padding: 20px;
-      overflow: hidden;
       box-shadow:
-        0 16px 28px var(--shadow),
-        inset 0 1px 0 rgba(255,255,255,.05),
-        inset 0 -1px 0 rgba(0,0,0,.24),
-        0 0 0 1px rgba(126,233,255,.03);
+        0 18px 34px var(--shadow),
+        inset 0 1px 0 rgba(255,255,255,0.03),
+        inset 0 -1px 0 rgba(0,0,0,0.32);
     }
 
     .panel::before {
@@ -260,11 +252,20 @@
       position: absolute;
       inset: 0;
       pointer-events: none;
-      opacity: .18;
       background:
-        radial-gradient(circle at 16% 18%, rgba(255,207,115,.20) 0 4px, transparent 5px),
-        radial-gradient(circle at 82% 24%, rgba(126,233,255,.14) 0 4px, transparent 5px),
-        radial-gradient(circle at 70% 72%, rgba(255,120,88,.16) 0 5px, transparent 6px);
+        radial-gradient(circle at 14% 18%, rgba(212,174,99,0.08) 0 4px, transparent 5px),
+        radial-gradient(circle at 82% 24%, rgba(255,255,255,0.04) 0 4px, transparent 5px),
+        linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.01) 50%, transparent 100%);
+      opacity: 0.65;
+    }
+
+    .panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.015);
     }
 
     .section-title {
@@ -273,13 +274,17 @@
       margin: 0 0 14px;
       font-size: clamp(22px, 2.5vw, 36px);
       font-weight: 950;
-      color: var(--gold-1);
-      letter-spacing: .03em;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
+      color: var(--text);
+    }
+
+    .section-title .accent {
+      color: var(--gold);
     }
 
     .field,
-    .mini,
+    .mini-label,
     .box,
     .team-card,
     .sources-list {
@@ -291,46 +296,46 @@
     .mini-label {
       display: block;
       margin: 0 0 8px;
-      font-size: 12px;
-      letter-spacing: .16em;
-      text-transform: uppercase;
+      font-size: 11px;
       font-weight: 900;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
       color: var(--muted);
     }
 
     input[type="text"],
     textarea {
       width: 100%;
-      border: 1px solid rgba(255,207,115,.18);
-      border-radius: 18px;
+      border: 1px solid rgba(212, 174, 99, 0.12);
+      border-radius: var(--radius-md);
       padding: 14px 16px;
       font-size: 16px;
       color: var(--text);
       background:
-        linear-gradient(180deg, rgba(19,11,11,.94), rgba(12,8,8,.98));
+        linear-gradient(180deg, rgba(8,10,13,0.98), rgba(13,15,18,0.98));
       outline: none;
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.04),
-        0 0 0 1px rgba(126,233,255,.02);
+        inset 0 1px 0 rgba(255,255,255,0.02),
+        0 0 0 1px rgba(255,255,255,0.01);
     }
 
     input[type="text"]::placeholder,
     textarea::placeholder {
-      color: #c8955c;
+      color: #807768;
     }
 
     input[type="text"]:focus,
     textarea:focus {
-      border-color: rgba(126,233,255,.28);
+      border-color: rgba(212,174,99,0.34);
       box-shadow:
-        0 0 0 2px rgba(126,233,255,.10),
-        inset 0 1px 0 rgba(255,255,255,.04);
+        0 0 0 2px rgba(212,174,99,0.08),
+        inset 0 1px 0 rgba(255,255,255,0.02);
     }
 
     textarea {
-      min-height: 250px;
+      min-height: 260px;
       resize: vertical;
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
     .actions {
@@ -345,57 +350,62 @@
 
     button {
       border: 0;
-      border-radius: 18px;
+      border-radius: 16px;
       padding: 14px 22px;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 1000;
-      letter-spacing: .03em;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
       cursor: pointer;
-      transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease;
+      transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
     }
 
     button:hover { transform: translateY(-1px); }
-    button:disabled { opacity: .7; cursor: not-allowed; transform: none; }
+    button:disabled { opacity: 0.68; cursor: not-allowed; transform: none; }
 
     .primary {
-      color: #2e1305;
-      background: linear-gradient(180deg, var(--gold-1), var(--gold-2));
+      color: #0e0f10;
+      background:
+        linear-gradient(180deg, #e0bf7c, #b38a44);
       box-shadow:
-        0 10px 18px rgba(0,0,0,.24),
-        inset 0 1px 0 rgba(255,255,255,.28);
+        0 12px 20px rgba(0,0,0,0.28),
+        inset 0 1px 0 rgba(255,255,255,0.24);
     }
 
     .secondary {
       color: var(--text);
-      background: linear-gradient(180deg, rgba(88,19,18,.95), rgba(45,11,12,.98));
-      border: 1px solid rgba(255,207,115,.20);
+      background:
+        linear-gradient(180deg, rgba(29,32,37,0.98), rgba(13,15,18,1));
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.03),
+        0 10px 18px rgba(0,0,0,0.24);
     }
 
-    .pill {
+    .mode-pill {
       display: inline-flex;
       align-items: center;
       min-height: 44px;
-      border-radius: 999px;
       padding: 0 16px;
+      border-radius: 999px;
+      font-size: 11px;
       font-weight: 900;
-      font-size: 12px;
-      letter-spacing: .14em;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: var(--text);
+      color: var(--gold);
       background:
-        linear-gradient(180deg, rgba(29,54,60,.80), rgba(15,28,30,.92));
-      border: 1px solid rgba(126,233,255,.22);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 18px rgba(126,233,255,.05);
+        linear-gradient(180deg, rgba(18,20,24,0.98), rgba(9,11,14,1));
+      border: 1px solid rgba(212,174,99,0.18);
     }
 
     .error {
-      margin-top: 14px;
-      border: 1px solid rgba(255,139,115,.36);
-      background: rgba(110, 23, 18, .42);
-      color: #ffe1d7;
-      border-radius: 18px;
-      padding: 14px 16px;
       display: none;
+      margin-top: 14px;
+      border: 1px solid rgba(217, 92, 92, 0.38);
+      background: linear-gradient(180deg, rgba(67,20,20,0.46), rgba(35,11,11,0.5));
+      color: #ffdede;
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
     }
 
     .readout {
@@ -404,35 +414,38 @@
       gap: 18px;
     }
 
-    .readout-full { grid-column: 1 / -1; }
+    .readout-full {
+      grid-column: 1 / -1;
+    }
 
     .box {
       background:
-        linear-gradient(180deg, rgba(24,13,13,.95), rgba(13,8,8,.98));
-      border: 1px solid var(--line-soft);
-      border-radius: 18px;
+        linear-gradient(180deg, rgba(7,9,12,0.98), rgba(13,15,18,0.98));
+      border: 1px solid rgba(255,255,255,0.06);
+      border-left: 3px solid rgba(212,174,99,0.36);
+      border-radius: 14px;
       padding: 14px 16px;
       min-height: 60px;
-      line-height: 1.5;
+      line-height: 1.55;
       font-size: 15px;
       white-space: pre-wrap;
       word-break: break-word;
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.04),
-        0 4px 10px rgba(0,0,0,.18);
+        inset 0 1px 0 rgba(255,255,255,0.02),
+        0 6px 12px rgba(0,0,0,0.18);
     }
 
     .team-card {
-      background:
-        linear-gradient(180deg, rgba(56,15,14,.95), rgba(28,9,10,.98));
-      border: 1px solid rgba(255,207,115,.20);
-      border-radius: 28px;
-      padding: 18px;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.05),
-        0 14px 24px rgba(0,0,0,.22);
-      overflow: hidden;
       position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+      padding: 18px;
+      background:
+        linear-gradient(180deg, rgba(13,15,18,0.98), rgba(8,10,13,0.99));
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.03),
+        0 16px 28px rgba(0,0,0,0.22);
     }
 
     .team-card::before {
@@ -440,22 +453,31 @@
       position: absolute;
       inset: 0;
       pointer-events: none;
-      opacity: .16;
       background:
-        radial-gradient(circle at 14% 18%, rgba(255,207,115,.25) 0 5px, transparent 6px),
-        radial-gradient(circle at 84% 28%, rgba(126,233,255,.12) 0 5px, transparent 6px),
-        radial-gradient(circle at 76% 72%, rgba(255,102,71,.18) 0 5px, transparent 6px);
+        linear-gradient(135deg, rgba(212,174,99,0.06), transparent 34%),
+        radial-gradient(circle at 84% 22%, rgba(255,255,255,0.035) 0 5px, transparent 6px);
+      opacity: 0.6;
     }
 
-    .team-card.a { box-shadow: inset 4px 0 0 var(--gold-2), 0 14px 24px rgba(0,0,0,.22); }
-    .team-card.b { box-shadow: inset 4px 0 0 #ff8854, 0 14px 24px rgba(0,0,0,.22); }
+    .team-card.a {
+      box-shadow:
+        inset 4px 0 0 rgba(212,174,99,0.72),
+        0 16px 28px rgba(0,0,0,0.22);
+    }
+
+    .team-card.b {
+      box-shadow:
+        inset 4px 0 0 rgba(217,92,92,0.82),
+        0 16px 28px rgba(0,0,0,0.22);
+    }
 
     .team-name {
-      font-size: clamp(24px, 2.4vw, 40px);
-      font-weight: 1000;
-      color: var(--gold-1);
       margin: 0 0 10px;
+      font-size: clamp(24px, 2.6vw, 40px);
+      font-weight: 1000;
       text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text);
     }
 
     .sources-list {
@@ -465,20 +487,21 @@
 
     .source-item {
       background:
-        linear-gradient(180deg, rgba(24,13,13,.95), rgba(13,8,8,.98));
-      border: 1px solid var(--line-soft);
-      border-radius: 18px;
+        linear-gradient(180deg, rgba(8,10,13,0.98), rgba(14,16,19,0.98));
+      border: 1px solid rgba(255,255,255,0.06);
+      border-left: 3px solid rgba(212,174,99,0.34);
+      border-radius: 16px;
       padding: 14px 16px;
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.04),
-        0 4px 10px rgba(0,0,0,.18);
+        inset 0 1px 0 rgba(255,255,255,0.02),
+        0 6px 12px rgba(0,0,0,0.18);
     }
 
     .source-claim {
       font-weight: 900;
-      color: #ffe5bb;
+      color: var(--text);
       margin-bottom: 8px;
-      line-height: 1.4;
+      line-height: 1.45;
     }
 
     .source-meta {
@@ -488,13 +511,13 @@
     }
 
     .source-link {
-      color: var(--gold-1);
+      color: var(--gold);
       text-decoration: none;
-      border-bottom: 1px solid rgba(255,207,115,.35);
+      border-bottom: 1px solid rgba(212,174,99,0.35);
     }
 
     .source-link:hover {
-      border-bottom-color: rgba(255,207,115,.85);
+      border-bottom-color: rgba(212,174,99,0.85);
     }
 
     .muted-note {
@@ -503,34 +526,66 @@
       line-height: 1.5;
     }
 
-    @media (max-width: 1100px) {
-      .grid-2, .readout { grid-template-columns: 1fr; }
-      .hud-top { flex-direction: column; align-items: stretch; }
-      .hud-readout { justify-content: flex-start; }
+    .status-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .status-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--silver);
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    @media (max-width: 1160px) {
+      .grid-2,
+      .readout {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .top-status {
+        justify-content: flex-start;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="device">
-    <div class="edge-bumps"></div>
+  <div class="frame">
     <div class="screen">
-      <div class="hud-top">
-        <div class="title-wrap">
-          <div class="reactor"></div>
+      <div class="topbar">
+        <div class="brand">
+          <div class="coin"></div>
           <div>
-            <h1 class="title">Debate Points</h1>
-            <div class="subhead">Argument Analysis Interface</div>
+            <h1 class="title">Debate Judgment</h1>
+            <div class="subtitle">Black File Analysis Console</div>
           </div>
         </div>
-        <div class="hud-readout">
-          <div class="status-pill">Handheld Mode</div>
-          <div class="status-pill" id="modePillTop">Analysis Mode: -</div>
+
+        <div class="top-status">
+          <div class="chip">Continental Mode</div>
+          <div class="chip gold" id="modePillTop">Analysis Mode: -</div>
         </div>
       </div>
 
-      <div class="grid">
+      <div class="layout">
         <div class="panel">
-          <div class="section-title">Input</div>
+          <div class="section-title"><span class="accent">Input</span> Intake</div>
 
           <div class="grid-2">
             <div class="field">
@@ -556,14 +611,20 @@
           <div class="actions">
             <button class="primary" id="analyzeBtn">Analyze Debate</button>
             <button class="secondary" id="clearBtn">Clear</button>
-            <div class="pill" id="modePill">Analysis Mode: -</div>
+            <div class="mode-pill" id="modePill">Analysis Mode: -</div>
+          </div>
+
+          <div class="status-row">
+            <div class="status-tag">MIB Aesthetic</div>
+            <div class="status-tag">Wick Weight</div>
+            <div class="status-tag">Same Connector</div>
           </div>
 
           <div class="error" id="errorBox"></div>
         </div>
 
         <div class="panel">
-          <div class="section-title">Core Result</div>
+          <div class="section-title"><span class="accent">Core</span> Verdict</div>
           <div class="readout">
             <div>
               <div class="mini-label">Winner</div>
@@ -625,7 +686,7 @@
         </div>
 
         <div class="panel">
-          <div class="section-title">Team Analysis</div>
+          <div class="section-title"><span class="accent">Team</span> Analysis</div>
           <div class="grid-2">
             <div class="team-card a">
               <div class="team-name" id="teamAHeader">Team A</div>
@@ -658,7 +719,7 @@
         </div>
 
         <div class="panel">
-          <div class="section-title">Integrity and Reasoning</div>
+          <div class="section-title"><span class="accent">Integrity</span> and Reasoning</div>
           <div class="grid-2">
             <div>
               <div class="mini-label">Team A Integrity</div>
@@ -677,7 +738,7 @@
 
         <div class="grid-2">
           <div class="panel">
-            <div class="section-title">Worldview Lane Check</div>
+            <div class="section-title"><span class="accent">Worldview</span> Lane Check</div>
             <div class="mini-label">Same Lane Engagement</div>
             <div class="box" id="same_lane_engagement">-</div>
             <div class="mini-label" style="margin-top:14px;">Lane Mismatch</div>
@@ -685,7 +746,7 @@
           </div>
 
           <div class="panel">
-            <div class="section-title">Pressure and Noise</div>
+            <div class="section-title"><span class="accent">Pressure</span> and Noise</div>
             <div class="mini-label">Manipulation</div>
             <div class="box" id="manipulation">-</div>
             <div class="mini-label" style="margin-top:14px;">Fluff</div>
@@ -694,7 +755,7 @@
         </div>
 
         <div class="panel">
-          <div class="section-title">Fact Check Sources</div>
+          <div class="section-title"><span class="accent">Fact Check</span> Sources</div>
           <div id="sourcesList" class="sources-list">
             <div class="muted-note">No sources yet.</div>
           </div>
@@ -817,9 +878,11 @@
         const meta = document.createElement("div");
         meta.className = "source-meta";
 
-        const type = sanitizeDisplayText(source.type || "general");
+        const type = sanitizeDisplayText(source.type || source.status || "general");
         const confidence = sanitizeDisplayText(source.confidence || "unknown");
-        const likely = source.likely_source ? String(source.likely_source).trim() : "";
+        const likely = source.likely_source
+          ? String(source.likely_source).trim()
+          : (source.source ? String(source.source).trim() : "");
 
         if (/^https?:\/\//i.test(likely)) {
           meta.innerHTML =
@@ -830,7 +893,11 @@
           meta.innerHTML =
             'Type: ' + escapeHtml(type) +
             '<br>Confidence: ' + escapeHtml(confidence) +
-            '<br>Source: ' + escapeHtml(sanitizeDisplayText(likely || 'Requires manual review'));
+            '<br>Source: ' + escapeHtml(sanitizeDisplayText(likely || "Requires manual review"));
+        }
+
+        if (source.note) {
+          meta.innerHTML += '<br>Note: ' + escapeHtml(sanitizeDisplayText(source.note));
         }
 
         item.appendChild(claim);
@@ -839,38 +906,29 @@
       });
     }
 
-    function resetResults() {
-      $("teamAHeader").textContent = "Team A";
-      $("teamBHeader").textContent = "Team B";
-      $("modePill").textContent = "Analysis Mode: -";
-      $("modePillTop").textContent = "Analysis Mode: -";
-      fieldIds.forEach((id) => fillBox(id, "-"));
-      resetSources();
-      hideError();
-    }
-
     function showError(message) {
       const box = $("errorBox");
+      box.textContent = message || "Something went wrong.";
       box.style.display = "block";
-      box.textContent = sanitizeDisplayText(message);
     }
 
     function hideError() {
       const box = $("errorBox");
-      box.style.display = "none";
       box.textContent = "";
+      box.style.display = "none";
+    }
+
+    function resetResults() {
+      fieldIds.forEach((id) => fillBox(id, "-"));
+      $("teamAHeader").textContent = "Team A";
+      $("teamBHeader").textContent = "Team B";
+      $("modePill").textContent = "Analysis Mode: -";
+      $("modePillTop").textContent = "Analysis Mode: -";
+      resetSources();
+      hideError();
     }
 
     function renderResult(data) {
-      hideError();
-
-      const modeText = "Analysis Mode: " + sanitizeDisplayText(data.analysisMode || "Unknown");
-
-      $("teamAHeader").textContent = sanitizeDisplayText(data.teamAName || "Team A");
-      $("teamBHeader").textContent = sanitizeDisplayText(data.teamBName || "Team B");
-      $("modePill").textContent = modeText;
-      $("modePillTop").textContent = modeText;
-
       fillBox("winner", data.winner);
       fillBox("confidence", data.confidence);
       fillBox("teamAScore", data.teamAScore);
@@ -906,6 +964,13 @@
       fillBox("lane_mismatch", data.lane_mismatch);
       fillBox("manipulation", data.manipulation);
       fillBox("fluff", data.fluff);
+
+      $("teamAHeader").textContent = sanitizeDisplayText(data.teamAName || "Team A");
+      $("teamBHeader").textContent = sanitizeDisplayText(data.teamBName || "Team B");
+
+      const mode = sanitizeDisplayText(data.analysisMode || "-");
+      $("modePill").textContent = "Analysis Mode: " + mode;
+      $("modePillTop").textContent = "Analysis Mode: " + mode;
 
       renderSources(data.sources);
     }
@@ -969,12 +1034,12 @@
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
+        .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
     }
 
     function escapeAttr(value) {
-      return String(value).replace(/\"/g, "&quot;");
+      return String(value).replace(/"/g, "&quot;");
     }
 
     $("analyzeBtn").addEventListener("click", analyze);
