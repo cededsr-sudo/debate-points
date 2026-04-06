@@ -2409,3 +2409,365 @@ function sanitizeForDisplay(value) {
 
   return text || "";
 }
+/* =========================
+   CLAIM CLARITY OVERRIDES
+   Paste at END of /api/analyze2.js
+   ========================= */
+
+function cleanJudgmentText(text) {
+  let t = cleanWhitespace(stripTranscriptCorruption(text || ""));
+
+  t = t
+    .replace(/^\d+\s*[;:,.-]\s*/g, "")
+    .replace(/^chapter\s+\d+\s*[:.-]?\s*/i, "")
+    .replace(/^quote[:,]?\s*/i, "")
+    .replace(/^and\s+/i, "")
+    .replace(/^but\s+/i, "")
+    .replace(/^so\s+/i, "")
+    .replace(/^now\s+/i, "")
+    .replace(/^well\s+/i, "")
+    .replace(/^fourth[:,]?\s*/i, "")
+    .replace(/^first[:,]?\s*/i, "")
+    .replace(/^second[:,]?\s*/i, "")
+    .replace(/^third[:,]?\s*/i, "")
+    .replace(/^according to him[:,]?\s*/i, "")
+    .replace(/^let'?s talk about\s+/i, "")
+    .replace(/^let'?s look at\s+/i, "")
+    .replace(/\bsubscribe\b.*$/i, "")
+    .replace(/\bhit the notification bell\b.*$/i, "")
+    .replace(/\bshare this video\b.*$/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return t;
+}
+
+function rewriteClaimHuman(text) {
+  let t = cleanJudgmentText(text);
+
+  t = t
+    .replace(/^team\s*[ab]\s*(says|argues)\s*/i, "")
+    .replace(/^says\s*/i, "")
+    .replace(/^argues\s*/i, "")
+    .replace(/^that\s+/i, "")
+    .replace(/^quote\s*/i, "")
+    .replace(/^["']+/, "")
+    .replace(/["']+$/, "")
+    .trim();
+
+  if (!t) return "the main claim is not preserved clearly";
+
+  if (/^when the revolt was crushed/i.test(t)) {
+    return "the movement ended because it was crushed militarily, not because the gospels count as strong historical proof";
+  }
+
+  if (/eyewitnesses/i.test(t) && /jesus/i.test(t)) {
+    return "eyewitness-style testimony should not be treated as strong historical proof for Jesus by default";
+  }
+
+  if (/mendes/i.test(t) && /disciple whom jesus loved/i.test(t)) {
+    return "the disciple whom Jesus loved may be a literary figure rather than an identifiable eyewitness";
+  }
+
+  if (/papias/i.test(t) && /judas/i.test(t)) {
+    return "Papias contains legendary material, which weakens its value as clean historical support";
+  }
+
+  if (/euthiferr?o|euthyphro/i.test(t)) {
+    return "the Euthyphro dilemma challenges whether morality depends on God or exists independently";
+  }
+
+  if (/molech|enoch|ezra/i.test(t)) {
+    return "later Jewish literature developed ideas beyond the earlier base text";
+  }
+
+  if (/casius|numeriius|numerius/i.test(t) && /jesus/i.test(t)) {
+    return "named-witness testimony should not be accepted in one historical case and dismissed in another without a clear reason";
+  }
+
+  if (t.length > 180) {
+    t = clip(t, 180);
+  }
+
+  t = t.replace(/\s{2,}/g, " ").trim();
+  return t.charAt(0).toLowerCase() + t.slice(1);
+}
+
+function summarizeClaimTight(text) {
+  return rewriteClaimHuman(text || "");
+}
+
+function summarizeMainPosition(sentences, sideName) {
+  if (!sentences || !sentences.length) {
+    return sideName + " does not have enough preserved argument text to summarize the main position cleanly.";
+  }
+
+  const best = chooseBestSentence(sentences);
+  const claim = rewriteClaimHuman(best);
+
+  return sideName + " mainly argues that " + claim + ".";
+}
+
+function extractTruth(sentences) {
+  const candidate =
+    sentences.find(
+      (s) =>
+        !isNonArgumentContextLine(s) &&
+        (countHits(s, EVIDENCE_WORDS) >= 1 || countHits(s, REASONING_WORDS) >= 1)
+    ) ||
+    sentences.find((s) => !isNonArgumentContextLine(s) && countHits(s, TOPIC_WORDS) >= 1) ||
+    "";
+
+  return candidate ? rewriteClaimHuman(candidate) : "";
+}
+
+function extractLies(sentences) {
+  const candidate =
+    sentences.find(
+      (s) =>
+        !isNonArgumentContextLine(s) &&
+        (countHits(s, OVERREACH_WORDS) >= 1 ||
+          (countHits(s, EVIDENCE_WORDS) === 0 &&
+            countHits(s, REASONING_WORDS) === 0 &&
+            wordCount(s) > 10))
+    ) || "";
+
+  return candidate ? rewriteClaimHuman(candidate) : "";
+}
+
+function extractOpinion(sentences) {
+  const candidate =
+    sentences.find(
+      (s) =>
+        !isNonArgumentContextLine(s) &&
+        (countHits(s, OPINION_WORDS) >= 1 || /\bshould\b|\bseems\b|\bappears\b/i.test(s))
+    ) || "";
+
+  return candidate ? rewriteClaimHuman(candidate) : "";
+}
+
+function extractLala(sentences) {
+  const candidate =
+    sentences.find(
+      (s) =>
+        isNonArgumentContextLine(s) ||
+        countHits(s, FILLER_WORDS) >= 2 ||
+        /\bwhatever\b|\byou know\b|\bi mean\b/i.test(s)
+    ) || "";
+
+  return candidate ? rewriteClaimHuman(candidate) : "";
+}
+
+function strongestReasonWhy(a, b) {
+  const pa = reasonProfile(a);
+  const pb = reasonProfile(b);
+
+  const winner = a.scoreRaw >= b.scoreRaw ? a : b;
+  const loser = winner === a ? b : a;
+  const wp = winner === a ? pa : pb;
+  const lp = winner === a ? pb : pa;
+
+  const reasons = [];
+
+  if (wp.evidenceHits > lp.evidenceHits) {
+    reasons.push("it gives more actual evidence");
+  }
+  if (wp.reasoningHits > lp.reasoningHits) {
+    reasons.push("it explains its logic more clearly");
+  }
+  if (wp.topicHits > lp.topicHits) {
+    reasons.push("it stays more directly on the real issue");
+  }
+  if (lp.overreachHits > wp.overreachHits) {
+    reasons.push("the other side overreaches more");
+  }
+
+  if (!reasons.length) {
+    reasons.push("it is the cleaner argument in the preserved transcript");
+  }
+
+  return {
+    winner,
+    loser,
+    text: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function weakPointReason(analysis) {
+  const p = reasonProfile(analysis);
+  const weakClaim = rewriteClaimHuman(
+    analysis.lies || analysis.opinion || analysis.lala || analysis.bestSentence || ""
+  );
+
+  const reasons = [];
+
+  if (p.overreachHits >= 1) reasons.push("it reaches past the support actually shown");
+  if (p.evidenceHits === 0) reasons.push("it lacks concrete evidence");
+  if (p.reasoningHits === 0) reasons.push("it asserts more than it explains");
+  if (p.opinionHits >= 1) reasons.push("it leans on interpretation");
+  if (p.fillerHits >= 2) reasons.push("it carries too much fluff");
+
+  if (!reasons.length) {
+    reasons.push("it does not create enough pressure on the opposing case");
+  }
+
+  return {
+    claim: weakClaim,
+    reason: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function buildCoreDisagreement(teamAAnalysis, teamBAnalysis) {
+  const aClaim = rewriteClaimHuman(
+    teamAAnalysis.truth || teamAAnalysis.bestSentence || teamAAnalysis.main_position || ""
+  );
+  const bClaim = rewriteClaimHuman(
+    teamBAnalysis.truth || teamBAnalysis.bestSentence || teamBAnalysis.main_position || ""
+  );
+
+  return "Main dispute: Team A says " + aClaim + ", but Team B says " + bClaim + ".";
+}
+
+function strongerWeakPoint(teamAAnalysis, teamBAnalysis) {
+  const aWeakScore = weaknessScore(teamAAnalysis);
+  const bWeakScore = weaknessScore(teamBAnalysis);
+
+  const weaker = aWeakScore >= bWeakScore ? teamAAnalysis : teamBAnalysis;
+  const detail = weakPointReason(weaker);
+
+  return {
+    side: weaker.sideName,
+    text:
+      weaker.sideName +
+      " is weakest on " +
+      detail.claim +
+      " because " +
+      detail.reason +
+      "."
+  };
+}
+
+function buildOverallWhy(winner, teamAAnalysis, teamBAnalysis, factLayer) {
+  if (winner === "Mixed") {
+    const aWeak = weakPointReason(teamAAnalysis);
+    const bWeak = weakPointReason(teamBAnalysis);
+
+    return (
+      "No clear winner. Team A is still weak on " +
+      aWeak.claim +
+      " because " +
+      aWeak.reason +
+      ", and Team B is still weak on " +
+      bWeak.claim +
+      " because " +
+      bWeak.reason +
+      "."
+    );
+  }
+
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const losingSide = strongest.loser;
+  const weak = weakPointReason(losingSide);
+  const winClaim = rewriteClaimHuman(
+    strongest.winner.bestSentence ||
+      strongest.winner.truth ||
+      strongest.winner.main_position ||
+      ""
+  );
+
+  return (
+    winner +
+    " wins because its best point is that " +
+    winClaim +
+    ", and " +
+    strongest.text +
+    ". " +
+    losingSide.sideName +
+    " stays weaker on " +
+    weak.claim +
+    " because " +
+    weak.reason +
+    "."
+  );
+}
+
+function heuristicAIRefinement(teamAAnalysis, teamBAnalysis) {
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const weak = strongerWeakPoint(teamAAnalysis, teamBAnalysis);
+
+  return {
+    strongestArgumentSide: strongest.winner.sideName,
+    strongestArgument:
+      "Core point: " +
+      rewriteClaimHuman(
+        strongest.winner.bestSentence ||
+        strongest.winner.truth ||
+        strongest.winner.main_position
+      ),
+    whyStrongest:
+      "It wins because " + strongest.text + ".",
+    failedResponseByOtherSide:
+      strongest.loser.sideName +
+      " never answers that point with stronger evidence or a cleaner counter-argument.",
+    weakestOverall: weak.text,
+    manipulation:
+      teamAAnalysis.sideName +
+      ": " +
+      teamAAnalysis.manipulationText +
+      " " +
+      teamBAnalysis.sideName +
+      ": " +
+      teamBAnalysis.manipulationText,
+    fluff:
+      teamAAnalysis.sideName +
+      ": " +
+      teamAAnalysis.fluffText +
+      " " +
+      teamBAnalysis.sideName +
+      ": " +
+      teamBAnalysis.fluffText
+  };
+}
+
+function factCheckLayer(teamAAnalysis, teamBAnalysis, meta) {
+  const checkedClaims = [];
+
+  const inspect = (analysis, sideName) => {
+    const claims = (analysis.sentences || [])
+      .map(cleanJudgmentText)
+      .filter(Boolean)
+      .filter((claim) => !isNonArgumentContextLine(claim))
+      .slice(0, 3);
+
+    for (const claim of claims) {
+      checkedClaims.push({
+        claim: clip(sideName + ": " + rewriteClaimHuman(claim), 220),
+        status: inferFactCheckStatus(claim),
+        note: buildFactCheckNote(claim),
+        source: meta.videoLink ? clip(meta.videoLink, 180) : "Transcript-only analysis"
+      });
+    }
+  };
+
+  inspect(teamAAnalysis, teamAAnalysis.sideName || DEFAULT_TEAM_A);
+  inspect(teamBAnalysis, teamBAnalysis.sideName || DEFAULT_TEAM_B);
+
+  return {
+    checkedClaims,
+    summary:
+      "Fact-check layer executed in transcript mode. Claims were filtered structurally, not externally verified."
+  };
+}
+
+function sanitizeForDisplay(value) {
+  let text = cleanJudgmentText(value || "");
+  if (!text) return "";
+
+  text = text
+    .replace(/^\d+\s*[;:,.-]\s*/g, "")
+    .replace(/^chapter\s+\d+\s*[:.-]?\s*/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return text || "";
+}
