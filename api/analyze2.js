@@ -3221,3 +3221,288 @@ function sanitizeForDisplay(value) {
 
   return text || "";
 }
+/* =========================
+   DECISIVE VERDICT OVERRIDES
+   Paste at END of /api/analyze2.js
+   ========================= */
+
+function isGenericFallbackText(text) {
+  const t = cleanWhitespace(text || "").toLowerCase();
+
+  return (
+    !t ||
+    t === "-" ||
+    /no single sentence is clean enough/.test(t) ||
+    /shows some overreach or unsupported phrasing/.test(t) ||
+    /includes interpretive or judgment language mixed into the argument/.test(t) ||
+    /has limited obvious filler after cleanup/.test(t) ||
+    /does not have enough preserved argument text/.test(t) ||
+    /could not be fully analyzed/.test(t) ||
+    /a usable strongest argument exists/.test(t) ||
+    /the strongest argument has the clearest reasoning chain/.test(t) ||
+    /does not fully answer/.test(t)
+  );
+}
+
+function bestUsableClaimFromAnalysis(analysis) {
+  const pool = ((analysis && analysis.sentences) || [])
+    .map((s) => cleanJudgmentText ? cleanJudgmentText(s) : cleanWhitespace(s))
+    .filter(Boolean)
+    .filter((s) => !isNonArgumentContextLine(s))
+    .filter((s) => !isExampleHeavySentence(s));
+
+  const thesis = pool.filter((s) => isThesisSentence(s)).sort((a, b) => scoreSentence(b) - scoreSentence(a));
+  if (thesis.length) return rewriteClaimHuman(thesis[0]);
+
+  const ranked = pool.sort((a, b) => scoreSentence(b) - scoreSentence(a));
+  if (ranked.length) return rewriteClaimHuman(ranked[0]);
+
+  return rewriteClaimHuman(
+    (analysis && (analysis.truth || analysis.bestSentence || analysis.main_position || analysis.lies)) || ""
+  );
+}
+
+function weakPointReason(analysis) {
+  const p = reasonProfile(analysis);
+
+  let weakClaim = rewriteClaimHuman(
+    (analysis && analysis.lies) || ""
+  );
+
+  if (isGenericFallbackText(weakClaim)) {
+    weakClaim = rewriteClaimHuman(
+      (analysis && analysis.opinion) || ""
+    );
+  }
+
+  if (isGenericFallbackText(weakClaim)) {
+    weakClaim = rewriteClaimHuman(
+      (analysis && analysis.lala) || ""
+    );
+  }
+
+  if (isGenericFallbackText(weakClaim)) {
+    weakClaim = bestUsableClaimFromAnalysis(analysis);
+  }
+
+  const reasons = [];
+
+  if (p.overreachHits >= 1) reasons.push("it reaches past the support actually shown");
+  if (p.evidenceHits === 0) reasons.push("it lacks concrete evidence");
+  if (p.reasoningHits === 0) reasons.push("it asserts more than it explains");
+  if (p.opinionHits >= 1) reasons.push("it leans on interpretation");
+  if (p.fillerHits >= 2) reasons.push("it carries too much fluff");
+
+  if (!reasons.length) {
+    reasons.push("it does not create enough pressure on the opposing case");
+  }
+
+  return {
+    claim: weakClaim,
+    reason: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function strongerWeakPoint(teamAAnalysis, teamBAnalysis) {
+  const aWeakScore = weaknessScore(teamAAnalysis);
+  const bWeakScore = weaknessScore(teamBAnalysis);
+
+  const weaker = aWeakScore >= bWeakScore ? teamAAnalysis : teamBAnalysis;
+  const detail = weakPointReason(weaker);
+
+  return {
+    side: weaker.sideName,
+    text:
+      weaker.sideName +
+      " is weakest on " +
+      detail.claim +
+      " because " +
+      detail.reason +
+      "."
+  };
+}
+
+function strongestReasonWhy(a, b) {
+  const pa = reasonProfile(a);
+  const pb = reasonProfile(b);
+
+  const winner = a.scoreRaw >= b.scoreRaw ? a : b;
+  const loser = winner === a ? b : a;
+  const wp = winner === a ? pa : pb;
+  const lp = winner === a ? pb : pa;
+
+  const reasons = [];
+
+  if (wp.evidenceHits > lp.evidenceHits) reasons.push("it gives more actual evidence");
+  if (wp.reasoningHits > lp.reasoningHits) reasons.push("it explains its logic more clearly");
+  if (wp.topicHits > lp.topicHits) reasons.push("it stays closer to the real issue");
+  if (lp.overreachHits > wp.overreachHits) reasons.push("the other side overreaches more");
+  if (lp.fillerHits > wp.fillerHits) reasons.push("the other side uses weaker filler");
+
+  if (!reasons.length) {
+    reasons.push("it is still the cleaner argument in the preserved transcript");
+  }
+
+  return {
+    winner,
+    loser,
+    text: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function heuristicAIRefinement(teamAAnalysis, teamBAnalysis) {
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const weak = strongerWeakPoint(teamAAnalysis, teamBAnalysis);
+
+  const winnerClaim = bestUsableClaimFromAnalysis(strongest.winner);
+  const loserClaim = bestUsableClaimFromAnalysis(strongest.loser);
+
+  return {
+    strongestArgumentSide: strongest.winner.sideName,
+    strongestArgument: "Core point: " + winnerClaim,
+    whyStrongest: "It wins because " + strongest.text + ".",
+    failedResponseByOtherSide:
+      strongest.loser.sideName +
+      " never lands a cleaner competing claim against: " +
+      winnerClaim +
+      ". Its nearest response stays weaker around " +
+      loserClaim +
+      ".",
+    weakestOverall: weak.text,
+    manipulation:
+      teamAAnalysis.sideName +
+      ": " +
+      teamAAnalysis.manipulationText +
+      " " +
+      teamBAnalysis.sideName +
+      ": " +
+      teamBAnalysis.manipulationText,
+    fluff:
+      teamAAnalysis.sideName +
+      ": " +
+      teamAAnalysis.fluffText +
+      " " +
+      teamBAnalysis.sideName +
+      ": " +
+      teamBAnalysis.fluffText
+  };
+}
+
+function buildCoreDisagreement(teamAAnalysis, teamBAnalysis) {
+  const aClaim = bestUsableClaimFromAnalysis(teamAAnalysis);
+  const bClaim = bestUsableClaimFromAnalysis(teamBAnalysis);
+
+  return "Main dispute: Team A says " + aClaim + ", but Team B says " + bClaim + ".";
+}
+
+function buildOverallWhy(winner, teamAAnalysis, teamBAnalysis, factLayer) {
+  const aWeak = weakPointReason(teamAAnalysis);
+  const bWeak = weakPointReason(teamBAnalysis);
+
+  if (winner === "Mixed") {
+    return (
+      "Close call, not a blank tie. Team A's strongest usable claim is " +
+      bestUsableClaimFromAnalysis(teamAAnalysis) +
+      ", but it is weakened because " +
+      aWeak.reason +
+      ". Team B's strongest usable claim is " +
+      bestUsableClaimFromAnalysis(teamBAnalysis) +
+      ", but it is weakened because " +
+      bWeak.reason +
+      "."
+    );
+  }
+
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const losingSide = strongest.loser;
+  const weak = weakPointReason(losingSide);
+  const winClaim = bestUsableClaimFromAnalysis(strongest.winner);
+
+  return (
+    winner +
+    " wins because its clearest usable claim is " +
+    winClaim +
+    ", and " +
+    strongest.text +
+    ". " +
+    losingSide.sideName +
+    " falls behind because " +
+    weak.reason +
+    "."
+  );
+}
+
+function decideWinner(teamAAnalysis, teamBAnalysis) {
+  const diff = Math.abs(teamAAnalysis.scoreRaw - teamBAnalysis.scoreRaw);
+
+  if (diff <= 1) return "Mixed";
+  return teamAAnalysis.scoreRaw > teamBAnalysis.scoreRaw
+    ? teamAAnalysis.sideName
+    : teamBAnalysis.sideName;
+}
+
+function buildConfidence(a, b) {
+  const diff = Math.abs(a - b);
+
+  if (diff <= 1) return "51%";
+  if (diff === 2) return "55%";
+  if (diff === 3) return "60%";
+  if (diff === 4) return "65%";
+  if (diff === 5) return "70%";
+  return String(Math.min(92, 70 + diff * 3)) + "%";
+}
+
+function normalizeDisplayScore(raw) {
+  return String(Math.max(1, Math.min(100, Math.round(raw))));
+}
+
+function mergeLayer(base, aiLayer) {
+  const merged = { ...base };
+  const override = aiLayer && aiLayer.override ? aiLayer.override : {};
+
+  function useOverride(current, next) {
+    const n = cleanWhitespace(next || "");
+    if (!n) return current;
+
+    if (isGenericFallbackText(current)) return n;
+    if (current === base.whyStrongest) return n;
+    return n;
+  }
+
+  merged.strongestArgumentSide = useOverride(
+    merged.strongestArgumentSide,
+    override.strongestArgumentSide
+  );
+
+  merged.strongestArgument = useOverride(
+    merged.strongestArgument,
+    sanitizeForDisplay(override.strongestArgument)
+  );
+
+  merged.whyStrongest = useOverride(
+    merged.whyStrongest,
+    sanitizeForDisplay(override.whyStrongest)
+  );
+
+  merged.failedResponseByOtherSide = useOverride(
+    merged.failedResponseByOtherSide,
+    sanitizeForDisplay(override.failedResponseByOtherSide)
+  );
+
+  merged.weakestOverall = useOverride(
+    merged.weakestOverall,
+    sanitizeForDisplay(override.weakestOverall)
+  );
+
+  merged.manipulation = useOverride(
+    merged.manipulation,
+    sanitizeForDisplay(override.manipulation)
+  );
+
+  merged.fluff = useOverride(
+    merged.fluff,
+    sanitizeForDisplay(override.fluff)
+  );
+
+  return merged;
+}
