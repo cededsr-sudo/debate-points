@@ -3506,3 +3506,380 @@ function mergeLayer(base, aiLayer) {
 
   return merged;
 }
+/* =========================
+   POLARITY + THESIS FIX
+   Paste at END of /api/analyze2.js
+   ========================= */
+
+function isGenericFallbackText(text) {
+  const t = cleanWhitespace(text || "").toLowerCase();
+  return (
+    !t ||
+    t === "-" ||
+    /shows some overreach/.test(t) ||
+    /unsupported phrasing/.test(t) ||
+    /no single sentence is clean enough/.test(t) ||
+    /includes interpretive or judgment language/.test(t) ||
+    /limited obvious filler/.test(t) ||
+    /does not fully answer/.test(t) ||
+    /clearest reasoning chain/.test(t) ||
+    /does not have enough preserved argument text/.test(t)
+  );
+}
+
+function isAttackSentence(text) {
+  const t = cleanWhitespace(text || "").toLowerCase();
+  return (
+    /this point leans on/.test(t) ||
+    /harsh theological interpretation/.test(t) ||
+    /overreach/.test(t) ||
+    /unsupported/.test(t) ||
+    /massive oversimplification/.test(t) ||
+    /reveals that .* is either unaware/.test(t) ||
+    /downplaying/.test(t) ||
+    /thought terminating cliche/.test(t) ||
+    /does not answer/.test(t) ||
+    /fails to/.test(t) ||
+    /wrong because/.test(t)
+  );
+}
+
+function isThesisLike(text) {
+  const t = cleanWhitespace(text || "").toLowerCase();
+  if (!t) return false;
+  if (isGenericFallbackText(t)) return false;
+  if (isAttackSentence(t)) return false;
+
+  return (
+    /\bshould\b/.test(t) ||
+    /\bshould not\b/.test(t) ||
+    /\bcannot\b/.test(t) ||
+    /\bdoes not\b/.test(t) ||
+    /\bis\b/.test(t) ||
+    /\bare\b/.test(t) ||
+    /\bcounts as\b/.test(t) ||
+    /\bhistorical proof\b/.test(t) ||
+    /\bhistorical evidence\b/.test(t) ||
+    /\bgenesis\b/.test(t) ||
+    /\bjesus\b/.test(t) ||
+    /\bgospels?\b/.test(t) ||
+    /\beyewitness/.test(t) ||
+    /\bmoral law/.test(t) ||
+    /\bgod\b/.test(t)
+  );
+}
+
+function cleanClaimForDisplay(text) {
+  let t = cleanWhitespace(stripTranscriptCorruption(text || ""));
+
+  t = t
+    .replace(/^\d+\s*[;:,.-]\s*/g, "")
+    .replace(/^team\s*[ab]\s*(says|argues)\s*/i, "")
+    .replace(/^says\s*/i, "")
+    .replace(/^argues\s*/i, "")
+    .replace(/^that\s+/i, "")
+    .replace(/^quote[:,]?\s*/i, "")
+    .replace(/^first[:,]?\s*/i, "")
+    .replace(/^second[:,]?\s*/i, "")
+    .replace(/^third[:,]?\s*/i, "")
+    .replace(/^fourth[:,]?\s*/i, "")
+    .replace(/^and\s+/i, "")
+    .replace(/^but\s+/i, "")
+    .replace(/^so\s+/i, "")
+    .replace(/^now\s+/i, "")
+    .replace(/^well\s+/i, "")
+    .replace(/^let'?s (look at|talk about)\s+/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return t;
+}
+
+function humanizeClaim(text) {
+  const raw = cleanClaimForDisplay(text);
+  const t = raw.toLowerCase();
+
+  if (!raw) return "the main claim is not preserved clearly";
+
+  if (/eyewitness/.test(t) && /jesus/.test(t) && /historical (proof|evidence)/.test(t)) {
+    return "eyewitness-style testimony should not automatically count as strong historical proof for Jesus";
+  }
+
+  if (/babylonian background of genesis|mesopotamian literature|primeval history of genesis/i.test(raw)) {
+    return "Genesis should be read against Ancient Near Eastern background material rather than as an isolated modern account";
+  }
+
+  if (/moral law/i.test(raw) && /moral lawgiver/i.test(raw)) {
+    return "objective moral law points to a moral lawgiver";
+  }
+
+  if (/disciple whom jesus loved|johannine/i.test(raw)) {
+    return "the beloved disciple may be a literary figure rather than a secure eyewitness";
+  }
+
+  if (/heaven'?s gate|joseph smith|angel moroni|spaceship/i.test(raw)) {
+    return "sincere belief by itself does not prove that the belief is historically true";
+  }
+
+  if (/this point leans on a harsh theological interpretation/i.test(raw)) {
+    return "the claim depends on a harsh theological reading that still needs stronger support";
+  }
+
+  return clip(raw.charAt(0).toLowerCase() + raw.slice(1), 170);
+}
+
+function getBestThesis(analysis) {
+  const pool = ((analysis && analysis.sentences) || [])
+    .map(cleanClaimForDisplay)
+    .filter(Boolean)
+    .filter((s) => !isNonArgumentContextLine(s))
+    .filter((s) => !isGenericFallbackText(s));
+
+  const thesisOnly = pool.filter(isThesisLike);
+  if (thesisOnly.length) {
+    const ranked = thesisOnly.sort((a, b) => scoreSentence(b) - scoreSentence(a));
+    return humanizeClaim(ranked[0]);
+  }
+
+  const truth = humanizeClaim((analysis && analysis.truth) || "");
+  if (!isGenericFallbackText(truth) && !isAttackSentence(truth)) return truth;
+
+  const best = humanizeClaim((analysis && analysis.bestSentence) || "");
+  if (!isGenericFallbackText(best) && !isAttackSentence(best)) return best;
+
+  const main = humanizeClaim((analysis && analysis.main_position) || "");
+  if (!isGenericFallbackText(main) && !isAttackSentence(main)) return main;
+
+  return "the main claim is not preserved clearly";
+}
+
+function summarizeMainPosition(sentences, sideName) {
+  const fakeAnalysis = { sentences };
+  const thesis = getBestThesis(fakeAnalysis);
+  return sideName + " mainly argues that " + thesis + ".";
+}
+
+function extractTruth(sentences) {
+  const fakeAnalysis = { sentences };
+  return getBestThesis(fakeAnalysis);
+}
+
+function extractOpinion(sentences) {
+  const pool = (sentences || [])
+    .map(cleanClaimForDisplay)
+    .filter(Boolean)
+    .filter((s) => !isNonArgumentContextLine(s));
+
+  const candidate =
+    pool.find((s) => /\bi think\b|\bi believe\b|\bin my view\b|\bit seems\b|\bshould\b/i.test(s)) ||
+    "";
+
+  return candidate ? humanizeClaim(candidate) : "interpretive language is mixed into the case";
+}
+
+function extractLies(sentences) {
+  const pool = (sentences || [])
+    .map(cleanClaimForDisplay)
+    .filter(Boolean)
+    .filter((s) => !isNonArgumentContextLine(s));
+
+  const candidate =
+    pool.find((s) => isAttackSentence(s)) ||
+    pool.find((s) => /\balways\b|\bnever\b|\beveryone\b|\bnobody\b|\bobviously\b/i.test(s)) ||
+    "";
+
+  return candidate ? humanizeClaim(candidate) : "the case includes at least one claim that outruns its displayed support";
+}
+
+function extractLala(sentences) {
+  const pool = (sentences || [])
+    .map(cleanClaimForDisplay)
+    .filter(Boolean);
+
+  const candidate =
+    pool.find((s) => isNonArgumentContextLine(s)) ||
+    pool.find((s) => /\byou know\b|\bi mean\b|\bkind of\b|\bsort of\b/i.test(s)) ||
+    "";
+
+  return candidate ? humanizeClaim(candidate) : "some filler remains after cleanup";
+}
+
+function bestUsableClaimFromAnalysis(analysis) {
+  return getBestThesis(analysis);
+}
+
+function weakPointReason(analysis) {
+  const joined = ((analysis && analysis.sentences) || []).join(" ").toLowerCase();
+
+  let weakClaim = humanizeClaim((analysis && analysis.lies) || "");
+  if (isGenericFallbackText(weakClaim)) {
+    weakClaim = humanizeClaim((analysis && analysis.opinion) || "");
+  }
+  if (isGenericFallbackText(weakClaim)) {
+    weakClaim = bestUsableClaimFromAnalysis(analysis);
+  }
+
+  const reasons = [];
+  if (/\balways\b|\bnever\b|\beveryone\b|\bnobody\b|\bobviously\b/.test(joined)) reasons.push("it overstates the case");
+  if (countHits(joined, EVIDENCE_WORDS) === 0) reasons.push("it lacks concrete support");
+  if (countHits(joined, REASONING_WORDS) === 0) reasons.push("it asserts more than it explains");
+  if (countHits(joined, OPINION_WORDS) >= 1) reasons.push("it leans on interpretation");
+
+  if (!reasons.length) reasons.push("it does not create enough pressure on the opposing case");
+
+  return {
+    claim: weakClaim,
+    reason: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function buildCoreDisagreement(teamAAnalysis, teamBAnalysis) {
+  const aClaim = bestUsableClaimFromAnalysis(teamAAnalysis);
+  const bClaim = bestUsableClaimFromAnalysis(teamBAnalysis);
+
+  return "Main dispute: Team A says " + aClaim + ", but Team B says " + bClaim + ".";
+}
+
+function strongestReasonWhy(a, b) {
+  const aj = ((a && a.sentences) || []).join(" ").toLowerCase();
+  const bj = ((b && b.sentences) || []).join(" ").toLowerCase();
+
+  const aScore =
+    countHits(aj, EVIDENCE_WORDS) * 3 +
+    countHits(aj, REASONING_WORDS) * 3 +
+    countHits(aj, TOPIC_WORDS) * 2 -
+    countHits(aj, OVERREACH_WORDS) * 2;
+
+  const bScore =
+    countHits(bj, EVIDENCE_WORDS) * 3 +
+    countHits(bj, REASONING_WORDS) * 3 +
+    countHits(bj, TOPIC_WORDS) * 2 -
+    countHits(bj, OVERREACH_WORDS) * 2;
+
+  const winner = aScore >= bScore ? a : b;
+  const loser = winner === a ? b : a;
+
+  const reasons = [];
+  const wj = winner === a ? aj : bj;
+  const lj = winner === a ? bj : aj;
+
+  if (countHits(wj, EVIDENCE_WORDS) > countHits(lj, EVIDENCE_WORDS)) reasons.push("it brings more actual support");
+  if (countHits(wj, REASONING_WORDS) > countHits(lj, REASONING_WORDS)) reasons.push("it explains its logic more clearly");
+  if (countHits(wj, TOPIC_WORDS) > countHits(lj, TOPIC_WORDS)) reasons.push("it stays closer to the real dispute");
+  if (countHits(lj, OVERREACH_WORDS) > countHits(wj, OVERREACH_WORDS)) reasons.push("the other side overreaches more");
+
+  if (!reasons.length) reasons.push("it is still the cleaner argument in the preserved text");
+
+  return {
+    winner,
+    loser,
+    text: reasons.slice(0, 2).join(" and ")
+  };
+}
+
+function heuristicAIRefinement(teamAAnalysis, teamBAnalysis) {
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const weak = strongerWeakPoint(teamAAnalysis, teamBAnalysis);
+
+  const winnerClaim = bestUsableClaimFromAnalysis(strongest.winner);
+  const loserClaim = bestUsableClaimFromAnalysis(strongest.loser);
+
+  return {
+    strongestArgumentSide: strongest.winner.sideName,
+    strongestArgument: "Core point: " + winnerClaim,
+    whyStrongest: "It stands out because " + strongest.text + ".",
+    failedResponseByOtherSide:
+      strongest.loser.sideName +
+      " does not beat that point with a cleaner rival claim. Its nearest competing claim is: " +
+      loserClaim +
+      ".",
+    weakestOverall: weak.text,
+    manipulation:
+      teamAAnalysis.sideName + ": " + teamAAnalysis.manipulationText + " " +
+      teamBAnalysis.sideName + ": " + teamBAnalysis.manipulationText,
+    fluff:
+      teamAAnalysis.sideName + ": " + teamAAnalysis.fluffText + " " +
+      teamBAnalysis.sideName + ": " + teamBAnalysis.fluffText
+  };
+}
+
+function strongerWeakPoint(teamAAnalysis, teamBAnalysis) {
+  const aWeak = weakPointReason(teamAAnalysis);
+  const bWeak = weakPointReason(teamBAnalysis);
+
+  const aPenalty =
+    (aWeak.reason.match(/and/g) || []).length +
+    (aWeak.reason.includes("lacks concrete support") ? 2 : 0) +
+    (aWeak.reason.includes("asserts more than it explains") ? 2 : 0);
+
+  const bPenalty =
+    (bWeak.reason.match(/and/g) || []).length +
+    (bWeak.reason.includes("lacks concrete support") ? 2 : 0) +
+    (bWeak.reason.includes("asserts more than it explains") ? 2 : 0);
+
+  const weaker = aPenalty >= bPenalty ? teamAAnalysis : teamBAnalysis;
+  const detail = weaker === teamAAnalysis ? aWeak : bWeak;
+
+  return {
+    side: weaker.sideName,
+    text:
+      weaker.sideName +
+      " is weakest on " +
+      detail.claim +
+      " because " +
+      detail.reason +
+      "."
+  };
+}
+
+function buildOverallWhy(winner, teamAAnalysis, teamBAnalysis, factLayer) {
+  const aStrong = bestUsableClaimFromAnalysis(teamAAnalysis);
+  const bStrong = bestUsableClaimFromAnalysis(teamBAnalysis);
+  const aWeak = weakPointReason(teamAAnalysis);
+  const bWeak = weakPointReason(teamBAnalysis);
+
+  if (winner === "Mixed") {
+    return (
+      "Close call. Team A's usable core claim is " + aStrong +
+      ", but it is weakened because " + aWeak.reason +
+      ". Team B's usable core claim is " + bStrong +
+      ", but it is weakened because " + bWeak.reason + "."
+    );
+  }
+
+  const strongest = strongestReasonWhy(teamAAnalysis, teamBAnalysis);
+  const winClaim = bestUsableClaimFromAnalysis(strongest.winner);
+  const loseWeak = weakPointReason(strongest.loser);
+
+  return (
+    winner +
+    " wins because its clearest usable claim is " +
+    winClaim +
+    ", and " +
+    strongest.text +
+    ". The other side falls behind because " +
+    loseWeak.reason +
+    "."
+  );
+}
+
+function mergeLayer(base, aiLayer) {
+  const merged = { ...base };
+  const override = aiLayer && aiLayer.override ? aiLayer.override : {};
+
+  function prefer(next, current) {
+    const n = cleanWhitespace(next || "");
+    if (!n) return current;
+    return sanitizeForDisplay(n);
+  }
+
+  merged.strongestArgumentSide = prefer(override.strongestArgumentSide, merged.strongestArgumentSide);
+  merged.strongestArgument = prefer(override.strongestArgument, merged.strongestArgument);
+  merged.whyStrongest = prefer(override.whyStrongest, merged.whyStrongest);
+  merged.failedResponseByOtherSide = prefer(override.failedResponseByOtherSide, merged.failedResponseByOtherSide);
+  merged.weakestOverall = prefer(override.weakestOverall, merged.weakestOverall);
+  merged.manipulation = prefer(override.manipulation, merged.manipulation);
+  merged.fluff = prefer(override.fluff, merged.fluff);
+
+  return merged;
+}
