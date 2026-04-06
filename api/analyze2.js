@@ -4,11 +4,11 @@
  * /api/analyze2.js
  *
  * Debate Judgment Engine backend
- * Clean rebuild:
- * - always returns JSON
- * - separates thesis / support / attack / example / filler
- * - rejects rhetorical intros and transcript garbage
- * - keeps frontend contract unchanged
+ * - Keeps frontend contract unchanged
+ * - Always returns valid JSON with res.json(...)
+ * - Cleans transcript junk
+ * - Separates thesis / support / attack / example / filler
+ * - Avoids using attacks or rhetorical intros as main positions
  */
 
 const DEFAULT_TEAM_A = "Team A";
@@ -171,10 +171,6 @@ function countHits(text, patterns) {
   }
 
   return hits;
-}
-
-function hasAny(text, patterns) {
-  return countHits(text, patterns) > 0;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -525,7 +521,8 @@ function looksMostlyCorrupt(line) {
   if (rawWeirdPunct >= 6 && cleanWords < 8) return true;
 
   return false;
-} 
+}
+
 /* -------------------------------------------------------------------------- */
 /* Setup / moderator / context                                                */
 /* -------------------------------------------------------------------------- */
@@ -722,7 +719,7 @@ function humanizeClaim(text) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Side extraction                                                             */
+/* Side extraction                                                            */
 /* -------------------------------------------------------------------------- */
 
 function extractSides({ transcriptRaw, cleanedTranscript, teamAName, teamBName }) {
@@ -827,8 +824,9 @@ function fallbackSplitSides(lines) {
     teamB: uniquePreserveOrder(teamB)
   };
 }
+
 /* -------------------------------------------------------------------------- */
-/* Claim extraction                                                            */
+/* Claim extraction                                                           */
 /* -------------------------------------------------------------------------- */
 
 function toSentences(text) {
@@ -967,7 +965,7 @@ function bestUsableClaimFromAnalysis(analysis) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Deterministic analysis                                                      */
+/* Deterministic analysis                                                     */
 /* -------------------------------------------------------------------------- */
 
 function deterministicAnalysis(claimMap, sideName) {
@@ -1151,7 +1149,7 @@ function scoreSide(parts) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Fact check layer                                                            */
+/* Fact check layer                                                           */
 /* -------------------------------------------------------------------------- */
 
 function inferFactCheckStatus(claim) {
@@ -1203,8 +1201,9 @@ function factCheckLayer(teamAAnalysis, teamBAnalysis, meta) {
       "Fact-check layer executed in transcript mode. Claims were filtered structurally, not externally verified."
   };
 }
+
 /* -------------------------------------------------------------------------- */
-/* AI refinement stub                                                          */
+/* AI refinement stub                                                         */
 /* -------------------------------------------------------------------------- */
 
 async function aiRefinementLayer(teamAAnalysis, teamBAnalysis, meta) {
@@ -1248,7 +1247,7 @@ async function aiRefinementLayer(teamAAnalysis, teamBAnalysis, meta) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Comparison / verdict                                                        */
+/* Comparison / verdict                                                       */
 /* -------------------------------------------------------------------------- */
 
 function strongestReasonWhy(a, b) {
@@ -1436,7 +1435,7 @@ function buildOverallWhy(winner, teamAAnalysis, teamBAnalysis, factLayer) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Base result / merge                                                         */
+/* Base result / merge                                                        */
 /* -------------------------------------------------------------------------- */
 
 function buildBaseResult(teamAName, teamBName, teamAAnalysis, teamBAnalysis, factLayer) {
@@ -1548,7 +1547,7 @@ function mergeLayer(base, aiLayer) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Consistency                                                                 */
+/* Consistency                                                                */
 /* -------------------------------------------------------------------------- */
 
 function meaningful(value, fallback) {
@@ -1749,7 +1748,7 @@ function enforceConsistency(result) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Failure                                                                     */
+/* Failure                                                                    */
 /* -------------------------------------------------------------------------- */
 
 function buildFailureResponse(req, error) {
