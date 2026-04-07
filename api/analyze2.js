@@ -1,6 +1,3 @@
-const express = require('express');
-const router = express.Router();
-
 const ANALYSIS_MODE = 'deterministic+claim-first+factcheck-stub+merge';
 
 const DEFAULT_TEAM_A = 'Team A';
@@ -192,10 +189,6 @@ function findTurnAnchors(sentences, teamAName, teamBName) {
     const lower = s.toLowerCase();
     if (lower.includes(nameA) && /opening statement|question|reply|answer|respond/i.test(lower)) anchors.push({ index: i, side: 'A' });
     if (lower.includes(nameB) && /opening statement|question|reply|answer|respond/i.test(lower)) anchors.push({ index: i, side: 'B' });
-    if (/mr .* opening statement please|dr .* opening statement please|opening statement please/i.test(lower)) {
-      if (lower.includes(nameA)) anchors.push({ index: i, side: 'A' });
-      if (lower.includes(nameB)) anchors.push({ index: i, side: 'B' });
-    }
   });
 
   return anchors.sort((a, b) => a.index - b.index);
@@ -266,142 +259,10 @@ function dedupeNearby(sentences) {
   return out;
 }
 
-function buildSideProfile(sideName, sentences) {
-  const cleaned = dedupeNearby(sentences).filter(isUsableSentence);
-  const main = pickBest(cleaned, s => scoreSentence(s) >= 10);
-  const truth = pickBest(cleaned, s => includesAny(s.toLowerCase(), SUPPORT_WORDS) || includesAny(s.toLowerCase(), REASON_WORDS));
-  const overreach = pickBest(cleaned, s => includesAny(s.toLowerCase(), PRESSURE_WORDS) || includesAny(s.toLowerCase(), OPINION_WORDS));
-  const opinion = pickBest(cleaned, s => includesAny(s.toLowerCase(), OPINION_WORDS));
-  const fluff = pickBest(cleaned, s => fillerRatio(s) > 0.05 || /\b(look|listen|come on|you know|i mean)\b/i.test(s));
-
-  const usableMain = main && scoreSentence(main.text) >= 10 ? main.text : '';
-  const usableTruth = truth && scoreSentence(truth.text) >= 8 ? truth.text : '';
-
-  const supportCount = cleaned.filter(s => includesAny(s.toLowerCase(), SUPPORT_WORDS)).length;
-  const reasonCount = cleaned.filter(s => includesAny(s.toLowerCase(), REASON_WORDS)).length;
-  const pressureCount = cleaned.filter(s => includesAny(s.toLowerCase(), PRESSURE_WORDS)).length;
-  const opinionCount = cleaned.filter(s => includesAny(s.toLowerCase(), OPINION_WORDS)).length;
-
-  const score = Math.max(0, Math.min(100,
-    40 + (supportCount * 5) + (reasonCount * 4) - (pressureCount * 4) - (opinionCount * 2)
-  ));
-
-  const integrity = supportCount >= pressureCount + 1
-    ? 'Leans more grounded than inflated, though not every claim is equally supported.'
-    : 'Mixed integrity profile: some grounded points, some interpretive stretch, some unresolved support gaps.';
-
-  const reasoning = reasonCount >= 2
-    ? 'Uses support language and topic engagement, though the chain from premise to conclusion is less consistent.'
-    : 'Reasoning exists, but much of it is asserted more than fully demonstrated.';
-
-  return {
-    sideName,
-    sentences: cleaned,
-    lane: classifyLane(cleaned),
-    main_position: usableMain || `${sideName} does not preserve a stable main claim clearly enough in the transcript.`,
-    truth: usableTruth || `${sideName} preserves some topic material, but no single sentence cleanly carries the main evidentiary point.`,
-    overreach: overreach?.text || `${sideName} shows no single dominant overreach sentence, but some rhetoric exceeds the displayed support.`,
-    opinion: opinion?.text || `${sideName} includes interpretive or judgment language mixed into the case.`,
-    lala: fluff?.text || 'Some filler remains after cleanup.',
-    integrity,
-    reasoning,
-    rawScore: score,
-    supportCount,
-    reasonCount,
-    pressureCount,
-    opinionCount,
-    bestClaim: usableMain || usableTruth || ''
-  };
-}
-
-function compareSides(a, b) {
-  const scoreA = a.rawScore;
-  const scoreB = b.rawScore;
-  const diff = scoreA - scoreB;
-
-  let winner = 'Mixed';
-  if (diff >= 7) winner = a.sideName;
-  if (diff <= -7) winner = b.sideName;
-
-  const strongest = (scoreSentence(a.bestClaim) >= scoreSentence(b.bestClaim)) ? a : b;
-  const weaker = strongest.sideName === a.sideName ? b : a;
-
-  const confidence = Math.max(51, Math.min(92, 50 + Math.abs(diff)));
-
-  let bsMeter = 'Both sides show comparable overreach.';
-  if (a.pressureCount > b.pressureCount + 1) bsMeter = `${a.sideName} is reaching more`;
-  if (b.pressureCount > a.pressureCount + 1) bsMeter = `${b.sideName} is reaching more`;
-
-  const sameLane = a.lane === b.lane
-    ? `Both sides largely argue in the same lane: ${a.lane}.`
-    : 'At least one side blends lanes, so engagement is only partial rather than cleanly matched.';
-
-  const laneMismatch = a.lane === b.lane
-    ? 'Low lane mismatch. They are mostly fighting on shared ground.'
-    : `Lane mismatch exists: ${a.sideName} is mainly in ${a.lane}, while ${b.sideName} is mainly in ${b.lane}.`;
-
-  const coreDisagreement = buildCoreDisagreement(a, b);
-  const strongestArgument = strongest.bestClaim || 'No stable strongest argument could be finalized from the preserved transcript.';
-  const whyItStandsOut = strongest.bestClaim
-    ? 'It stands out because it brings more actual support and it stays closer to the real dispute.'
-    : 'No strongest argument was selected because the extracted transcript material stayed too unstable.';
-
-  const failedResponse = weaker.bestClaim
-    ? `${weaker.sideName} does not beat that point with a cleaner rival claim. Its nearest competing claim is: ${trimSentence(weaker.bestClaim)}`
-    : `${weaker.sideName} does not preserve a cleaner rival claim strongly enough to displace the other side's best point.`;
-
-  const weakestOverall = buildWeakestOverall(a, b);
-  const overallWhy = buildOverallWhy(a, b, winner);
-
-  return {
-    winner,
-    confidence: `${confidence}%`,
-    teamAScore: scoreA,
-    teamBScore: scoreB,
-    teamALane: a.lane,
-    teamBLane: b.lane,
-    coreDisagreement,
-    bsMeter,
-    strongestArgumentSide: winner === 'Mixed' ? strongest.sideName : winner,
-    strongestArgument,
-    whyItStandsOut,
-    failedResponse,
-    weakestOverall,
-    overallWhy,
-    sameLaneEngagement: sameLane,
-    laneMismatch,
-    manipulation: `${a.sideName}: ${a.pressureCount ? 'Some rhetorical pressure appears, but it does not fully dominate the case.' : 'Low obvious manipulation in the preserved text.'} ${b.sideName}: ${b.pressureCount ? 'Noticeable pressure language and framing tactics show up alongside the argument.' : 'Low obvious manipulation in the preserved text.'}`,
-    fluff: `${a.sideName}: ${fillerRatio(a.sentences.join(' ')) > 0.05 ? 'Some fluff remains, but the main claims are still identifiable.' : 'Low fluff after cleanup.'} ${b.sideName}: ${fillerRatio(b.sentences.join(' ')) > 0.05 ? 'Some fluff remains, but the main claims are still identifiable.' : 'Low fluff after cleanup.'}`
-  };
-}
-
 function trimSentence(text = '', max = 180) {
   const s = cleanWhitespace(text);
   if (s.length <= max) return s;
   return `${s.slice(0, max - 1).trim()}…`;
-}
-
-function buildCoreDisagreement(a, b) {
-  const claimA = stableClaimPhrase(a.bestClaim, a.sideName);
-  const claimB = stableClaimPhrase(b.bestClaim, b.sideName);
-
-  if (!claimA && !claimB) {
-    return 'Main dispute: the transcript cleanup did not preserve a stable core claim for either side clearly enough to summarize.';
-  }
-
-  if (claimA && claimB && claimA.toLowerCase() !== claimB.toLowerCase()) {
-    return `Main dispute: ${a.sideName} says ${claimA}, while ${b.sideName} says ${claimB}.`;
-  }
-
-  if (claimA && !claimB) {
-    return `Main dispute: ${a.sideName} presses ${claimA}, while ${b.sideName} does not preserve a comparably clear rival claim in the transcript.`;
-  }
-
-  if (!claimA && claimB) {
-    return `Main dispute: ${b.sideName} presses ${claimB}, while ${a.sideName} does not preserve a comparably clear rival claim in the transcript.`;
-  }
-
-  return 'Main dispute: both sides circle the same topic, but they frame or support it differently in the preserved transcript.';
 }
 
 function stableClaimPhrase(text = '', sideName = '') {
@@ -412,10 +273,6 @@ function stableClaimPhrase(text = '', sideName = '') {
     .replace(/^core point:\s*/i, '')
     .replace(/^that\s+/i, '')
     .replace(/^,\s*/i, '')
-    .replace(/^this is\s+/i, '')
-    .replace(/^i'?m talking about\s+/i, '')
-    .replace(/^so\s+/i, '')
-    .replace(/^and\s+/i, '')
     .trim();
 
   if (wordCount(out) < 6) return '';
@@ -423,10 +280,66 @@ function stableClaimPhrase(text = '', sideName = '') {
   return trimSentence(out, 160);
 }
 
-function buildWeakestOverall(a, b) {
-  const candidateA = a.overreach || a.opinion;
-  const candidateB = b.overreach || b.opinion;
+function buildSideProfile(sideName, sentences) {
+  const cleaned = dedupeNearby(sentences).filter(isUsableSentence);
 
+  const main = pickBest(cleaned, s => scoreSentence(s) >= 10);
+  const truth = pickBest(cleaned, s => includesAny(s.toLowerCase(), SUPPORT_WORDS) || includesAny(s.toLowerCase(), REASON_WORDS));
+  const overreach = pickBest(cleaned, s => includesAny(s.toLowerCase(), PRESSURE_WORDS) || includesAny(s.toLowerCase(), OPINION_WORDS));
+  const opinion = pickBest(cleaned, s => includesAny(s.toLowerCase(), OPINION_WORDS));
+  const fluff = pickBest(cleaned, s => fillerRatio(s) > 0.05 || /\b(look|listen|come on|you know|i mean)\b/i.test(s));
+
+  const supportCount = cleaned.filter(s => includesAny(s.toLowerCase(), SUPPORT_WORDS)).length;
+  const reasonCount = cleaned.filter(s => includesAny(s.toLowerCase(), REASON_WORDS)).length;
+  const pressureCount = cleaned.filter(s => includesAny(s.toLowerCase(), PRESSURE_WORDS)).length;
+  const opinionCount = cleaned.filter(s => includesAny(s.toLowerCase(), OPINION_WORDS)).length;
+
+  const score = Math.max(0, Math.min(100, 40 + (supportCount * 5) + (reasonCount * 4) - (pressureCount * 4) - (opinionCount * 2)));
+
+  return {
+    sideName,
+    sentences: cleaned,
+    lane: classifyLane(cleaned),
+    mainPosition: main?.text || `${sideName} does not preserve a stable main claim clearly enough in the transcript.`,
+    truth: truth?.text || `${sideName} preserves some topic material, but no single sentence cleanly carries the main evidentiary point.`,
+    overreach: overreach?.text || `${sideName} shows no single dominant overreach sentence, but some rhetoric exceeds the displayed support.`,
+    opinion: opinion?.text || `${sideName} includes interpretive or judgment language mixed into the case.`,
+    lalaLand: fluff?.text || 'Some filler remains after cleanup.',
+    integrity: supportCount >= pressureCount + 1
+      ? 'Leans more grounded than inflated, though not every claim is equally supported.'
+      : 'Mixed integrity profile: some grounded points, some interpretive stretch, some unresolved support gaps.',
+    reasoning: reasonCount >= 2
+      ? 'Uses support language and topic engagement, though the chain from premise to conclusion is less consistent.'
+      : 'Reasoning exists, but much of it is asserted more than fully demonstrated.',
+    rawScore: score,
+    supportCount,
+    reasonCount,
+    pressureCount,
+    opinionCount,
+    bestClaim: main?.text || truth?.text || ''
+  };
+}
+
+function buildCoreDisagreement(a, b) {
+  const claimA = stableClaimPhrase(a.bestClaim, a.sideName);
+  const claimB = stableClaimPhrase(b.bestClaim, b.sideName);
+
+  if (!claimA && !claimB) {
+    return 'Main dispute: the transcript cleanup did not preserve a stable core claim for either side clearly enough to summarize.';
+  }
+  if (claimA && claimB && claimA.toLowerCase() !== claimB.toLowerCase()) {
+    return `Main dispute: ${a.sideName} says ${claimA}, while ${b.sideName} says ${claimB}.`;
+  }
+  if (claimA && !claimB) {
+    return `Main dispute: ${a.sideName} presses ${claimA}, while ${b.sideName} does not preserve a comparably clear rival claim in the transcript.`;
+  }
+  if (!claimA && claimB) {
+    return `Main dispute: ${b.sideName} presses ${claimB}, while ${a.sideName} does not preserve a comparably clear rival claim in the transcript.`;
+  }
+  return 'Main dispute: both sides circle the same topic, but they frame or support it differently in the preserved transcript.';
+}
+
+function buildWeakestOverall(a, b) {
   const penaltyA = a.pressureCount + a.opinionCount - a.supportCount;
   const penaltyB = b.pressureCount + b.opinionCount - b.supportCount;
 
@@ -435,7 +348,7 @@ function buildWeakestOverall(a, b) {
   }
 
   const weak = penaltyA > penaltyB ? a : b;
-  const weakText = stableClaimPhrase(candidateA && weak.sideName === a.sideName ? candidateA : candidateB, weak.sideName);
+  const weakText = stableClaimPhrase(weak.overreach || weak.opinion, weak.sideName);
 
   if (!weakText) {
     return `${weak.sideName} is weakest where at least one claim outruns its displayed support because it asserts more than it explains.`;
@@ -479,12 +392,55 @@ function buildFactCheckSources(a, b) {
     }));
 }
 
-function buildResponse(payload) {
-  const teamAName = titleSafe(payload.teamAName, DEFAULT_TEAM_A);
-  const teamBName = titleSafe(payload.teamBName, DEFAULT_TEAM_B);
-  const rawTranscript = cleanWhitespace(payload.transcript || '');
+function compareSides(a, b) {
+  const diff = a.rawScore - b.rawScore;
+  let winner = 'Mixed';
+  if (diff >= 7) winner = a.sideName;
+  if (diff <= -7) winner = b.sideName;
 
-  if (!rawTranscript) {
+  const strongest = (scoreSentence(a.bestClaim) >= scoreSentence(b.bestClaim)) ? a : b;
+  const weaker = strongest.sideName === a.sideName ? b : a;
+
+  let bsMeter = 'Both sides show comparable overreach.';
+  if (a.pressureCount > b.pressureCount + 1) bsMeter = `${a.sideName} is reaching more`;
+  if (b.pressureCount > a.pressureCount + 1) bsMeter = `${b.sideName} is reaching more`;
+
+  return {
+    winner,
+    confidence: `${Math.max(51, Math.min(92, 50 + Math.abs(diff)))}%`,
+    teamAScore: a.rawScore,
+    teamBScore: b.rawScore,
+    teamALane: a.lane,
+    teamBLane: b.lane,
+    coreDisagreement: buildCoreDisagreement(a, b),
+    bsMeter,
+    strongestArgumentSide: winner === 'Mixed' ? strongest.sideName : winner,
+    strongestArgument: strongest.bestClaim || 'No stable strongest argument could be finalized from the preserved transcript.',
+    whyItStandsOut: strongest.bestClaim
+      ? 'It stands out because it brings more actual support and it stays closer to the real dispute.'
+      : 'No strongest argument was selected because the extracted transcript material stayed too unstable.',
+    failedResponseByOtherSide: weaker.bestClaim
+      ? `${weaker.sideName} does not beat that point with a cleaner rival claim. Its nearest competing claim is: ${trimSentence(weaker.bestClaim)}`
+      : `${weaker.sideName} does not preserve a cleaner rival claim strongly enough to displace the other side's best point.`,
+    weakestOverall: buildWeakestOverall(a, b),
+    overallWhy: buildOverallWhy(a, b, winner),
+    sameLaneEngagement: a.lane === b.lane
+      ? `Both sides largely argue in the same lane: ${a.lane}.`
+      : 'At least one side blends lanes, so engagement is only partial rather than cleanly matched.',
+    laneMismatch: a.lane === b.lane
+      ? 'Low lane mismatch. They are mostly fighting on shared ground.'
+      : `Lane mismatch exists: ${a.sideName} is mainly in ${a.lane}, while ${b.sideName} is mainly in ${b.lane}.`,
+    manipulation: `${a.sideName}: ${a.pressureCount ? 'Some rhetorical pressure appears, but it does not fully dominate the case.' : 'Low obvious manipulation in the preserved text.'} ${b.sideName}: ${b.pressureCount ? 'Noticeable pressure language and framing tactics show up alongside the argument.' : 'Low obvious manipulation in the preserved text.'}`,
+    fluff: `${a.sideName}: ${fillerRatio(a.sentences.join(' ')) > 0.05 ? 'Some fluff remains, but the main claims are still identifiable.' : 'Low fluff after cleanup.'} ${b.sideName}: ${fillerRatio(b.sentences.join(' ')) > 0.05 ? 'Some fluff remains, but the main claims are still identifiable.' : 'Low fluff after cleanup.'}`
+  };
+}
+
+function buildResponse(body) {
+  const teamAName = titleSafe(body.teamAName, DEFAULT_TEAM_A);
+  const teamBName = titleSafe(body.teamBName, DEFAULT_TEAM_B);
+  const transcript = cleanWhitespace(body.transcript || body.rawTranscript || '');
+
+  if (!transcript) {
     return {
       ok: false,
       error: 'Transcript is required.',
@@ -492,14 +448,13 @@ function buildResponse(payload) {
     };
   }
 
-  const normalized = normalizeTranscript(rawTranscript);
+  const normalized = normalizeTranscript(transcript);
   const sentences = splitSentences(normalized);
   const segmented = segmentDebate(sentences, teamAName, teamBName);
 
-  const teamA = buildSideProfile(teamAName, segmented.A);
-  const teamB = buildSideProfile(teamBName, segmented.B);
-  const compared = compareSides(teamA, teamB);
-  const sources = buildFactCheckSources(teamA, teamB);
+  const a = buildSideProfile(teamAName, segmented.A);
+  const b = buildSideProfile(teamBName, segmented.B);
+  const compared = compareSides(a, b);
 
   return {
     ok: true,
@@ -516,32 +471,32 @@ function buildResponse(payload) {
     strongestArgumentSide: compared.strongestArgumentSide,
     strongestArgument: compared.strongestArgument,
     whyItStandsOut: compared.whyItStandsOut,
-    failedResponseByOtherSide: compared.failedResponse,
+    failedResponseByOtherSide: compared.failedResponseByOtherSide,
     weakestOverall: compared.weakestOverall,
     overallWhy: compared.overallWhy,
     teamAnalysis: {
       teamA: {
-        name: teamAName,
-        mainPosition: teamA.main_position,
-        truth: teamA.truth,
-        overreach: teamA.overreach,
-        opinion: teamA.opinion,
-        lalaLand: teamA.lala
+        name: a.sideName,
+        mainPosition: a.mainPosition,
+        truth: a.truth,
+        overreach: a.overreach,
+        opinion: a.opinion,
+        lalaLand: a.lalaLand
       },
       teamB: {
-        name: teamBName,
-        mainPosition: teamB.main_position,
-        truth: teamB.truth,
-        overreach: teamB.overreach,
-        opinion: teamB.opinion,
-        lalaLand: teamB.lala
+        name: b.sideName,
+        mainPosition: b.mainPosition,
+        truth: b.truth,
+        overreach: b.overreach,
+        opinion: b.opinion,
+        lalaLand: b.lalaLand
       }
     },
     integrityAndReasoning: {
-      teamAIntegrity: teamA.integrity,
-      teamAReasoning: teamA.reasoning,
-      teamBIntegrity: teamB.integrity,
-      teamBReasoning: teamB.reasoning
+      teamAIntegrity: a.integrity,
+      teamAReasoning: a.reasoning,
+      teamBIntegrity: b.integrity,
+      teamBReasoning: b.reasoning
     },
     worldviewLaneCheck: {
       sameLaneEngagement: compared.sameLaneEngagement,
@@ -551,13 +506,21 @@ function buildResponse(payload) {
       manipulation: compared.manipulation,
       fluff: compared.fluff
     },
-    factCheckSources: sources
+    factCheckSources: buildFactCheckSources(a, b)
   };
 }
 
-router.post('/', (req, res) => {
+module.exports = async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      ok: false,
+      error: 'Method not allowed. Use POST.',
+      analysisMode: ANALYSIS_MODE
+    });
+  }
+
   try {
-    const body = req && req.body && typeof req.body === 'object' ? req.body : {};
+    const body = typeof req.body === 'object' && req.body ? req.body : {};
     const result = buildResponse(body);
     return res.status(result.ok ? 200 : 400).json(result);
   } catch (err) {
@@ -568,6 +531,4 @@ router.post('/', (req, res) => {
       analysisMode: ANALYSIS_MODE
     });
   }
-});
-
-module.exports = router;
+};
