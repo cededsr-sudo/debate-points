@@ -36,11 +36,12 @@ export default async function handler(req, res) {
     }
 
     const structure = detectStructure(cleaned, sentences);
-    const topics = ensureArray(detectTopics(cleaned), ["political", "media"]);
-    const worldview = ensureArray(detectWorldview(cleaned), ["political"]);
+    const topics = detectTopics(cleaned);
+    const worldview = detectWorldview(cleaned);
 
-    const features = ensureFeatures(scoreFeatures(cleaned, sentences));
+    const features = scoreFeatures(cleaned, sentences);
     const scores = computeScores(features);
+
     const ignorance = deriveIgnorance(features, scores);
     const deception = deriveDeception(features, scores);
 
@@ -105,37 +106,6 @@ function safeDivide(a, b) {
 function countMatches(text, regex) {
   const matches = text.match(regex);
   return matches ? matches.length : 0;
-}
-
-function ensureArray(arr, fallback) {
-  if (Array.isArray(arr) && arr.length) return arr;
-  return fallback.slice();
-}
-
-function ensureFeatures(features) {
-  const fallback = {
-    thesisClarity: 25,
-    specificity: 25,
-    structureCoherence: 25,
-    responsiveness: 25,
-    quoteFairness: 25,
-    distinctionHonesty: 25,
-    burdenDiscipline: 25,
-    emotionalPressure: 25,
-    overreachSeverity: 25,
-    unsupportedClaimRate: 25,
-    tribalFraming: 25,
-    contradictionSeverity: 25
-  };
-
-  if (!features || typeof features !== "object") return fallback;
-
-  const out = {};
-  for (const key of Object.keys(fallback)) {
-    const value = Number(features[key]);
-    out[key] = Number.isFinite(value) ? clamp(value) : fallback[key];
-  }
-  return out;
 }
 
 function cleanText(raw) {
@@ -203,11 +173,11 @@ async function extractTextFromLink(link) {
 function detectStructure(text, sentences) {
   const lower = text.toLowerCase();
 
+  const debateSignals =
+    countMatches(lower, /\b(team a|team b|moderator|rebuttal|cross examination|opening statement|closing statement|debate)\b/g);
+
   const quoteSignals =
     countMatches(lower, /\b(let me read|have a watch|have a listen|he said|she said|they said|quote|quoted|clip)\b/g);
-
-  const debateSignals =
-    countMatches(lower, /\b(team a|team b|moderator|rebuttal|cross examination|opening statement|closing statement)\b/g);
 
   if (debateSignals >= 2) return "debate";
   if (quoteSignals >= 1 || sentences.length > 5) return "commentary";
@@ -237,7 +207,9 @@ function detectTopics(text) {
     .filter(([, score]) => score > 0)
     .map(([topic]) => topic);
 
-  return sorted.slice(0, 4);
+  if (sorted.length) return sorted.slice(0, 4);
+
+  return ["political", "media"];
 }
 
 function detectWorldview(text) {
@@ -263,7 +235,9 @@ function detectWorldview(text) {
     .slice(0, 2)
     .map(([lane]) => lane);
 
-  return sorted;
+  if (sorted.length) return sorted;
+
+  return ["political"];
 }
 
 function scoreFeatures(text, sentences) {
@@ -370,56 +344,64 @@ function scoreFeatures(text, sentences) {
   );
 
   return {
-    thesisClarity: round(thesisClarity),
-    specificity: round(specificity),
-    structureCoherence: round(structureCoherence),
-    responsiveness: round(responsiveness),
-    quoteFairness: round(quoteFairness),
-    distinctionHonesty: round(distinctionHonesty),
-    burdenDiscipline: round(burdenDiscipline),
-    emotionalPressure: round(emotionalPressure),
-    overreachSeverity: round(overreachSeverity),
-    unsupportedClaimRate: round(unsupportedClaimRate),
-    tribalFraming: round(tribalFraming),
-    contradictionSeverity: round(contradictionSeverity)
+    thesisClarity: round(thesisClarity || 25),
+    specificity: round(specificity || 25),
+    structureCoherence: round(structureCoherence || 25),
+    responsiveness: round(responsiveness || 25),
+    quoteFairness: round(quoteFairness || 25),
+    distinctionHonesty: round(distinctionHonesty || 25),
+    burdenDiscipline: round(burdenDiscipline || 25),
+    emotionalPressure: round(emotionalPressure || 25),
+    overreachSeverity: round(overreachSeverity || 25),
+    unsupportedClaimRate: round(unsupportedClaimRate || 25),
+    tribalFraming: round(tribalFraming || 25),
+    contradictionSeverity: round(contradictionSeverity || 25)
   };
 }
 
 function computeScores(features) {
-  const clarity = clamp(
+  let clarity = clamp(
     0.30 * features.thesisClarity +
-    0.25 * features.specificity +
-    0.25 * features.structureCoherence +
-    0.20 * features.responsiveness
+      0.25 * features.specificity +
+      0.25 * features.structureCoherence +
+      0.20 * features.responsiveness
   );
 
-  const integrity = clamp(
+  let integrity = clamp(
     0.30 * features.quoteFairness +
-    0.25 * features.distinctionHonesty +
-    0.25 * features.burdenDiscipline +
-    0.20 * (100 - features.emotionalPressure)
+      0.25 * features.distinctionHonesty +
+      0.25 * features.burdenDiscipline +
+      0.20 * (100 - features.emotionalPressure)
   );
 
-  const honesty = clamp(
+  let honesty = clamp(
     0.35 * features.distinctionHonesty +
-    0.25 * features.quoteFairness +
-    0.20 * (100 - features.contradictionSeverity) +
-    0.20 * (100 - features.overreachSeverity)
+      0.25 * features.quoteFairness +
+      0.20 * (100 - features.contradictionSeverity) +
+      0.20 * (100 - features.overreachSeverity)
   );
 
-  const manipulation = clamp(
+  let manipulation = clamp(
     0.40 * features.tribalFraming +
-    0.35 * features.emotionalPressure +
-    0.25 * features.unsupportedClaimRate
+      0.35 * features.emotionalPressure +
+      0.25 * features.unsupportedClaimRate
   );
 
-  const bsn = clamp(
+  let bsn = clamp(
     0.30 * features.unsupportedClaimRate +
-    0.25 * features.overreachSeverity +
-    0.20 * features.emotionalPressure +
-    0.15 * features.tribalFraming +
-    0.10 * features.contradictionSeverity
+      0.25 * features.overreachSeverity +
+      0.20 * features.emotionalPressure +
+      0.15 * features.tribalFraming +
+      0.10 * features.contradictionSeverity
   );
+
+  if (clarity === 0 && integrity === 0 && honesty === 0 && manipulation === 0 && bsn === 0) {
+    clarity = 55;
+    integrity = 45;
+    honesty = 40;
+    manipulation = 60;
+    bsn = 65;
+  }
 
   return {
     clarity: round(clarity),
@@ -434,11 +416,11 @@ function deriveIgnorance(features, scores) {
   return round(
     clamp(
       20 +
-      0.30 * features.unsupportedClaimRate +
-      0.25 * features.overreachSeverity +
-      0.15 * (100 - features.distinctionHonesty) +
-      0.15 * (100 - features.burdenDiscipline) +
-      0.15 * (100 - scores.clarity)
+        0.30 * features.unsupportedClaimRate +
+        0.25 * features.overreachSeverity +
+        0.15 * (100 - features.distinctionHonesty) +
+        0.15 * (100 - features.burdenDiscipline) +
+        0.15 * (100 - scores.clarity)
     )
   );
 }
@@ -447,10 +429,10 @@ function deriveDeception(features, scores) {
   return round(
     clamp(
       10 +
-      0.35 * features.contradictionSeverity +
-      0.25 * features.overreachSeverity +
-      0.20 * (100 - features.quoteFairness) +
-      0.20 * (100 - scores.integrity)
+        0.35 * features.contradictionSeverity +
+        0.25 * features.overreachSeverity +
+        0.20 * (100 - features.quoteFairness) +
+        0.20 * (100 - scores.integrity)
     )
   );
 }
