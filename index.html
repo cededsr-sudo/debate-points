@@ -5,420 +5,405 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Reasoning Audit Console</title>
   <style>
-    :root{
-      --bg:#eef4ff;
-      --bg2:#f8fbff;
-      --panel:#ffffff;
-      --panel2:#f4f8ff;
-      --line:#d9e4ff;
-      --line-strong:#b8ccff;
-      --text:#182033;
-      --muted:#64708b;
-      --primary:#4f7cff;
-      --primary-2:#7ba3ff;
-      --primary-soft:rgba(79,124,255,.12);
-      --success:#0f9d73;
-      --warn:#c47c12;
-      --danger:#d64545;
-      --shadow:0 18px 50px rgba(46,72,133,.12);
-      --shadow-soft:0 8px 24px rgba(46,72,133,.08);
-      --radius-xl:28px;
-      --radius-lg:20px;
-      --radius-md:14px;
-      --radius-sm:10px;
+    :root {
+      --bg: #eef4ff;
+      --bg2: #f8fbff;
+      --panel: #ffffff;
+      --panel2: #f4f8ff;
+      --line: #d9e4ff;
+      --line-strong: #b8ccff;
+      --text: #182033;
+      --muted: #64708b;
+      --primary: #4f7cff;
+      --primary-2: #7ba3ff;
+      --primary-soft: rgba(79, 124, 255, 0.12);
+      --success: #0f9d73;
+      --warn: #c47c12;
+      --danger: #d64545;
+      --shadow: 0 18px 50px rgba(46, 72, 133, 0.12);
+      --shadow-soft: 0 8px 24px rgba(46, 72, 133, 0.08);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
     }
 
-    *{box-sizing:border-box}
+    * {
+      box-sizing: border-box;
+    }
 
-    html,body{
-      margin:0;
-      padding:0;
-      min-height:100%;
-      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      color:var(--text);
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(123,163,255,.18), transparent 28%),
-        radial-gradient(circle at top right, rgba(79,124,255,.14), transparent 24%),
+        radial-gradient(circle at top left, rgba(123, 163, 255, 0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(79, 124, 255, 0.14), transparent 24%),
         linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
     }
 
-    body{
-      padding:24px;
+    body {
+      padding: 24px;
     }
 
-    .app{
-      width:min(1480px, 100%);
-      margin:0 auto;
+    .app {
+      width: min(1480px, 100%);
+      margin: 0 auto;
     }
 
-    .hero{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:20px;
-      padding:28px 30px;
-      border:1px solid var(--line);
-      border-radius:var(--radius-xl);
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      padding: 28px 30px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(246,250,255,0.98));
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+
+    .hero-left {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .orb {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
       background:
-        linear-gradient(180deg, rgba(255,255,255,.95), rgba(246,250,255,.98));
-      box-shadow:var(--shadow);
-      margin-bottom:20px;
-    }
-
-    .hero-left{
-      display:flex;
-      gap:16px;
-      align-items:center;
-      min-width:0;
-    }
-
-    .orb{
-      width:62px;
-      height:62px;
-      border-radius:50%;
-      background:
-        radial-gradient(circle at 35% 35%, rgba(255,255,255,.95), rgba(123,163,255,.55) 40%, rgba(79,124,255,.95) 75%);
+        radial-gradient(circle at 35% 35%, rgba(255,255,255,0.95), rgba(123,163,255,0.55) 40%, rgba(79,124,255,0.95) 75%);
       box-shadow:
-        inset 0 2px 10px rgba(255,255,255,.55),
-        0 10px 24px rgba(79,124,255,.25);
-      flex:0 0 auto;
+        inset 0 2px 10px rgba(255,255,255,0.55),
+        0 10px 24px rgba(79,124,255,0.25);
+      flex: 0 0 auto;
     }
 
-    .title{
-      margin:0;
-      font-size:clamp(28px, 4vw, 52px);
-      line-height:.95;
-      font-weight:1000;
-      letter-spacing:-.03em;
+    .title {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 52px);
+      line-height: 0.95;
+      font-weight: 1000;
+      letter-spacing: -0.03em;
     }
 
-    .subtitle{
-      margin-top:8px;
-      color:var(--muted);
-      font-size:13px;
-      letter-spacing:.16em;
-      text-transform:uppercase;
-      font-weight:800;
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-weight: 800;
     }
 
-    .hero-right{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      justify-content:flex-end;
+    .hero-right {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
-    .chip{
-      min-height:42px;
-      display:inline-flex;
-      align-items:center;
-      padding:0 14px;
-      border-radius:999px;
-      background:var(--panel);
-      color:var(--text);
-      border:1px solid var(--line);
-      font-size:11px;
-      font-weight:900;
-      letter-spacing:.12em;
-      text-transform:uppercase;
-      box-shadow:var(--shadow-soft);
+    .chip {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      box-shadow: var(--shadow-soft);
     }
 
-    .chip.primary{
-      background:linear-gradient(180deg, #eef4ff, #dfeaff);
-      border-color:var(--line-strong);
-      color:#2451d8;
+    .chip.primary {
+      background: linear-gradient(180deg, #eef4ff, #dfeaff);
+      border-color: var(--line-strong);
+      color: #2451d8;
     }
 
-    .layout{
-      display:grid;
-      gap:20px;
+    .layout {
+      display: grid;
+      gap: 20px;
     }
 
-    .grid-2{
-      display:grid;
-      grid-template-columns:1.05fr .95fr;
-      gap:20px;
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
     }
 
-    .panel{
-      background:linear-gradient(180deg, var(--panel), var(--panel2));
-      border:1px solid var(--line);
-      border-radius:var(--radius-xl);
-      padding:22px;
-      box-shadow:var(--shadow-soft);
+    .panel {
+      background: linear-gradient(180deg, var(--panel), var(--panel2));
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      padding: 22px;
+      box-shadow: var(--shadow-soft);
     }
 
-    .section-title{
-      margin:0 0 16px;
-      font-size:clamp(20px,2vw,32px);
-      font-weight:950;
-      letter-spacing:-.03em;
+    .section-title {
+      margin: 0 0 16px;
+      font-size: clamp(20px, 2vw, 32px);
+      font-weight: 950;
+      letter-spacing: -0.03em;
     }
 
-    .section-title .accent{
-      color:var(--primary);
+    .section-title .accent {
+      color: var(--primary);
     }
 
-    .field-grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:14px;
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
     }
 
-    .field{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
     .field label,
-    .mini-label{
-      font-size:11px;
-      color:var(--muted);
-      font-weight:900;
-      letter-spacing:.14em;
-      text-transform:uppercase;
+    .mini-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
     }
 
     input[type="text"],
-    textarea{
-      width:100%;
-      border:1px solid var(--line);
-      background:#fff;
-      color:var(--text);
-      border-radius:var(--radius-md);
-      padding:14px 15px;
-      outline:none;
-      font-size:15px;
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
-      transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: var(--radius-md);
+      padding: 14px 15px;
+      outline: none;
+      font-size: 15px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
 
     input[type="text"]:focus,
-    textarea:focus{
-      border-color:var(--primary-2);
-      box-shadow:0 0 0 4px var(--primary-soft);
+    textarea:focus {
+      border-color: var(--primary-2);
+      box-shadow: 0 0 0 4px var(--primary-soft);
     }
 
-    textarea{
-      resize:vertical;
-      min-height:280px;
-      line-height:1.55;
+    textarea {
+      resize: vertical;
+      min-height: 300px;
+      line-height: 1.55;
     }
 
-    .actions{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      margin-top:18px;
-      align-items:center;
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+      align-items: center;
     }
 
-    button{
-      border:0;
-      border-radius:14px;
-      padding:14px 18px;
-      font-size:13px;
-      font-weight:1000;
-      letter-spacing:.08em;
-      text-transform:uppercase;
-      cursor:pointer;
-      transition:transform .12s ease, opacity .12s ease, box-shadow .12s ease;
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 14px 18px;
+      font-size: 13px;
+      font-weight: 1000;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
     }
 
-    button:hover{ transform:translateY(-1px); }
-    button:disabled{ opacity:.65; cursor:not-allowed; transform:none; }
-
-    .primary-btn{
-      color:#fff;
-      background:linear-gradient(180deg, var(--primary-2), var(--primary));
-      box-shadow:0 10px 24px rgba(79,124,255,.28);
+    button:hover {
+      transform: translateY(-1px);
     }
 
-    .secondary-btn{
-      color:var(--text);
-      background:#fff;
-      border:1px solid var(--line);
-      box-shadow:var(--shadow-soft);
+    button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+      transform: none;
     }
 
-    .helper-pill{
-      display:inline-flex;
-      align-items:center;
-      min-height:42px;
-      padding:0 14px;
-      border-radius:999px;
-      background:rgba(79,124,255,.08);
-      color:#2451d8;
-      border:1px solid rgba(79,124,255,.18);
-      font-size:11px;
-      font-weight:900;
-      letter-spacing:.12em;
-      text-transform:uppercase;
+    .primary-btn {
+      color: #fff;
+      background: linear-gradient(180deg, var(--primary-2), var(--primary));
+      box-shadow: 0 10px 24px rgba(79,124,255,0.28);
     }
 
-    .error{
-      display:none;
-      margin-top:16px;
-      border:1px solid rgba(214,69,69,.18);
-      background:rgba(214,69,69,.08);
-      color:#982828;
-      border-radius:var(--radius-md);
-      padding:14px 16px;
-      font-size:14px;
-      line-height:1.5;
-      font-weight:700;
+    .secondary-btn {
+      color: var(--text);
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
     }
 
-    .stats-grid{
-      display:grid;
-      grid-template-columns:repeat(4, 1fr);
-      gap:12px;
+    .helper-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: rgba(79,124,255,0.08);
+      color: #2451d8;
+      border: 1px solid rgba(79,124,255,0.18);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
     }
 
-    .stat{
-      padding:16px;
-      border-radius:18px;
-      background:#fff;
-      border:1px solid var(--line);
-      box-shadow:var(--shadow-soft);
+    .error {
+      display: none;
+      margin-top: 16px;
+      border: 1px solid rgba(214,69,69,0.18);
+      background: rgba(214,69,69,0.08);
+      color: #982828;
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.5;
+      font-weight: 700;
     }
 
-    .stat .mini-label{
-      margin-bottom:8px;
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
     }
 
-    .stat-value{
-      font-size:28px;
-      font-weight:1000;
-      letter-spacing:-.04em;
+    .stat,
+    .score-card,
+    .box,
+    .list-item {
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
     }
 
-    .readout{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:14px;
+    .stat {
+      padding: 16px;
+      border-radius: 18px;
     }
 
-    .readout-full{
-      grid-column:1 / -1;
+    .stat .mini-label {
+      margin-bottom: 8px;
     }
 
-    .box{
-      min-height:58px;
-      border-radius:16px;
-      border:1px solid var(--line);
-      background:#fff;
-      padding:14px 15px;
-      line-height:1.55;
-      font-size:15px;
-      white-space:pre-wrap;
-      word-break:break-word;
-      box-shadow:var(--shadow-soft);
+    .stat-value {
+      font-size: 28px;
+      font-weight: 1000;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
     }
 
-    .score-row{
-      display:grid;
-      grid-template-columns:repeat(5, 1fr);
-      gap:12px;
-      margin-top:6px;
+    .readout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
     }
 
-    .score-card{
-      padding:16px;
-      border-radius:18px;
-      background:#fff;
-      border:1px solid var(--line);
-      box-shadow:var(--shadow-soft);
+    .readout-full {
+      grid-column: 1 / -1;
     }
 
-    .score-card .score{
-      font-size:30px;
-      font-weight:1000;
-      letter-spacing:-.04em;
-      margin:8px 0 4px;
+    .box {
+      min-height: 58px;
+      border-radius: 16px;
+      padding: 14px 15px;
+      line-height: 1.55;
+      font-size: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
-    .score-card .sub{
-      color:var(--muted);
-      font-size:13px;
-      font-weight:700;
+    .score-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-top: 6px;
     }
 
-    .pill-row{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
+    .score-card {
+      padding: 16px;
+      border-radius: 18px;
     }
 
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      min-height:38px;
-      padding:0 14px;
-      border-radius:999px;
-      background:#fff;
-      border:1px solid var(--line);
-      color:var(--text);
-      box-shadow:var(--shadow-soft);
-      font-size:12px;
-      font-weight:900;
-      letter-spacing:.04em;
+    .score-card .score {
+      font-size: 30px;
+      font-weight: 1000;
+      letter-spacing: -0.04em;
+      margin: 8px 0 4px;
+      line-height: 1.1;
     }
 
-    .list{
-      display:grid;
-      gap:12px;
+    .score-card .sub {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
     }
 
-    .list-item{
-      border:1px solid var(--line);
-      background:#fff;
-      border-radius:16px;
-      padding:14px 15px;
-      box-shadow:var(--shadow-soft);
+    .list {
+      display: grid;
+      gap: 12px;
     }
 
-    .list-title{
-      font-weight:900;
-      margin-bottom:6px;
+    .list-item {
+      border-radius: 16px;
+      padding: 14px 15px;
     }
 
-    .list-meta{
-      color:var(--muted);
-      font-size:14px;
-      line-height:1.5;
+    .list-title {
+      font-weight: 900;
+      margin-bottom: 6px;
     }
 
-    .muted-note{
-      color:var(--muted);
-      line-height:1.55;
-      font-size:14px;
+    .list-meta {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
     }
 
-    .footer-note{
-      margin-top:4px;
-      color:var(--muted);
-      font-size:13px;
-      line-height:1.5;
+    .muted-note,
+    .footer-note {
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
     }
 
-    @media (max-width: 1180px){
+    .footer-note {
+      margin-top: 6px;
+    }
+
+    @media (max-width: 1180px) {
       .grid-2,
       .field-grid,
       .readout,
       .score-row,
-      .stats-grid{
-        grid-template-columns:1fr;
+      .stats-grid {
+        grid-template-columns: 1fr;
       }
 
-      .hero{
-        flex-direction:column;
+      .hero {
+        flex-direction: column;
       }
 
-      .hero-right{
-        justify-content:flex-start;
+      .hero-right {
+        justify-content: flex-start;
       }
     }
   </style>
@@ -430,13 +415,13 @@
         <div class="orb"></div>
         <div>
           <h1 class="title">Reasoning Audit</h1>
-          <div class="subtitle">Brighter console. Real backend. Less nonsense.</div>
+          <div class="subtitle">Bright console. Correct backend wire-up.</div>
         </div>
       </div>
 
       <div class="hero-right">
-        <div class="chip">Frontend Rewrite</div>
-        <div class="chip">Backend Sync</div>
+        <div class="chip">Full Rewrite</div>
+        <div class="chip">Backend 3001</div>
         <div class="chip primary" id="topMode">Mode: -</div>
       </div>
     </div>
@@ -449,11 +434,11 @@
           <div class="field-grid">
             <div class="field">
               <label for="teamAName">Label A</label>
-              <input id="teamAName" type="text" placeholder="Optional label for left-side summary" />
+              <input id="teamAName" type="text" placeholder="Optional label for left summary" />
             </div>
             <div class="field">
               <label for="teamBName">Label B</label>
-              <input id="teamBName" type="text" placeholder="Optional label for right-side summary" />
+              <input id="teamBName" type="text" placeholder="Optional label for right summary" />
             </div>
           </div>
 
@@ -475,7 +460,7 @@
 
           <div class="error" id="errorBox"></div>
           <div class="footer-note">
-            This version uses the backend response you actually have: structure, topics, scores, labels, worldview, and feature debug.
+            Sends text and link to the real backend endpoint at <strong>http://localhost:3001/api/analyze</strong>.
           </div>
         </div>
 
@@ -538,28 +523,28 @@
           <div class="score-card">
             <div class="mini-label">Honesty</div>
             <div class="score" id="honestyScore">-</div>
-            <div class="sub" id="honestyLabel">-</div>
+            <div class="sub" id="honestySub">-</div>
           </div>
           <div class="score-card">
             <div class="mini-label">Manipulation</div>
             <div class="score" id="manipulationScore">-</div>
-            <div class="sub" id="manipulationLabel">-</div>
+            <div class="sub" id="manipulationSub">-</div>
           </div>
           <div class="score-card">
             <div class="mini-label">BSN</div>
             <div class="score" id="bsnScore">-</div>
-            <div class="sub" id="bsnLabel">-</div>
+            <div class="sub" id="bsnSub">-</div>
           </div>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="panel">
-          <h2 class="section-title"><span class="accent">Side</span> A Summary</h2>
+          <h2 class="section-title"><span class="accent">Primary</span> Summary</h2>
           <div class="readout">
             <div class="readout-full">
               <div class="mini-label">Label</div>
-              <div class="box" id="teamAHeader">Team A</div>
+              <div class="box" id="teamAHeader">Side A</div>
             </div>
             <div class="readout-full">
               <div class="mini-label">Main Position</div>
@@ -601,11 +586,11 @@
         </div>
 
         <div class="panel">
-          <h2 class="section-title"><span class="accent">Side</span> B Summary</h2>
+          <h2 class="section-title"><span class="accent">Secondary</span> Summary</h2>
           <div class="readout">
             <div class="readout-full">
               <div class="mini-label">Label</div>
-              <div class="box" id="teamBHeader">Team B</div>
+              <div class="box" id="teamBHeader">Side B</div>
             </div>
             <div class="readout-full">
               <div class="mini-label">Main Position</div>
@@ -711,35 +696,31 @@
   </div>
 
   <script>
+    const API_URL = "http://localhost:3001/api/analyze";
+
     const $ = (id) => document.getElementById(id);
 
-    function sanitizeDisplayText(value) {
+    function clean(value) {
       if (value == null) return "-";
-      const text = String(value)
-        .replace(/[ \t]+/g, " ")
-        .trim();
+      const text = String(value).replace(/[ \t]+/g, " ").trim();
       return text || "-";
     }
 
-    function cap(word) {
-      const str = sanitizeDisplayText(word);
-      return str === "-" ? "-" : str.charAt(0).toUpperCase() + str.slice(1);
-    }
-
-    function percent(value) {
-      if (value == null || value === "") return "-";
-      return String(value);
+    function cap(value) {
+      const text = clean(value);
+      if (text === "-") return "-";
+      return text.charAt(0).toUpperCase() + text.slice(1);
     }
 
     function setText(id, value) {
       const el = $(id);
       if (!el) return;
-      el.textContent = sanitizeDisplayText(value);
+      el.textContent = clean(value);
     }
 
     function showError(message) {
       const box = $("errorBox");
-      box.textContent = sanitizeDisplayText(message);
+      box.textContent = clean(message);
       box.style.display = "block";
     }
 
@@ -755,29 +736,30 @@
 
     function resetResults() {
       [
-        "structure","winner","confidence","bsMeter","topics","worldview","analysisMode",
-        "clarityScore","clarityLabel","integrityScore","integrityLabel",
-        "honestyScore","honestyLabel","manipulationScore","manipulationLabel",
-        "bsnScore","bsnLabel","teamAHeader","teamA_main_position","teamA_lane",
-        "teamAScore","teamA_integrity","teamA_reasoning","teamA_truth","teamA_opinion",
-        "teamA_lies","teamA_lala","teamBHeader","teamB_main_position","teamB_lane",
-        "teamBScore","teamB_integrity","teamB_reasoning","teamB_truth","teamB_opinion",
-        "teamB_lies","teamB_lala","strongestArgumentSide","weakestOverall",
-        "strongestArgument","whyStrongest","failedResponseByOtherSide","why",
-        "same_lane_engagement","lane_mismatch","manipulation","fluff","topMode","modePill","core_disagreement"
+        "structure", "winner", "confidence", "bsMeter", "topics", "worldview", "analysisMode",
+        "clarityScore", "clarityLabel", "integrityScore", "integrityLabel",
+        "honestyScore", "honestySub", "manipulationScore", "manipulationSub",
+        "bsnScore", "bsnSub", "teamAHeader", "teamA_main_position", "teamA_lane",
+        "teamAScore", "teamA_integrity", "teamA_reasoning", "teamA_truth", "teamA_opinion",
+        "teamA_lies", "teamA_lala", "teamBHeader", "teamB_main_position", "teamB_lane",
+        "teamBScore", "teamB_integrity", "teamB_reasoning", "teamB_truth", "teamB_opinion",
+        "teamB_lies", "teamB_lala", "strongestArgumentSide", "weakestOverall",
+        "strongestArgument", "whyStrongest", "failedResponseByOtherSide", "why",
+        "same_lane_engagement", "lane_mismatch", "manipulation", "fluff",
+        "topMode", "modePill", "core_disagreement"
       ].forEach((id) => setText(id, "-"));
 
       resetFeatureList();
       hideError();
     }
 
-    function levelFromScore(score) {
+    function scoreBand(score) {
       if (score >= 75) return "High";
       if (score >= 45) return "Mixed";
       return "Low";
     }
 
-    function bsnLevel(score) {
+    function bsnBand(score) {
       if (score >= 75) return "Severe";
       if (score >= 50) return "High";
       if (score >= 25) return "Moderate";
@@ -813,19 +795,23 @@
         item.className = "list-item";
         item.innerHTML = `
           <div class="list-title">${label}</div>
-          <div class="list-meta">Score: ${sanitizeDisplayText(value)}</div>
+          <div class="list-meta">Score: ${clean(value)}</div>
         `;
         wrap.appendChild(item);
       });
     }
 
     function renderResult(data) {
-      const teamAName = $("teamAName").value.trim() || "Side A";
-      const teamBName = $("teamBName").value.trim() || "Side B";
+      const labelA = $("teamAName").value.trim() || "Primary";
+      const labelB = $("teamBName").value.trim() || "Secondary";
 
-      const structure = sanitizeDisplayText(data.structure || "-");
-      const topics = Array.isArray(data.topics) && data.topics.length ? data.topics.map(cap).join(" • ") : "-";
-      const worldview = Array.isArray(data.worldview) && data.worldview.length ? data.worldview.map(cap).join(" • ") : "-";
+      const structure = clean(data.structure);
+      const topics = Array.isArray(data.topics) && data.topics.length
+        ? data.topics.map(cap).join(" • ")
+        : "-";
+      const worldview = Array.isArray(data.worldview) && data.worldview.length
+        ? data.worldview.map(cap).join(" • ")
+        : "-";
 
       const clarity = Number(data?.scores?.clarity ?? 0);
       const integrity = Number(data?.scores?.integrity ?? 0);
@@ -833,56 +819,60 @@
       const manipulation = Number(data?.scores?.manipulation ?? 0);
       const bsn = Number(data?.scores?.bsn ?? 0);
 
-      const honestyText = sanitizeDisplayText(data?.labels?.honesty || levelFromScore(honesty));
-      const ignoranceText = sanitizeDisplayText(data?.labels?.ignorance || "-");
-      const manipulationText = sanitizeDisplayText(data?.labels?.manipulation || levelFromScore(manipulation));
-      const deceptionText = sanitizeDisplayText(data?.labels?.deception || "-");
-      const bsnText = sanitizeDisplayText(data?.labels?.bsn || bsnLevel(bsn));
+      const honestyLabel = clean(data?.labels?.honesty || scoreBand(honesty));
+      const ignoranceLabel = clean(data?.labels?.ignorance || "-");
+      const manipulationLabel = clean(data?.labels?.manipulation || scoreBand(manipulation));
+      const deceptionLabel = clean(data?.labels?.deception || "-");
+      const bsnLabel = clean(data?.labels?.bsn || bsnBand(bsn));
 
       const mode = structure === "debate" ? "Debate Judgment" : "Reasoning Audit";
 
       setText("structure", cap(structure));
-      setText("winner", structure === "debate" ? "No Winner Logic Yet" : "Suppressed");
+      setText("winner", structure === "debate" ? "No winner logic yet" : "Suppressed");
       setText("confidence", structure === "debate" ? "Low" : "N/A");
-      setText("bsMeter", bsnText);
+      setText("bsMeter", bsnLabel);
       setText("topics", topics);
       setText("worldview", worldview);
       setText("analysisMode", mode);
       setText("topMode", "Mode: " + mode);
       setText("modePill", "Mode: " + mode);
 
-      setText("clarityScore", percent(clarity));
-      setText("clarityLabel", levelFromScore(clarity));
-      setText("integrityScore", percent(integrity));
-      setText("integrityLabel", levelFromScore(integrity));
-      setText("honestyScore", percent(honesty));
-      setText("honestyLabel", honestyText);
-      setText("manipulationScore", percent(manipulation));
-      setText("manipulationLabel", manipulationText);
-      setText("bsnScore", percent(bsn));
-      setText("bsnLabel", bsnText);
+      setText("clarityScore", clarity);
+      setText("clarityLabel", scoreBand(clarity));
+      setText("integrityScore", integrity);
+      setText("integrityLabel", scoreBand(integrity));
+      setText("honestyScore", honesty);
+      setText("honestySub", honestyLabel);
+      setText("manipulationScore", manipulation);
+      setText("manipulationSub", manipulationLabel);
+      setText("bsnScore", bsn);
+      setText("bsnSub", bsnLabel);
 
-      setText("teamAHeader", teamAName);
-      setText("teamA_main_position", structure === "debate"
-        ? "Detected as debate structure. This side would need true side-splitting logic for a clean extraction."
-        : "Primary speaker / source is being treated as a single commentary stream, not a clean two-team exchange."
+      setText("teamAHeader", labelA);
+      setText(
+        "teamA_main_position",
+        structure === "debate"
+          ? "Debate structure detected, but this backend still does not split true sides into separate argument streams."
+          : "Primary speaker is being treated as one commentary stream rather than a clean two-team exchange."
       );
       setText("teamA_lane", worldview.split(" • ")[0] || worldview);
-      setText("teamAScore", percent(Math.round((clarity + integrity + honesty) / 3)));
-      setText("teamA_integrity", "Integrity " + integrity + " • Honesty " + honestyText);
-      setText("teamA_reasoning", "Clarity " + clarity + " • Manipulation " + manipulationText + " • BSN " + bsnText);
-      setText("teamA_truth", "This backend gives score-based reasoning audit, not full external fact-check.");
-      setText("teamA_opinion", "Topics: " + topics);
-      setText("teamA_lies", "Deception risk: " + deceptionText);
-      setText("teamA_lala", "Ignorance: " + ignoranceText);
+      setText("teamAScore", Math.round((clarity + integrity + honesty) / 3));
+      setText("teamA_integrity", `Integrity ${integrity} • Honesty ${honestyLabel}`);
+      setText("teamA_reasoning", `Clarity ${clarity} • Manipulation ${manipulationLabel} • BSN ${bsnLabel}`);
+      setText("teamA_truth", "This backend gives a score-based reasoning audit, not a full external fact-check.");
+      setText("teamA_opinion", `Topics: ${topics}`);
+      setText("teamA_lies", `Deception risk: ${deceptionLabel}`);
+      setText("teamA_lala", `Ignorance: ${ignoranceLabel}`);
 
-      setText("teamBHeader", teamBName);
-      setText("teamB_main_position", structure === "debate"
-        ? "Comparison UI is present, but the current backend does not return split team arguments yet."
-        : "Second-side boxes are placeholders until you add multi-speaker or side-separation logic."
+      setText("teamBHeader", labelB);
+      setText(
+        "teamB_main_position",
+        structure === "debate"
+          ? "Secondary-side boxes stay placeholder until you add real side-splitting logic to the backend."
+          : "No second side is extracted from commentary mode."
       );
       setText("teamB_lane", structure === "debate" ? worldview : "Not split");
-      setText("teamBScore", structure === "debate" ? "Pending split logic" : "N/A");
+      setText("teamBScore", structure === "debate" ? "Pending" : "N/A");
       setText("teamB_integrity", structure === "debate" ? "Pending split logic" : "Not available");
       setText("teamB_reasoning", structure === "debate" ? "Pending split logic" : "Not available");
       setText("teamB_truth", structure === "debate" ? "Pending split logic" : "Not available");
@@ -890,32 +880,37 @@
       setText("teamB_lies", structure === "debate" ? "Pending split logic" : "Not available");
       setText("teamB_lala", structure === "debate" ? "Pending split logic" : "Not available");
 
-      setText("strongestArgumentSide", structure === "debate" ? "Unknown until side split" : "Primary Speaker");
+      setText("strongestArgumentSide", structure === "debate" ? "Unknown until side split" : "Primary speaker");
       setText("weakestOverall", bsn >= 50 ? "Overreach / unsupported claims" : "Not strongly flagged");
-      setText("strongestArgument",
-        "This UI now reports what the backend actually returns: structure, topics, worldview, and reasoning scores."
+      setText(
+        "strongestArgument",
+        "This screen now renders the actual backend response instead of pretending there are fields that do not exist."
       );
-      setText("whyStrongest",
-        "Because it is honest about the current backend limits instead of pretending there is a clean winner when there is not."
+      setText(
+        "whyStrongest",
+        "Because it stops the fake zeroed-out limbo and uses the real API target on localhost:3001."
       );
-      setText("failedResponseByOtherSide",
+      setText(
+        "failedResponseByOtherSide",
         structure === "debate"
           ? "No reliable side-to-side failure logic yet."
-          : "No other side extracted from the current backend response."
+          : "No other side extracted from commentary mode."
       );
-      setText("why",
-        `Structure is ${structure}. Clarity ${clarity}, Integrity ${integrity}, Honesty ${honestyText}, Manipulation ${manipulationText}, BSN ${bsnText}.`
+      setText(
+        "why",
+        `Structure ${structure}. Clarity ${clarity}. Integrity ${integrity}. Honesty ${honestyLabel}. Manipulation ${manipulationLabel}. BSN ${bsnLabel}.`
       );
 
       setText("same_lane_engagement", structure === "debate" ? "Unknown until side split" : "False");
       setText("lane_mismatch", structure === "debate" ? "Unknown until side split" : "Likely");
-      setText("manipulation", `Level: ${manipulationText} • Score: ${manipulation}`);
-      setText("fluff", `Higher BSN usually means more drag. Current BSN: ${bsnText} (${bsn})`);
+      setText("manipulation", `Level: ${manipulationLabel} • Score: ${manipulation}`);
+      setText("fluff", `Current BSN: ${bsnLabel} (${bsn})`);
 
-      setText("core_disagreement",
+      setText(
+        "core_disagreement",
         structure === "debate"
-          ? "Debate detected, but this backend still needs real side separation before strong comparative judgment."
-          : "Commentary / monologue style input detected. Winner judgment is suppressed and reasoning audit is shown instead."
+          ? "Debate detected, but the backend still needs real side separation before comparative judgment can mean anything."
+          : "Commentary / monologue input detected. Winner judgment is suppressed and reasoning audit is shown instead."
       );
 
       renderFeatureList(data?.debug?.features);
@@ -936,16 +931,18 @@
       $("analyzeBtn").textContent = "Analyzing...";
 
       try {
-        const response = await fetch("/api/analyze", {
+        const response = await fetch(API_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json"
+          },
           body: JSON.stringify({ text, link })
         });
 
         const data = await response.json().catch(() => null);
 
         if (!response.ok || !data) {
-          showError((data && data.error) || "Server returned invalid JSON.");
+          showError((data && data.error) || "Backend returned invalid JSON.");
           return;
         }
 
@@ -955,8 +952,8 @@
         }
 
         renderResult(data);
-      } catch (err) {
-        showError("Request failed. Check that your backend is running at /api/analyze.");
+      } catch (error) {
+        showError("Request failed. Make sure the backend is running on http://localhost:3001.");
       } finally {
         $("analyzeBtn").disabled = false;
         $("analyzeBtn").textContent = "Gauge Reasoning";
