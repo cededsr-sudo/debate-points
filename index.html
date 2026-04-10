@@ -3,664 +3,661 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Debate Judgment Engine</title>
+  <title>Reasoning Audit Console</title>
   <style>
-    :root {
-      --bg: #060708;
-      --bg-2: #0c0e11;
-      --panel: rgba(14, 16, 19, 0.92);
-      --panel-2: rgba(20, 23, 27, 0.96);
-      --panel-3: rgba(10, 12, 15, 0.98);
-      --glass: rgba(255, 255, 255, 0.04);
-
-      --line: rgba(212, 174, 99, 0.28);
-      --line-soft: rgba(212, 174, 99, 0.12);
-      --steel: rgba(161, 171, 184, 0.22);
-
-      --text: #f2eee7;
-      --muted: #b9ac96;
-      --gold: #d4ae63;
-      --gold-soft: rgba(212, 174, 99, 0.12);
-      --silver: #c6d0da;
-      --danger: #d95c5c;
-      --danger-soft: rgba(217, 92, 92, 0.14);
-      --success: #8db7a1;
-      --shadow: rgba(0, 0, 0, 0.5);
-
-      --radius-xl: 30px;
-      --radius-lg: 22px;
-      --radius-md: 16px;
-      --radius-sm: 12px;
+    :root{
+      --bg:#eef4ff;
+      --bg2:#f8fbff;
+      --panel:#ffffff;
+      --panel2:#f4f8ff;
+      --line:#d9e4ff;
+      --line-strong:#b8ccff;
+      --text:#182033;
+      --muted:#64708b;
+      --primary:#4f7cff;
+      --primary-2:#7ba3ff;
+      --primary-soft:rgba(79,124,255,.12);
+      --success:#0f9d73;
+      --warn:#c47c12;
+      --danger:#d64545;
+      --shadow:0 18px 50px rgba(46,72,133,.12);
+      --shadow-soft:0 8px 24px rgba(46,72,133,.08);
+      --radius-xl:28px;
+      --radius-lg:20px;
+      --radius-md:14px;
+      --radius-sm:10px;
     }
 
-    * { box-sizing: border-box; }
+    *{box-sizing:border-box}
 
-    html, body {
-      margin: 0;
-      padding: 0;
-      min-height: 100%;
-      color: var(--text);
-      font-family: Inter, system-ui, Arial, sans-serif;
+    html,body{
+      margin:0;
+      padding:0;
+      min-height:100%;
+      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--text);
       background:
-        radial-gradient(circle at 20% 0%, rgba(255,255,255,0.03), transparent 24%),
-        radial-gradient(circle at 80% 12%, rgba(212,174,99,0.06), transparent 20%),
-        linear-gradient(180deg, #060708 0%, #090b0e 38%, #040506 100%);
+        radial-gradient(circle at top left, rgba(123,163,255,.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(79,124,255,.14), transparent 24%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
     }
 
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.02), transparent 18%, transparent 82%, rgba(255,255,255,0.015)),
-        repeating-linear-gradient(
-          0deg,
-          rgba(255,255,255,0.012) 0 1px,
-          transparent 1px 4px
-        );
-      opacity: 0.55;
-      mix-blend-mode: screen;
+    body{
+      padding:24px;
     }
 
-    body::after {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background:
-        radial-gradient(circle at center, transparent 0 52%, rgba(255,255,255,0.02) 70%, transparent 100%);
-      opacity: 0.35;
+    .app{
+      width:min(1480px, 100%);
+      margin:0 auto;
     }
 
-    .frame {
-      width: min(1560px, 95vw);
-      margin: 18px auto 34px;
-      padding: 18px;
-      border-radius: 34px;
+    .hero{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:20px;
+      padding:28px 30px;
+      border:1px solid var(--line);
+      border-radius:var(--radius-xl);
       background:
-        linear-gradient(145deg, rgba(18,20,24,0.98), rgba(9,10,12,1));
-      border: 1px solid rgba(212, 174, 99, 0.18);
+        linear-gradient(180deg, rgba(255,255,255,.95), rgba(246,250,255,.98));
+      box-shadow:var(--shadow);
+      margin-bottom:20px;
+    }
+
+    .hero-left{
+      display:flex;
+      gap:16px;
+      align-items:center;
+      min-width:0;
+    }
+
+    .orb{
+      width:62px;
+      height:62px;
+      border-radius:50%;
+      background:
+        radial-gradient(circle at 35% 35%, rgba(255,255,255,.95), rgba(123,163,255,.55) 40%, rgba(79,124,255,.95) 75%);
       box-shadow:
-        0 32px 70px var(--shadow),
-        inset 0 1px 0 rgba(255,255,255,0.05),
-        inset 0 -1px 0 rgba(0,0,0,0.55),
-        0 0 0 1px rgba(255,255,255,0.02);
-      position: relative;
-      overflow: hidden;
+        inset 0 2px 10px rgba(255,255,255,.55),
+        0 10px 24px rgba(79,124,255,.25);
+      flex:0 0 auto;
     }
 
-    .frame::before {
-      content: "";
-      position: absolute;
-      inset: 8px;
-      border-radius: 26px;
-      border: 1px solid rgba(255,255,255,0.04);
-      pointer-events: none;
-      background:
-        radial-gradient(circle at 50% 0%, rgba(255,255,255,0.04), transparent 18%),
-        linear-gradient(180deg, rgba(255,255,255,0.03), transparent 14%, transparent 86%, rgba(255,255,255,0.02));
+    .title{
+      margin:0;
+      font-size:clamp(28px, 4vw, 52px);
+      line-height:.95;
+      font-weight:1000;
+      letter-spacing:-.03em;
     }
 
-    .frame::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background:
-        linear-gradient(90deg, transparent 0%, rgba(212,174,99,0.03) 50%, transparent 100%);
-      opacity: 0.4;
+    .subtitle{
+      margin-top:8px;
+      color:var(--muted);
+      font-size:13px;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      font-weight:800;
     }
 
-    .screen {
-      position: relative;
-      z-index: 1;
-      min-height: calc(100vh - 86px);
-      padding: 18px;
-      border-radius: 24px;
-      background:
-        linear-gradient(180deg, rgba(9, 11, 14, 0.94), rgba(6, 8, 10, 0.98));
-      border: 1px solid rgba(198, 208, 218, 0.08);
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.03),
-        inset 0 -1px 0 rgba(0,0,0,0.45);
+    .hero-right{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
     }
 
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 18px;
-      padding: 8px 8px 18px;
-      margin-bottom: 18px;
-      border-bottom: 1px solid rgba(212, 174, 99, 0.12);
+    .chip{
+      min-height:42px;
+      display:inline-flex;
+      align-items:center;
+      padding:0 14px;
+      border-radius:999px;
+      background:var(--panel);
+      color:var(--text);
+      border:1px solid var(--line);
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      box-shadow:var(--shadow-soft);
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      min-width: 0;
+    .chip.primary{
+      background:linear-gradient(180deg, #eef4ff, #dfeaff);
+      border-color:var(--line-strong);
+      color:#2451d8;
     }
 
-    .coin {
-      width: 58px;
-      height: 58px;
-      border-radius: 50%;
-      background:
-        radial-gradient(circle at 35% 35%, rgba(255,255,255,0.12), transparent 30%),
-        radial-gradient(circle, rgba(212,174,99,0.2), rgba(212,174,99,0.04) 50%, transparent 74%);
-      border: 1px solid rgba(212, 174, 99, 0.34);
-      box-shadow:
-        0 0 22px rgba(212,174,99,0.08),
-        inset 0 0 18px rgba(255,255,255,0.03);
-      position: relative;
-      overflow: hidden;
+    .layout{
+      display:grid;
+      gap:20px;
     }
 
-    .coin::before,
-    .coin::after {
-      content: "";
-      position: absolute;
-      inset: 9px;
-      border-radius: 50%;
-      border: 1px solid rgba(212, 174, 99, 0.22);
+    .grid-2{
+      display:grid;
+      grid-template-columns:1.05fr .95fr;
+      gap:20px;
     }
 
-    .coin::after {
-      inset: 20px;
-      border-color: rgba(255,255,255,0.08);
+    .panel{
+      background:linear-gradient(180deg, var(--panel), var(--panel2));
+      border:1px solid var(--line);
+      border-radius:var(--radius-xl);
+      padding:22px;
+      box-shadow:var(--shadow-soft);
     }
 
-    .title {
-      margin: 0;
-      font-size: clamp(30px, 4.4vw, 54px);
-      line-height: 0.95;
-      font-weight: 1000;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text);
-      text-shadow: 0 0 18px rgba(255,255,255,0.06);
+    .section-title{
+      margin:0 0 16px;
+      font-size:clamp(20px,2vw,32px);
+      font-weight:950;
+      letter-spacing:-.03em;
     }
 
-    .subtitle {
-      margin-top: 6px;
-      font-size: 12px;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      color: var(--gold);
+    .section-title .accent{
+      color:var(--primary);
     }
 
-    .top-status {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
+    .field-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
     }
 
-    .chip {
-      min-height: 42px;
-      display: inline-flex;
-      align-items: center;
-      padding: 0 16px;
-      border-radius: 999px;
-      font-size: 11px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      font-weight: 900;
-      color: var(--text);
-      background:
-        linear-gradient(180deg, rgba(21,24,29,0.96), rgba(10,12,15,0.98));
-      border: 1px solid rgba(212,174,99,0.18);
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.04),
-        0 8px 18px rgba(0,0,0,0.24);
-    }
-
-    .chip.gold {
-      border-color: rgba(212,174,99,0.3);
-      color: var(--gold);
-    }
-
-    .layout {
-      display: grid;
-      gap: 18px;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-    }
-
-    .panel {
-      position: relative;
-      overflow: hidden;
-      background:
-        linear-gradient(180deg, rgba(14,16,19,0.96), rgba(9,11,14,0.98));
-      border: 1px solid var(--line-soft);
-      border-radius: var(--radius-xl);
-      padding: 20px;
-      box-shadow:
-        0 18px 34px var(--shadow),
-        inset 0 1px 0 rgba(255,255,255,0.03),
-        inset 0 -1px 0 rgba(0,0,0,0.32);
-    }
-
-    .panel::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background:
-        radial-gradient(circle at 14% 18%, rgba(212,174,99,0.08) 0 4px, transparent 5px),
-        radial-gradient(circle at 82% 24%, rgba(255,255,255,0.04) 0 4px, transparent 5px),
-        linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.01) 50%, transparent 100%);
-      opacity: 0.65;
-    }
-
-    .panel::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      border-radius: inherit;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.015);
-    }
-
-    .section-title {
-      position: relative;
-      z-index: 1;
-      margin: 0 0 14px;
-      font-size: clamp(22px, 2.5vw, 36px);
-      font-weight: 950;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--text);
-    }
-
-    .section-title .accent {
-      color: var(--gold);
-    }
-
-    .field,
-    .mini-label,
-    .box,
-    .team-card,
-    .sources-list {
-      position: relative;
-      z-index: 1;
+    .field{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
     }
 
     .field label,
-    .mini-label {
-      display: block;
-      margin: 0 0 8px;
-      font-size: 11px;
-      font-weight: 900;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--muted);
+    .mini-label{
+      font-size:11px;
+      color:var(--muted);
+      font-weight:900;
+      letter-spacing:.14em;
+      text-transform:uppercase;
     }
 
     input[type="text"],
-    textarea {
-      width: 100%;
-      border: 1px solid rgba(212, 174, 99, 0.12);
-      border-radius: var(--radius-md);
-      padding: 14px 16px;
-      font-size: 16px;
-      color: var(--text);
-      background:
-        linear-gradient(180deg, rgba(8,10,13,0.98), rgba(13,15,18,0.98));
-      outline: none;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.02),
-        0 0 0 1px rgba(255,255,255,0.01);
-    }
-
-    input[type="text"]::placeholder,
-    textarea::placeholder {
-      color: #807768;
+    textarea{
+      width:100%;
+      border:1px solid var(--line);
+      background:#fff;
+      color:var(--text);
+      border-radius:var(--radius-md);
+      padding:14px 15px;
+      outline:none;
+      font-size:15px;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+      transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease;
     }
 
     input[type="text"]:focus,
-    textarea:focus {
-      border-color: rgba(212,174,99,0.34);
-      box-shadow:
-        0 0 0 2px rgba(212,174,99,0.08),
-        inset 0 1px 0 rgba(255,255,255,0.02);
+    textarea:focus{
+      border-color:var(--primary-2);
+      box-shadow:0 0 0 4px var(--primary-soft);
     }
 
-    textarea {
-      min-height: 260px;
-      resize: vertical;
-      line-height: 1.55;
+    textarea{
+      resize:vertical;
+      min-height:280px;
+      line-height:1.55;
     }
 
-    .actions {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-top: 18px;
-      position: relative;
-      z-index: 1;
+    .actions{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-top:18px;
+      align-items:center;
     }
 
-    button {
-      border: 0;
-      border-radius: 16px;
-      padding: 14px 22px;
-      font-size: 14px;
-      font-weight: 1000;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
+    button{
+      border:0;
+      border-radius:14px;
+      padding:14px 18px;
+      font-size:13px;
+      font-weight:1000;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      cursor:pointer;
+      transition:transform .12s ease, opacity .12s ease, box-shadow .12s ease;
     }
 
-    button:hover { transform: translateY(-1px); }
-    button:disabled { opacity: 0.68; cursor: not-allowed; transform: none; }
+    button:hover{ transform:translateY(-1px); }
+    button:disabled{ opacity:.65; cursor:not-allowed; transform:none; }
 
-    .primary {
-      color: #0e0f10;
-      background:
-        linear-gradient(180deg, #e0bf7c, #b38a44);
-      box-shadow:
-        0 12px 20px rgba(0,0,0,0.28),
-        inset 0 1px 0 rgba(255,255,255,0.24);
+    .primary-btn{
+      color:#fff;
+      background:linear-gradient(180deg, var(--primary-2), var(--primary));
+      box-shadow:0 10px 24px rgba(79,124,255,.28);
     }
 
-    .secondary {
-      color: var(--text);
-      background:
-        linear-gradient(180deg, rgba(29,32,37,0.98), rgba(13,15,18,1));
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.03),
-        0 10px 18px rgba(0,0,0,0.24);
+    .secondary-btn{
+      color:var(--text);
+      background:#fff;
+      border:1px solid var(--line);
+      box-shadow:var(--shadow-soft);
     }
 
-    .mode-pill {
-      display: inline-flex;
-      align-items: center;
-      min-height: 44px;
-      padding: 0 16px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 900;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--gold);
-      background:
-        linear-gradient(180deg, rgba(18,20,24,0.98), rgba(9,11,14,1));
-      border: 1px solid rgba(212,174,99,0.18);
+    .helper-pill{
+      display:inline-flex;
+      align-items:center;
+      min-height:42px;
+      padding:0 14px;
+      border-radius:999px;
+      background:rgba(79,124,255,.08);
+      color:#2451d8;
+      border:1px solid rgba(79,124,255,.18);
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
     }
 
-    .error {
-      display: none;
-      margin-top: 14px;
-      border: 1px solid rgba(217, 92, 92, 0.38);
-      background: linear-gradient(180deg, rgba(67,20,20,0.46), rgba(35,11,11,0.5));
-      color: #ffdede;
-      border-radius: var(--radius-md);
-      padding: 14px 16px;
+    .error{
+      display:none;
+      margin-top:16px;
+      border:1px solid rgba(214,69,69,.18);
+      background:rgba(214,69,69,.08);
+      color:#982828;
+      border-radius:var(--radius-md);
+      padding:14px 16px;
+      font-size:14px;
+      line-height:1.5;
+      font-weight:700;
     }
 
-    .readout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
+    .stats-grid{
+      display:grid;
+      grid-template-columns:repeat(4, 1fr);
+      gap:12px;
     }
 
-    .readout-full {
-      grid-column: 1 / -1;
+    .stat{
+      padding:16px;
+      border-radius:18px;
+      background:#fff;
+      border:1px solid var(--line);
+      box-shadow:var(--shadow-soft);
     }
 
-    .box {
-      background:
-        linear-gradient(180deg, rgba(7,9,12,0.98), rgba(13,15,18,0.98));
-      border: 1px solid rgba(255,255,255,0.06);
-      border-left: 3px solid rgba(212,174,99,0.36);
-      border-radius: 14px;
-      padding: 14px 16px;
-      min-height: 60px;
-      line-height: 1.55;
-      font-size: 15px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.02),
-        0 6px 12px rgba(0,0,0,0.18);
+    .stat .mini-label{
+      margin-bottom:8px;
     }
 
-    .team-card {
-      position: relative;
-      overflow: hidden;
-      border-radius: 24px;
-      padding: 18px;
-      background:
-        linear-gradient(180deg, rgba(13,15,18,0.98), rgba(8,10,13,0.99));
-      border: 1px solid rgba(255,255,255,0.06);
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.03),
-        0 16px 28px rgba(0,0,0,0.22);
+    .stat-value{
+      font-size:28px;
+      font-weight:1000;
+      letter-spacing:-.04em;
     }
 
-    .team-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background:
-        linear-gradient(135deg, rgba(212,174,99,0.06), transparent 34%),
-        radial-gradient(circle at 84% 22%, rgba(255,255,255,0.035) 0 5px, transparent 6px);
-      opacity: 0.6;
+    .readout{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
     }
 
-    .team-card.a {
-      box-shadow:
-        inset 4px 0 0 rgba(212,174,99,0.72),
-        0 16px 28px rgba(0,0,0,0.22);
+    .readout-full{
+      grid-column:1 / -1;
     }
 
-    .team-card.b {
-      box-shadow:
-        inset 4px 0 0 rgba(217,92,92,0.82),
-        0 16px 28px rgba(0,0,0,0.22);
+    .box{
+      min-height:58px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:#fff;
+      padding:14px 15px;
+      line-height:1.55;
+      font-size:15px;
+      white-space:pre-wrap;
+      word-break:break-word;
+      box-shadow:var(--shadow-soft);
     }
 
-    .team-name {
-      margin: 0 0 10px;
-      font-size: clamp(24px, 2.6vw, 40px);
-      font-weight: 1000;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text);
+    .score-row{
+      display:grid;
+      grid-template-columns:repeat(5, 1fr);
+      gap:12px;
+      margin-top:6px;
     }
 
-    .sources-list {
-      display: grid;
-      gap: 12px;
+    .score-card{
+      padding:16px;
+      border-radius:18px;
+      background:#fff;
+      border:1px solid var(--line);
+      box-shadow:var(--shadow-soft);
     }
 
-    .source-item {
-      background:
-        linear-gradient(180deg, rgba(8,10,13,0.98), rgba(14,16,19,0.98));
-      border: 1px solid rgba(255,255,255,0.06);
-      border-left: 3px solid rgba(212,174,99,0.34);
-      border-radius: 16px;
-      padding: 14px 16px;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.02),
-        0 6px 12px rgba(0,0,0,0.18);
+    .score-card .score{
+      font-size:30px;
+      font-weight:1000;
+      letter-spacing:-.04em;
+      margin:8px 0 4px;
     }
 
-    .source-claim {
-      font-weight: 900;
-      color: var(--text);
-      margin-bottom: 8px;
-      line-height: 1.45;
+    .score-card .sub{
+      color:var(--muted);
+      font-size:13px;
+      font-weight:700;
     }
 
-    .source-meta {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.45;
+    .pill-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
     }
 
-    .source-link {
-      color: var(--gold);
-      text-decoration: none;
-      border-bottom: 1px solid rgba(212,174,99,0.35);
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      min-height:38px;
+      padding:0 14px;
+      border-radius:999px;
+      background:#fff;
+      border:1px solid var(--line);
+      color:var(--text);
+      box-shadow:var(--shadow-soft);
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.04em;
     }
 
-    .source-link:hover {
-      border-bottom-color: rgba(212,174,99,0.85);
+    .list{
+      display:grid;
+      gap:12px;
     }
 
-    .muted-note {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.5;
+    .list-item{
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:16px;
+      padding:14px 15px;
+      box-shadow:var(--shadow-soft);
     }
 
-    .status-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 12px;
+    .list-title{
+      font-weight:900;
+      margin-bottom:6px;
     }
 
-    .status-tag {
-      display: inline-flex;
-      align-items: center;
-      min-height: 34px;
-      padding: 0 12px;
-      border-radius: 999px;
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--silver);
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
+    .list-meta{
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.5;
     }
 
-    @media (max-width: 1160px) {
+    .muted-note{
+      color:var(--muted);
+      line-height:1.55;
+      font-size:14px;
+    }
+
+    .footer-note{
+      margin-top:4px;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.5;
+    }
+
+    @media (max-width: 1180px){
       .grid-2,
-      .readout {
-        grid-template-columns: 1fr;
+      .field-grid,
+      .readout,
+      .score-row,
+      .stats-grid{
+        grid-template-columns:1fr;
       }
 
-      .topbar {
-        flex-direction: column;
-        align-items: stretch;
+      .hero{
+        flex-direction:column;
       }
 
-      .top-status {
-        justify-content: flex-start;
+      .hero-right{
+        justify-content:flex-start;
       }
     }
   </style>
 </head>
 <body>
-  <div class="frame">
-    <div class="screen">
-      <div class="topbar">
-        <div class="brand">
-          <div class="coin"></div>
-          <div>
-            <h1 class="title">Debate Judgment</h1>
-            <div class="subtitle">Black File Analysis Console</div>
-          </div>
-        </div>
-
-        <div class="top-status">
-          <div class="chip">Continental Mode</div>
-          <div class="chip gold" id="modePillTop">Analysis Mode: -</div>
+  <div class="app">
+    <div class="hero">
+      <div class="hero-left">
+        <div class="orb"></div>
+        <div>
+          <h1 class="title">Reasoning Audit</h1>
+          <div class="subtitle">Brighter console. Real backend. Less nonsense.</div>
         </div>
       </div>
 
-      <div class="layout">
+      <div class="hero-right">
+        <div class="chip">Frontend Rewrite</div>
+        <div class="chip">Backend Sync</div>
+        <div class="chip primary" id="topMode">Mode: -</div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="grid-2">
         <div class="panel">
-          <div class="section-title"><span class="accent">Input</span> Intake</div>
+          <h2 class="section-title"><span class="accent">Input</span> Intake</h2>
 
-          <div class="grid-2">
+          <div class="field-grid">
             <div class="field">
-              <label for="teamAName">Team A Name</label>
-              <input id="teamAName" type="text" placeholder="Enter Team A name" />
+              <label for="teamAName">Label A</label>
+              <input id="teamAName" type="text" placeholder="Optional label for left-side summary" />
             </div>
             <div class="field">
-              <label for="teamBName">Team B Name</label>
-              <input id="teamBName" type="text" placeholder="Enter Team B name" />
+              <label for="teamBName">Label B</label>
+              <input id="teamBName" type="text" placeholder="Optional label for right-side summary" />
             </div>
           </div>
 
-          <div class="field" style="margin-top:18px;">
-            <label for="transcriptText">Transcript</label>
-            <textarea id="transcriptText" placeholder="Paste debate transcript here..."></textarea>
+          <div class="field" style="margin-top:14px;">
+            <label for="transcriptText">Transcript / Text</label>
+            <textarea id="transcriptText" placeholder="Paste transcript or argument text here..."></textarea>
           </div>
 
-          <div class="field" style="margin-top:18px;">
-            <label for="videoLink">Video Link (optional)</label>
-            <input id="videoLink" type="text" placeholder="Paste a video link..." />
+          <div class="field" style="margin-top:14px;">
+            <label for="videoLink">Link (optional)</label>
+            <input id="videoLink" type="text" placeholder="Paste a page or video link..." />
           </div>
 
           <div class="actions">
-            <button class="primary" id="analyzeBtn">Analyze Debate</button>
-            <button class="secondary" id="clearBtn">Clear</button>
-            <div class="mode-pill" id="modePill">Analysis Mode: -</div>
-          </div>
-
-          <div class="status-row">
-            <div class="status-tag">MIB Aesthetic</div>
-            <div class="status-tag">Wick Weight</div>
-            <div class="status-tag">Same Connector</div>
+            <button class="primary-btn" id="analyzeBtn">Gauge Reasoning</button>
+            <button class="secondary-btn" id="clearBtn">Clear</button>
+            <div class="helper-pill" id="modePill">Mode: -</div>
           </div>
 
           <div class="error" id="errorBox"></div>
+          <div class="footer-note">
+            This version uses the backend response you actually have: structure, topics, scores, labels, worldview, and feature debug.
+          </div>
         </div>
 
         <div class="panel">
-          <div class="section-title"><span class="accent">Core</span> Verdict</div>
-          <div class="readout">
-            <div>
+          <h2 class="section-title"><span class="accent">Quick</span> View</h2>
+
+          <div class="stats-grid">
+            <div class="stat">
+              <div class="mini-label">Structure</div>
+              <div class="stat-value" id="structure">-</div>
+            </div>
+            <div class="stat">
               <div class="mini-label">Winner</div>
-              <div class="box" id="winner">-</div>
+              <div class="stat-value" id="winner">-</div>
             </div>
-            <div>
+            <div class="stat">
               <div class="mini-label">Confidence</div>
-              <div class="box" id="confidence">-</div>
+              <div class="stat-value" id="confidence">-</div>
+            </div>
+            <div class="stat">
+              <div class="mini-label">BS Meter</div>
+              <div class="stat-value" id="bsMeter">-</div>
+            </div>
+          </div>
+
+          <div class="readout" style="margin-top:14px;">
+            <div class="readout-full">
+              <div class="mini-label">Topics</div>
+              <div class="box" id="topics">-</div>
             </div>
             <div>
-              <div class="mini-label">Team A Score</div>
-              <div class="box" id="teamAScore">-</div>
+              <div class="mini-label">Worldview</div>
+              <div class="box" id="worldview">-</div>
             </div>
             <div>
-              <div class="mini-label">Team B Score</div>
-              <div class="box" id="teamBScore">-</div>
+              <div class="mini-label">Mode</div>
+              <div class="box" id="analysisMode">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Core Read</div>
+              <div class="box" id="core_disagreement">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="section-title"><span class="accent">Score</span> Board</h2>
+        <div class="score-row">
+          <div class="score-card">
+            <div class="mini-label">Clarity</div>
+            <div class="score" id="clarityScore">-</div>
+            <div class="sub" id="clarityLabel">-</div>
+          </div>
+          <div class="score-card">
+            <div class="mini-label">Integrity</div>
+            <div class="score" id="integrityScore">-</div>
+            <div class="sub" id="integrityLabel">-</div>
+          </div>
+          <div class="score-card">
+            <div class="mini-label">Honesty</div>
+            <div class="score" id="honestyScore">-</div>
+            <div class="sub" id="honestyLabel">-</div>
+          </div>
+          <div class="score-card">
+            <div class="mini-label">Manipulation</div>
+            <div class="score" id="manipulationScore">-</div>
+            <div class="sub" id="manipulationLabel">-</div>
+          </div>
+          <div class="score-card">
+            <div class="mini-label">BSN</div>
+            <div class="score" id="bsnScore">-</div>
+            <div class="sub" id="bsnLabel">-</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2 class="section-title"><span class="accent">Side</span> A Summary</h2>
+          <div class="readout">
+            <div class="readout-full">
+              <div class="mini-label">Label</div>
+              <div class="box" id="teamAHeader">Team A</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Main Position</div>
+              <div class="box" id="teamA_main_position">-</div>
             </div>
             <div>
-              <div class="mini-label">Team A Lane</div>
+              <div class="mini-label">Lane</div>
               <div class="box" id="teamA_lane">-</div>
             </div>
             <div>
-              <div class="mini-label">Team B Lane</div>
-              <div class="box" id="teamB_lane">-</div>
+              <div class="mini-label">Score</div>
+              <div class="box" id="teamAScore">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Integrity</div>
+              <div class="box" id="teamA_integrity">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Reasoning</div>
+              <div class="box" id="teamA_reasoning">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Truth</div>
+              <div class="box" id="teamA_truth">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Opinion</div>
+              <div class="box" id="teamA_opinion">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Overreach</div>
+              <div class="box" id="teamA_lies">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Noise</div>
+              <div class="box" id="teamA_lala">-</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2 class="section-title"><span class="accent">Side</span> B Summary</h2>
+          <div class="readout">
+            <div class="readout-full">
+              <div class="mini-label">Label</div>
+              <div class="box" id="teamBHeader">Team B</div>
             </div>
             <div class="readout-full">
-              <div class="mini-label">Core Disagreement</div>
-              <div class="box" id="core_disagreement">-</div>
+              <div class="mini-label">Main Position</div>
+              <div class="box" id="teamB_main_position">-</div>
             </div>
             <div>
-              <div class="mini-label">BS Meter</div>
-              <div class="box" id="bsMeter">-</div>
+              <div class="mini-label">Lane</div>
+              <div class="box" id="teamB_lane">-</div>
             </div>
             <div>
-              <div class="mini-label">Strongest Argument Side</div>
+              <div class="mini-label">Score</div>
+              <div class="box" id="teamBScore">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Integrity</div>
+              <div class="box" id="teamB_integrity">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Reasoning</div>
+              <div class="box" id="teamB_reasoning">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Truth</div>
+              <div class="box" id="teamB_truth">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Opinion</div>
+              <div class="box" id="teamB_opinion">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Overreach</div>
+              <div class="box" id="teamB_lies">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Noise</div>
+              <div class="box" id="teamB_lala">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2 class="section-title"><span class="accent">Reasoning</span> Character</h2>
+          <div class="readout">
+            <div>
+              <div class="mini-label">Strongest Side</div>
               <div class="box" id="strongestArgumentSide">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Weakest Overall</div>
+              <div class="box" id="weakestOverall">-</div>
             </div>
             <div class="readout-full">
               <div class="mini-label">Strongest Argument</div>
@@ -675,10 +672,6 @@
               <div class="box" id="failedResponseByOtherSide">-</div>
             </div>
             <div class="readout-full">
-              <div class="mini-label">Weakest Overall</div>
-              <div class="box" id="weakestOverall">-</div>
-            </div>
-            <div class="readout-full">
               <div class="mini-label">Overall Why</div>
               <div class="box" id="why">-</div>
             </div>
@@ -686,79 +679,32 @@
         </div>
 
         <div class="panel">
-          <div class="section-title"><span class="accent">Team</span> Analysis</div>
-          <div class="grid-2">
-            <div class="team-card a">
-              <div class="team-name" id="teamAHeader">Team A</div>
-              <div class="mini-label">Main Position</div>
-              <div class="box" id="teamA_main_position">-</div>
-              <div class="mini-label">Truth</div>
-              <div class="box" id="teamA_truth">-</div>
-              <div class="mini-label">Overreach / Fact Check Issues</div>
-              <div class="box" id="teamA_lies">-</div>
-              <div class="mini-label">Opinion</div>
-              <div class="box" id="teamA_opinion">-</div>
-              <div class="mini-label">Lala Land</div>
-              <div class="box" id="teamA_lala">-</div>
-            </div>
-
-            <div class="team-card b">
-              <div class="team-name" id="teamBHeader">Team B</div>
-              <div class="mini-label">Main Position</div>
-              <div class="box" id="teamB_main_position">-</div>
-              <div class="mini-label">Truth</div>
-              <div class="box" id="teamB_truth">-</div>
-              <div class="mini-label">Overreach / Fact Check Issues</div>
-              <div class="box" id="teamB_lies">-</div>
-              <div class="mini-label">Opinion</div>
-              <div class="box" id="teamB_opinion">-</div>
-              <div class="mini-label">Lala Land</div>
-              <div class="box" id="teamB_lala">-</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="section-title"><span class="accent">Integrity</span> and Reasoning</div>
-          <div class="grid-2">
+          <h2 class="section-title"><span class="accent">Lane</span> + Pressure</h2>
+          <div class="readout">
             <div>
-              <div class="mini-label">Team A Integrity</div>
-              <div class="box" id="teamA_integrity">-</div>
-              <div class="mini-label">Team A Reasoning</div>
-              <div class="box" id="teamA_reasoning">-</div>
+              <div class="mini-label">Same Lane Engagement</div>
+              <div class="box" id="same_lane_engagement">-</div>
             </div>
             <div>
-              <div class="mini-label">Team B Integrity</div>
-              <div class="box" id="teamB_integrity">-</div>
-              <div class="mini-label">Team B Reasoning</div>
-              <div class="box" id="teamB_reasoning">-</div>
+              <div class="mini-label">Lane Mismatch</div>
+              <div class="box" id="lane_mismatch">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Manipulation</div>
+              <div class="box" id="manipulation">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Fluff / Drag</div>
+              <div class="box" id="fluff">-</div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="grid-2">
-          <div class="panel">
-            <div class="section-title"><span class="accent">Worldview</span> Lane Check</div>
-            <div class="mini-label">Same Lane Engagement</div>
-            <div class="box" id="same_lane_engagement">-</div>
-            <div class="mini-label" style="margin-top:14px;">Lane Mismatch</div>
-            <div class="box" id="lane_mismatch">-</div>
-          </div>
-
-          <div class="panel">
-            <div class="section-title"><span class="accent">Pressure</span> and Noise</div>
-            <div class="mini-label">Manipulation</div>
-            <div class="box" id="manipulation">-</div>
-            <div class="mini-label" style="margin-top:14px;">Fluff</div>
-            <div class="box" id="fluff">-</div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="section-title"><span class="accent">Fact Check</span> Sources</div>
-          <div id="sourcesList" class="sources-list">
-            <div class="muted-note">No sources yet.</div>
-          </div>
+      <div class="panel">
+        <h2 class="section-title"><span class="accent">Feature</span> Readout</h2>
+        <div id="sourcesList" class="list">
+          <div class="muted-note">No feature data yet.</div>
         </div>
       </div>
     </div>
@@ -767,148 +713,33 @@
   <script>
     const $ = (id) => document.getElementById(id);
 
-    const fieldIds = [
-      "winner",
-      "confidence",
-      "teamAScore",
-      "teamBScore",
-      "teamA_lane",
-      "teamB_lane",
-      "core_disagreement",
-      "bsMeter",
-      "strongestArgumentSide",
-      "strongestArgument",
-      "whyStrongest",
-      "failedResponseByOtherSide",
-      "weakestOverall",
-      "why",
-      "teamA_main_position",
-      "teamA_truth",
-      "teamA_lies",
-      "teamA_opinion",
-      "teamA_lala",
-      "teamB_main_position",
-      "teamB_truth",
-      "teamB_lies",
-      "teamB_opinion",
-      "teamB_lala",
-      "teamA_integrity",
-      "teamB_integrity",
-      "teamA_reasoning",
-      "teamB_reasoning",
-      "same_lane_engagement",
-      "lane_mismatch",
-      "manipulation",
-      "fluff"
-    ];
-
     function sanitizeDisplayText(value) {
-      let text = value == null ? "" : String(value);
-
-      text = text
-        .replace(/\b\d{1,3}:\d{2,3}(?::\d{2})?\b/g, " ")
-        .replace(/\b\d+\s*(minutes?|seconds?|mins?|secs?)\b/gi, " ")
-        .replace(/\|\s*/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/\bseconds([A-Z])/g, " $1")
-        .replace(/\bminutes([A-Z])/g, " $1")
-        .replace(/\bsecond([A-Z])/g, " $1")
-        .replace(/\bminute([A-Z])/g, " $1")
-        .replace(/\s+,/g, ",")
-        .replace(/\s+\./g, ".")
-        .replace(/[ \t]{2,}/g, " ")
+      if (value == null) return "-";
+      const text = String(value)
+        .replace(/[ \t]+/g, " ")
         .trim();
-
       return text || "-";
     }
 
-    function cleanWhy(value) {
-      const text = sanitizeDisplayText(value);
-      if (/request too large|provider error|tpm|token limit/i.test(text)) {
-        return "Live AI skipped. Showing local analysis.";
-      }
-      return text;
+    function cap(word) {
+      const str = sanitizeDisplayText(word);
+      return str === "-" ? "-" : str.charAt(0).toUpperCase() + str.slice(1);
     }
 
-    function formatBoxValue(id, value) {
-      if (value == null || String(value).trim() === "") return "-";
-
-      if (id === "confidence") {
-        const str = String(value).trim();
-        return str.includes("%") ? str : str + "%";
-      }
-
-      if (id === "why") {
-        return cleanWhy(value);
-      }
-
-      return sanitizeDisplayText(value);
+    function percent(value) {
+      if (value == null || value === "") return "-";
+      return String(value);
     }
 
-    function fillBox(id, value) {
+    function setText(id, value) {
       const el = $(id);
       if (!el) return;
-      el.textContent = formatBoxValue(id, value);
-    }
-
-    function resetSources() {
-      const wrap = $("sourcesList");
-      wrap.innerHTML = '<div class="muted-note">No sources yet.</div>';
-    }
-
-    function renderSources(sources) {
-      const wrap = $("sourcesList");
-      wrap.innerHTML = "";
-
-      if (!Array.isArray(sources) || !sources.length) {
-        wrap.innerHTML = '<div class="muted-note">No source details returned.</div>';
-        return;
-      }
-
-      sources.forEach((source) => {
-        if (!source) return;
-
-        const item = document.createElement("div");
-        item.className = "source-item";
-
-        const claim = document.createElement("div");
-        claim.className = "source-claim";
-        claim.textContent = sanitizeDisplayText(source.claim || "Unknown claim");
-
-        const meta = document.createElement("div");
-        meta.className = "source-meta";
-
-        const type = sanitizeDisplayText(source.type || source.status || "general");
-        const confidence = sanitizeDisplayText(source.confidence || "unknown");
-        const likely = source.likely_source
-          ? String(source.likely_source).trim()
-          : (source.source ? String(source.source).trim() : "");
-
-        if (/^https?:\/\//i.test(likely)) {
-          meta.innerHTML =
-            'Type: ' + escapeHtml(type) +
-            '<br>Confidence: ' + escapeHtml(confidence) +
-            '<br>Source: <a class="source-link" href="' + escapeAttr(likely) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(likely) + '</a>';
-        } else {
-          meta.innerHTML =
-            'Type: ' + escapeHtml(type) +
-            '<br>Confidence: ' + escapeHtml(confidence) +
-            '<br>Source: ' + escapeHtml(sanitizeDisplayText(likely || "Requires manual review"));
-        }
-
-        if (source.note) {
-          meta.innerHTML += '<br>Note: ' + escapeHtml(sanitizeDisplayText(source.note));
-        }
-
-        item.appendChild(claim);
-        item.appendChild(meta);
-        wrap.appendChild(item);
-      });
+      el.textContent = sanitizeDisplayText(value);
     }
 
     function showError(message) {
       const box = $("errorBox");
-      box.textContent = message || "Something went wrong.";
+      box.textContent = sanitizeDisplayText(message);
       box.style.display = "block";
     }
 
@@ -918,75 +749,186 @@
       box.style.display = "none";
     }
 
+    function resetFeatureList() {
+      $("sourcesList").innerHTML = '<div class="muted-note">No feature data yet.</div>';
+    }
+
     function resetResults() {
-      fieldIds.forEach((id) => fillBox(id, "-"));
-      $("teamAHeader").textContent = "Team A";
-      $("teamBHeader").textContent = "Team B";
-      $("modePill").textContent = "Analysis Mode: -";
-      $("modePillTop").textContent = "Analysis Mode: -";
-      resetSources();
+      [
+        "structure","winner","confidence","bsMeter","topics","worldview","analysisMode",
+        "clarityScore","clarityLabel","integrityScore","integrityLabel",
+        "honestyScore","honestyLabel","manipulationScore","manipulationLabel",
+        "bsnScore","bsnLabel","teamAHeader","teamA_main_position","teamA_lane",
+        "teamAScore","teamA_integrity","teamA_reasoning","teamA_truth","teamA_opinion",
+        "teamA_lies","teamA_lala","teamBHeader","teamB_main_position","teamB_lane",
+        "teamBScore","teamB_integrity","teamB_reasoning","teamB_truth","teamB_opinion",
+        "teamB_lies","teamB_lala","strongestArgumentSide","weakestOverall",
+        "strongestArgument","whyStrongest","failedResponseByOtherSide","why",
+        "same_lane_engagement","lane_mismatch","manipulation","fluff","topMode","modePill","core_disagreement"
+      ].forEach((id) => setText(id, "-"));
+
+      resetFeatureList();
       hideError();
     }
 
+    function levelFromScore(score) {
+      if (score >= 75) return "High";
+      if (score >= 45) return "Mixed";
+      return "Low";
+    }
+
+    function bsnLevel(score) {
+      if (score >= 75) return "Severe";
+      if (score >= 50) return "High";
+      if (score >= 25) return "Moderate";
+      return "Low";
+    }
+
+    function renderFeatureList(features) {
+      const wrap = $("sourcesList");
+      wrap.innerHTML = "";
+
+      if (!features) {
+        resetFeatureList();
+        return;
+      }
+
+      const entries = [
+        ["Thesis Clarity", features.thesisClarity],
+        ["Specificity", features.specificity],
+        ["Structure Coherence", features.structureCoherence],
+        ["Responsiveness", features.responsiveness],
+        ["Quote Fairness", features.quoteFairness],
+        ["Distinction Honesty", features.distinctionHonesty],
+        ["Burden Discipline", features.burdenDiscipline],
+        ["Emotional Pressure", features.emotionalPressure],
+        ["Overreach Severity", features.overreachSeverity],
+        ["Unsupported Claim Rate", features.unsupportedClaimRate],
+        ["Tribal Framing", features.tribalFraming],
+        ["Contradiction Severity", features.contradictionSeverity]
+      ];
+
+      entries.forEach(([label, value]) => {
+        const item = document.createElement("div");
+        item.className = "list-item";
+        item.innerHTML = `
+          <div class="list-title">${label}</div>
+          <div class="list-meta">Score: ${sanitizeDisplayText(value)}</div>
+        `;
+        wrap.appendChild(item);
+      });
+    }
+
     function renderResult(data) {
-      fillBox("winner", data.winner);
-      fillBox("confidence", data.confidence);
-      fillBox("teamAScore", data.teamAScore);
-      fillBox("teamBScore", data.teamBScore);
-      fillBox("teamA_lane", data.teamA_lane);
-      fillBox("teamB_lane", data.teamB_lane);
-      fillBox("core_disagreement", data.core_disagreement);
-      fillBox("bsMeter", data.bsMeter);
-      fillBox("strongestArgumentSide", data.strongestArgumentSide);
-      fillBox("strongestArgument", data.strongestArgument);
-      fillBox("whyStrongest", data.whyStrongest);
-      fillBox("failedResponseByOtherSide", data.failedResponseByOtherSide);
-      fillBox("weakestOverall", data.weakestOverall);
-      fillBox("why", data.why);
+      const teamAName = $("teamAName").value.trim() || "Side A";
+      const teamBName = $("teamBName").value.trim() || "Side B";
 
-      fillBox("teamA_main_position", data.teamA && data.teamA.main_position);
-      fillBox("teamA_truth", data.teamA && data.teamA.truth);
-      fillBox("teamA_lies", data.teamA && data.teamA.lies);
-      fillBox("teamA_opinion", data.teamA && data.teamA.opinion);
-      fillBox("teamA_lala", data.teamA && data.teamA.lala);
+      const structure = sanitizeDisplayText(data.structure || "-");
+      const topics = Array.isArray(data.topics) && data.topics.length ? data.topics.map(cap).join(" • ") : "-";
+      const worldview = Array.isArray(data.worldview) && data.worldview.length ? data.worldview.map(cap).join(" • ") : "-";
 
-      fillBox("teamB_main_position", data.teamB && data.teamB.main_position);
-      fillBox("teamB_truth", data.teamB && data.teamB.truth);
-      fillBox("teamB_lies", data.teamB && data.teamB.lies);
-      fillBox("teamB_opinion", data.teamB && data.teamB.opinion);
-      fillBox("teamB_lala", data.teamB && data.teamB.lala);
+      const clarity = Number(data?.scores?.clarity ?? 0);
+      const integrity = Number(data?.scores?.integrity ?? 0);
+      const honesty = Number(data?.scores?.honesty ?? 0);
+      const manipulation = Number(data?.scores?.manipulation ?? 0);
+      const bsn = Number(data?.scores?.bsn ?? 0);
 
-      fillBox("teamA_integrity", data.teamA_integrity);
-      fillBox("teamB_integrity", data.teamB_integrity);
-      fillBox("teamA_reasoning", data.teamA_reasoning);
-      fillBox("teamB_reasoning", data.teamB_reasoning);
-      fillBox("same_lane_engagement", data.same_lane_engagement);
-      fillBox("lane_mismatch", data.lane_mismatch);
-      fillBox("manipulation", data.manipulation);
-      fillBox("fluff", data.fluff);
+      const honestyText = sanitizeDisplayText(data?.labels?.honesty || levelFromScore(honesty));
+      const ignoranceText = sanitizeDisplayText(data?.labels?.ignorance || "-");
+      const manipulationText = sanitizeDisplayText(data?.labels?.manipulation || levelFromScore(manipulation));
+      const deceptionText = sanitizeDisplayText(data?.labels?.deception || "-");
+      const bsnText = sanitizeDisplayText(data?.labels?.bsn || bsnLevel(bsn));
 
-      $("teamAHeader").textContent = sanitizeDisplayText(data.teamAName || "Team A");
-      $("teamBHeader").textContent = sanitizeDisplayText(data.teamBName || "Team B");
+      const mode = structure === "debate" ? "Debate Judgment" : "Reasoning Audit";
 
-      const mode = sanitizeDisplayText(data.analysisMode || "-");
-      $("modePill").textContent = "Analysis Mode: " + mode;
-      $("modePillTop").textContent = "Analysis Mode: " + mode;
+      setText("structure", cap(structure));
+      setText("winner", structure === "debate" ? "No Winner Logic Yet" : "Suppressed");
+      setText("confidence", structure === "debate" ? "Low" : "N/A");
+      setText("bsMeter", bsnText);
+      setText("topics", topics);
+      setText("worldview", worldview);
+      setText("analysisMode", mode);
+      setText("topMode", "Mode: " + mode);
+      setText("modePill", "Mode: " + mode);
 
-      renderSources(data.sources);
+      setText("clarityScore", percent(clarity));
+      setText("clarityLabel", levelFromScore(clarity));
+      setText("integrityScore", percent(integrity));
+      setText("integrityLabel", levelFromScore(integrity));
+      setText("honestyScore", percent(honesty));
+      setText("honestyLabel", honestyText);
+      setText("manipulationScore", percent(manipulation));
+      setText("manipulationLabel", manipulationText);
+      setText("bsnScore", percent(bsn));
+      setText("bsnLabel", bsnText);
+
+      setText("teamAHeader", teamAName);
+      setText("teamA_main_position", structure === "debate"
+        ? "Detected as debate structure. This side would need true side-splitting logic for a clean extraction."
+        : "Primary speaker / source is being treated as a single commentary stream, not a clean two-team exchange."
+      );
+      setText("teamA_lane", worldview.split(" • ")[0] || worldview);
+      setText("teamAScore", percent(Math.round((clarity + integrity + honesty) / 3)));
+      setText("teamA_integrity", "Integrity " + integrity + " • Honesty " + honestyText);
+      setText("teamA_reasoning", "Clarity " + clarity + " • Manipulation " + manipulationText + " • BSN " + bsnText);
+      setText("teamA_truth", "This backend gives score-based reasoning audit, not full external fact-check.");
+      setText("teamA_opinion", "Topics: " + topics);
+      setText("teamA_lies", "Deception risk: " + deceptionText);
+      setText("teamA_lala", "Ignorance: " + ignoranceText);
+
+      setText("teamBHeader", teamBName);
+      setText("teamB_main_position", structure === "debate"
+        ? "Comparison UI is present, but the current backend does not return split team arguments yet."
+        : "Second-side boxes are placeholders until you add multi-speaker or side-separation logic."
+      );
+      setText("teamB_lane", structure === "debate" ? worldview : "Not split");
+      setText("teamBScore", structure === "debate" ? "Pending split logic" : "N/A");
+      setText("teamB_integrity", structure === "debate" ? "Pending split logic" : "Not available");
+      setText("teamB_reasoning", structure === "debate" ? "Pending split logic" : "Not available");
+      setText("teamB_truth", structure === "debate" ? "Pending split logic" : "Not available");
+      setText("teamB_opinion", structure === "debate" ? "Pending split logic" : "Not available");
+      setText("teamB_lies", structure === "debate" ? "Pending split logic" : "Not available");
+      setText("teamB_lala", structure === "debate" ? "Pending split logic" : "Not available");
+
+      setText("strongestArgumentSide", structure === "debate" ? "Unknown until side split" : "Primary Speaker");
+      setText("weakestOverall", bsn >= 50 ? "Overreach / unsupported claims" : "Not strongly flagged");
+      setText("strongestArgument",
+        "This UI now reports what the backend actually returns: structure, topics, worldview, and reasoning scores."
+      );
+      setText("whyStrongest",
+        "Because it is honest about the current backend limits instead of pretending there is a clean winner when there is not."
+      );
+      setText("failedResponseByOtherSide",
+        structure === "debate"
+          ? "No reliable side-to-side failure logic yet."
+          : "No other side extracted from the current backend response."
+      );
+      setText("why",
+        `Structure is ${structure}. Clarity ${clarity}, Integrity ${integrity}, Honesty ${honestyText}, Manipulation ${manipulationText}, BSN ${bsnText}.`
+      );
+
+      setText("same_lane_engagement", structure === "debate" ? "Unknown until side split" : "False");
+      setText("lane_mismatch", structure === "debate" ? "Unknown until side split" : "Likely");
+      setText("manipulation", `Level: ${manipulationText} • Score: ${manipulation}`);
+      setText("fluff", `Higher BSN usually means more drag. Current BSN: ${bsnText} (${bsn})`);
+
+      setText("core_disagreement",
+        structure === "debate"
+          ? "Debate detected, but this backend still needs real side separation before strong comparative judgment."
+          : "Commentary / monologue style input detected. Winner judgment is suppressed and reasoning audit is shown instead."
+      );
+
+      renderFeatureList(data?.debug?.features);
     }
 
     async function analyze() {
       hideError();
 
-      const payload = {
-        teamAName: $("teamAName").value.trim(),
-        teamBName: $("teamBName").value.trim(),
-        transcriptText: $("transcriptText").value,
-        videoLink: $("videoLink").value.trim()
-      };
+      const text = $("transcriptText").value.trim();
+      const link = $("videoLink").value.trim();
 
-      if (!payload.transcriptText.trim()) {
-        showError("Paste a transcript first.");
+      if (!text && !link) {
+        showError("Paste text or provide a link first.");
         return;
       }
 
@@ -994,16 +936,16 @@
       $("analyzeBtn").textContent = "Analyzing...";
 
       try {
-        const response = await fetch("/api/analyze2", {
+        const response = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ text, link })
         });
 
         const data = await response.json().catch(() => null);
 
         if (!response.ok || !data) {
-          showError((data && data.error) || "Server returned invalid JSON");
+          showError((data && data.error) || "Server returned invalid JSON.");
           return;
         }
 
@@ -1014,10 +956,10 @@
 
         renderResult(data);
       } catch (err) {
-        showError("Request failed. Check your backend route and try again.");
+        showError("Request failed. Check that your backend is running at /api/analyze.");
       } finally {
         $("analyzeBtn").disabled = false;
-        $("analyzeBtn").textContent = "Analyze Debate";
+        $("analyzeBtn").textContent = "Gauge Reasoning";
       }
     }
 
@@ -1027,19 +969,6 @@
       $("transcriptText").value = "";
       $("videoLink").value = "";
       resetResults();
-    }
-
-    function escapeHtml(value) {
-      return String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    }
-
-    function escapeAttr(value) {
-      return String(value).replace(/"/g, "&quot;");
     }
 
     $("analyzeBtn").addEventListener("click", analyze);
