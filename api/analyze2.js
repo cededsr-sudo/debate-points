@@ -39,27 +39,86 @@ export default async function handler(req, res) {
     const topics = detectTopics(cleaned);
     const worldview = detectWorldview(cleaned);
 
-    const features = scoreFeatures(cleaned, sentences);
-    const scores = computeScores(features);
+    const split = splitSpeakers(cleaned, structure);
 
-    const ignorance = deriveIgnorance(features, scores);
-    const deception = deriveDeception(features, scores);
+    const sideASentences = splitSentences(split.A);
+    const sideBSentences = splitSentences(split.B);
+
+    const featuresA = scoreFeatures(split.A, sideASentences);
+    const featuresB = scoreFeatures(split.B, sideBSentences);
+
+    const scoresA = computeScores(featuresA);
+    const scoresB = computeScores(featuresB);
+
+    const ignoranceA = deriveIgnorance(featuresA, scoresA);
+    const ignoranceB = deriveIgnorance(featuresB, scoresB);
+
+    const deceptionA = deriveDeception(featuresA, scoresA);
+    const deceptionB = deriveDeception(featuresB, scoresB);
+
+    const verdict = compareSides(scoresA, scoresB, featuresA, featuresB);
 
     return res.status(200).json({
       structure,
       topics,
       worldview,
-      scores,
-      labels: {
-        honesty: honestyLabel(scores.honesty),
-        ignorance: ignoranceLabel(ignorance),
-        manipulation: manipulationLabel(scores.manipulation),
-        deception: deceptionLabel(deception),
-        bsn: bsnLabel(scores.bsn)
+
+      sideA: {
+        label: "A",
+        textSample: summarizeSide(split.A),
+        scores: scoresA,
+        labels: {
+          honesty: honestyLabel(scoresA.honesty),
+          ignorance: ignoranceLabel(ignoranceA),
+          manipulation: manipulationLabel(scoresA.manipulation),
+          deception: deceptionLabel(deceptionA),
+          bsn: bsnLabel(scoresA.bsn)
+        },
+        debug: {
+          features: featuresA,
+          sentenceCount: sideASentences.length
+        }
       },
+
+      sideB: {
+        label: "B",
+        textSample: summarizeSide(split.B),
+        scores: scoresB,
+        labels: {
+          honesty: honestyLabel(scoresB.honesty),
+          ignorance: ignoranceLabel(ignoranceB),
+          manipulation: manipulationLabel(scoresB.manipulation),
+          deception: deceptionLabel(deceptionB),
+          bsn: bsnLabel(scoresB.bsn)
+        },
+        debug: {
+          features: featuresB,
+          sentenceCount: sideBSentences.length
+        }
+      },
+
+      verdict,
+
+      scores: {
+        clarity: round((scoresA.clarity + scoresB.clarity) / 2),
+        integrity: round((scoresA.integrity + scoresB.integrity) / 2),
+        honesty: round((scoresA.honesty + scoresB.honesty) / 2),
+        manipulation: round((scoresA.manipulation + scoresB.manipulation) / 2),
+        bsn: round((scoresA.bsn + scoresB.bsn) / 2)
+      },
+
+      labels: {
+        honesty: honestyLabel(round((scoresA.honesty + scoresB.honesty) / 2)),
+        ignorance: ignoranceLabel(round((ignoranceA + ignoranceB) / 2)),
+        manipulation: manipulationLabel(round((scoresA.manipulation + scoresB.manipulation) / 2)),
+        deception: deceptionLabel(round((deceptionA + deceptionB) / 2)),
+        bsn: bsnLabel(round((scoresA.bsn + scoresB.bsn) / 2))
+      },
+
       winner: null,
+
       debug: {
-        features,
+        splitMode: split.mode,
         textLength: rawText.length,
         cleanedLength: cleaned.length,
         sentenceCount: sentences.length
@@ -176,10 +235,14 @@ function detectStructure(text, sentences) {
   const debateSignals =
     countMatches(lower, /\b(team a|team b|moderator|rebuttal|cross examination|opening statement|closing statement|debate)\b/g);
 
+  const interviewSignals =
+    countMatches(lower, /\b(i'm|welcome|my question is|i'm wondering|do you think|what i'd like|why not just oppose|i guess)\b/g);
+
   const quoteSignals =
     countMatches(lower, /\b(let me read|have a watch|have a listen|he said|she said|they said|quote|quoted|clip)\b/g);
 
   if (debateSignals >= 2) return "debate";
+  if (interviewSignals >= 6) return "debate";
   if (quoteSignals >= 1 || sentences.length > 5) return "commentary";
   return "commentary";
 }
@@ -195,11 +258,11 @@ function detectTopics(text) {
     tribal: 0
   };
 
-  topicScores.political += countMatches(lower, /\b(trump|president|maga|election|policy|america|conservative|left|right|government|iran|israel|midterms)\b/g);
+  topicScores.political += countMatches(lower, /\b(trump|president|maga|election|policy|america|conservative|left|right|government|iran|israel|midterms|congress|democrat|republican|war)\b/g);
   topicScores.moral += countMatches(lower, /\b(right|wrong|moral|immoral|virtue|evil|goodness|clarity|justice|hate|integrity)\b/g);
   topicScores.theological += countMatches(lower, /\b(god|torah|bible|judaism|jews|chosen|messianic|rabbi|esau|jacob|cain|abel|christianity|christian|scripture)\b/g);
-  topicScores.media += countMatches(lower, /\b(podcast|podcasters|cnn|fox|new york times|tweet|truth|show|television|tv|journalist|clip|documentary)\b/g);
-  topicScores.empirical += countMatches(lower, /\b(evidence|proof|fact|reported|video|claim|support|data|source|experiment)\b/g);
+  topicScores.media += countMatches(lower, /\b(podcast|podcasters|cnn|fox|new york times|tweet|truth|show|television|tv|journalist|clip|documentary|interview|reporting)\b/g);
+  topicScores.empirical += countMatches(lower, /\b(evidence|proof|fact|reported|video|claim|support|data|source|experiment|briefed|classified)\b/g);
   topicScores.tribal += countMatches(lower, /\b(real maga|not maga|our side|their side|coalition|betrayal|turn on|dark side|base)\b/g);
 
   const sorted = Object.entries(topicScores)
@@ -208,7 +271,6 @@ function detectTopics(text) {
     .map(([topic]) => topic);
 
   if (sorted.length) return sorted.slice(0, 4);
-
   return ["political", "media"];
 }
 
@@ -223,11 +285,11 @@ function detectWorldview(text) {
     empirical: 0
   };
 
-  lanes.political += countMatches(lower, /\b(trump|president|policy|election|government|america|maga|conservative|left|right|coalition)\b/g);
+  lanes.political += countMatches(lower, /\b(trump|president|policy|election|government|america|maga|conservative|left|right|coalition|war|iran|israel)\b/g);
   lanes.tribal += countMatches(lower, /\b(real maga|not maga|our side|their side|betrayal|base|coalition|turn on)\b/g);
   lanes.theological += countMatches(lower, /\b(god|torah|bible|messianic|rabbi|esau|jacob|chosen|judaism|christianity|christian)\b/g);
   lanes.moral += countMatches(lower, /\b(right|wrong|moral|immoral|virtue|evil|goodness|clarity|justice)\b/g);
-  lanes.empirical += countMatches(lower, /\b(evidence|proof|fact|source|reported|video|support|data)\b/g);
+  lanes.empirical += countMatches(lower, /\b(evidence|proof|fact|source|reported|video|support|data|briefed|classified)\b/g);
 
   const sorted = Object.entries(lanes)
     .sort((a, b) => b[1] - a[1])
@@ -236,27 +298,86 @@ function detectWorldview(text) {
     .map(([lane]) => lane);
 
   if (sorted.length) return sorted;
-
   return ["political"];
+}
+
+function splitSpeakers(text, structure) {
+  const lines = text.split("\n").map((x) => x.trim()).filter(Boolean);
+
+  if (structure !== "debate") {
+    const midpoint = Math.max(1, Math.floor(lines.length / 2));
+    return {
+      mode: "half_split",
+      A: lines.slice(0, midpoint).join(" "),
+      B: lines.slice(midpoint).join(" ")
+    };
+  }
+
+  const questionLike = [];
+  const answerLike = [];
+
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+
+    const looksQuestion =
+      line.includes("?") ||
+      /\b(i'm wondering|do you think|why|what|how|would you|are you|so you|my question|i guess then my question)\b/.test(lower);
+
+    const looksAnswer =
+      /\b(well|so|i think|i believe|what i'd like|my view|i don't think|i do think|i know|i mean|the answer|i support|i oppose)\b/.test(lower);
+
+    if (looksQuestion && !looksAnswer) {
+      questionLike.push(line);
+    } else if (looksAnswer) {
+      answerLike.push(line);
+    } else {
+      if (questionLike.length <= answerLike.length) {
+        questionLike.push(line);
+      } else {
+        answerLike.push(line);
+      }
+    }
+  }
+
+  if (!questionLike.length || !answerLike.length) {
+    const midpoint = Math.max(1, Math.floor(lines.length / 2));
+    return {
+      mode: "fallback_half_split",
+      A: lines.slice(0, midpoint).join(" "),
+      B: lines.slice(midpoint).join(" ")
+    };
+  }
+
+  return {
+    mode: "question_answer_split",
+    A: questionLike.join(" "),
+    B: answerLike.join(" ")
+  };
+}
+
+function summarizeSide(text) {
+  const sentences = splitSentences(text);
+  return sentences.slice(0, 2).join(" ").slice(0, 280) || "-";
 }
 
 function scoreFeatures(text, sentences) {
   const lower = text.toLowerCase();
   const textLength = text.length;
-  const sentenceCount = sentences.length;
+  const sentenceCount = Math.max(sentences.length, 1);
 
   const logicalConnectors = countMatches(lower, /\b(because|therefore|so|thus|hence|which means|that means|for example|for instance|in other words)\b/g);
-  const hedges = countMatches(lower, /\b(maybe|perhaps|i think|i believe|it seems|likely|possibly|might)\b/g);
+  const hedges = countMatches(lower, /\b(maybe|perhaps|i think|i believe|it seems|likely|possibly|might|i guess)\b/g);
   const directAssertions = countMatches(lower, /\b(is|are|was|were|does|did|will|won't|can't|cannot)\b/g);
-  const insults = countMatches(lower, /\b(stupid|loser|losers|low iq|crazy|nut jobs|clowns|idiot|dumb|moral rot|lunacy|deranged)\b/g);
+  const insults = countMatches(lower, /\b(stupid|loser|losers|low iq|crazy|nut jobs|clowns|idiot|dumb|moral rot|lunacy|deranged|liars|unhinged)\b/g);
   const tribalTerms = countMatches(lower, /\b(maga|real maga|not maga|our side|their side|base|coalition|dark side|traitor)\b/g);
-  const evidenceTerms = countMatches(lower, /\b(evidence|proof|reported|source|video|clip|lawsuit|record|fact|support)\b/g);
+  const evidenceTerms = countMatches(lower, /\b(evidence|proof|reported|source|video|clip|lawsuit|record|fact|support|briefed|classified|committee|release)\b/g);
   const quoteTerms = countMatches(lower, /\b(he said|she said|they said|let me read|quote|quoted|have a watch|have a listen)\b/g);
   const overclaimTerms = countMatches(lower, /\b(obviously|clearly|beyond doubt|everyone knows|always|never|completely|totally|absolutely|once and for all)\b/g);
   const contradictionMarkers = countMatches(lower, /\b(but|however|although|on the other hand|yet|still)\b/g);
   const questionCount = countMatches(text, /\?/g);
+  const dodgeTerms = countMatches(lower, /\b(i don't know|hard to say|we don't know|i can't say|i wasn't there|we'll find out|some of this i can't talk about)\b/g);
 
-  const avgSentenceLength = sentenceCount ? textLength / sentenceCount : textLength;
+  const avgSentenceLength = textLength / sentenceCount;
 
   const thesisClarity = clamp(
     35 +
@@ -268,7 +389,7 @@ function scoreFeatures(text, sentences) {
   const specificity = clamp(
     25 +
       evidenceTerms * 5 +
-      countMatches(lower, /\b(trump|tucker|candace|alex jones|megyn|israel|iran|cnn|fox)\b/g) * 2 -
+      countMatches(lower, /\b(trump|iran|israel|congress|committee|cia|classified|missile|nuclear|war)\b/g) * 2 -
       hedges * 2
   );
 
@@ -282,9 +403,9 @@ function scoreFeatures(text, sentences) {
 
   const responsiveness = clamp(
     30 +
-      countMatches(lower, /\b(response|respond|rebuttal|answer|criticize|against|reaction|doubling down)\b/g) * 6 +
-      questionCount * 2 -
-      countMatches(lower, /\b(anyway|moving on|before we get to that|by the way)\b/g) * 4
+      questionCount * 4 +
+      countMatches(lower, /\b(answer|respond|response|oppose|support|why|because|what i'd like|the answer)\b/g) * 2 -
+      dodgeTerms * 3
   );
 
   const quoteFairness = clamp(
@@ -298,7 +419,7 @@ function scoreFeatures(text, sentences) {
   const distinctionHonesty = clamp(
     45 +
       hedges * 3 +
-      countMatches(lower, /\b(i think|i believe|to me|it seems|i would say|in my view)\b/g) * 3 -
+      countMatches(lower, /\b(i think|i believe|to me|it seems|i would say|in my view|in my opinion)\b/g) * 3 -
       overclaimTerms * 3 -
       countMatches(lower, /\b(proves|proof that|beyond any reasonable doubt)\b/g) * 4
   );
@@ -308,26 +429,27 @@ function scoreFeatures(text, sentences) {
       evidenceTerms * 4 -
       overclaimTerms * 3 -
       insults * 2 -
-      countMatches(lower, /\b(liar|hoax|fake|anti-semitic|supremacist|hostage)\b/g) * 2
+      countMatches(lower, /\b(liar|hoax|fake|anti-semitic|supremacist|hostage|genocide)\b/g) * 2
   );
 
   const emotionalPressure = clamp(
     20 +
       insults * 8 +
       tribalTerms * 5 +
-      countMatches(lower, /\b(hate|evil|dark side|traitor|lunacy|dangerous|heinous|obscene)\b/g) * 5
+      countMatches(lower, /\b(hate|evil|dark side|traitor|lunacy|dangerous|heinous|obscene|massive threat|disaster)\b/g) * 5
   );
 
   const overreachSeverity = clamp(
     20 +
       overclaimTerms * 7 +
-      countMatches(lower, /\b(everyone knows|always|never|all of them|no one|once and for all|opposite of maga)\b/g) * 6
+      countMatches(lower, /\b(everyone knows|always|never|all of them|no one|once and for all|massive threat|completely failed)\b/g) * 6
   );
 
   const unsupportedClaimRate = clamp(
     30 +
       Math.max(directAssertions - evidenceTerms - hedges, 0) * 2 +
-      overclaimTerms * 3
+      overclaimTerms * 3 +
+      dodgeTerms * 1
   );
 
   const tribalFraming = clamp(
@@ -338,9 +460,10 @@ function scoreFeatures(text, sentences) {
 
   const contradictionSeverity = clamp(
     15 +
-      Math.max(countMatches(lower, /\b(he doesn't care|he does care|i don't care|i care)\b/g) - 1, 0) * 8 +
+      Math.max(countMatches(lower, /\b(i support|i oppose|i don't support|i do support)\b/g) - 1, 0) * 8 +
       Math.max(countMatches(lower, /\b(always|never)\b/g) - 1, 0) * 4 +
-      Math.max(contradictionMarkers - logicalConnectors, 0) * 1.5
+      Math.max(contradictionMarkers - logicalConnectors, 0) * 1.5 +
+      dodgeTerms * 2
   );
 
   return {
@@ -435,6 +558,35 @@ function deriveDeception(features, scores) {
         0.20 * (100 - scores.integrity)
     )
   );
+}
+
+function compareSides(scoresA, scoresB, featuresA, featuresB) {
+  const burdenA = scoresA.bsn + scoresA.manipulation + featuresA.contradictionSeverity;
+  const burdenB = scoresB.bsn + scoresB.manipulation + featuresB.contradictionSeverity;
+
+  let moreBSN = "tie";
+  if (burdenA > burdenB + 5) moreBSN = "A_more_bsn";
+  if (burdenB > burdenA + 5) moreBSN = "B_more_bsn";
+
+  let moreHonest = "tie";
+  if (scoresA.honesty > scoresB.honesty + 5) moreHonest = "A_more_honest";
+  if (scoresB.honesty > scoresA.honesty + 5) moreHonest = "B_more_honest";
+
+  let clearer = "tie";
+  if (scoresA.clarity > scoresB.clarity + 5) clearer = "A_clearer";
+  if (scoresB.clarity > scoresA.clarity + 5) clearer = "B_clearer";
+
+  return {
+    moreBSN,
+    moreHonest,
+    clearer,
+    summary:
+      moreBSN === "A_more_bsn"
+        ? "Side A carries more BSN overall."
+        : moreBSN === "B_more_bsn"
+        ? "Side B carries more BSN overall."
+        : "Both sides are fairly close on BSN."
+  };
 }
 
 function honestyLabel(score) {
