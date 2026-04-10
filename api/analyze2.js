@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       rawText = await extractTextFromLink(linkInput);
     }
 
-    if (!rawText || rawText.length < 40) {
+    if (!rawText || rawText.trim().length < 25) {
       return res.status(400).json({ error: "Not enough content to analyze." });
     }
 
@@ -36,9 +36,10 @@ export default async function handler(req, res) {
     }
 
     const structure = detectStructure(cleaned, sentences);
-    const topics = detectTopics(cleaned);
-    const worldview = detectWorldview(cleaned);
-    const features = scoreFeatures(cleaned, sentences);
+    const topics = ensureArray(detectTopics(cleaned), ["political", "media"]);
+    const worldview = ensureArray(detectWorldview(cleaned), ["political"]);
+
+    const features = ensureFeatures(scoreFeatures(cleaned, sentences));
     const scores = computeScores(features);
     const ignorance = deriveIgnorance(features, scores);
     const deception = deriveDeception(features, scores);
@@ -106,6 +107,37 @@ function countMatches(text, regex) {
   return matches ? matches.length : 0;
 }
 
+function ensureArray(arr, fallback) {
+  if (Array.isArray(arr) && arr.length) return arr;
+  return fallback.slice();
+}
+
+function ensureFeatures(features) {
+  const fallback = {
+    thesisClarity: 25,
+    specificity: 25,
+    structureCoherence: 25,
+    responsiveness: 25,
+    quoteFairness: 25,
+    distinctionHonesty: 25,
+    burdenDiscipline: 25,
+    emotionalPressure: 25,
+    overreachSeverity: 25,
+    unsupportedClaimRate: 25,
+    tribalFraming: 25,
+    contradictionSeverity: 25
+  };
+
+  if (!features || typeof features !== "object") return fallback;
+
+  const out = {};
+  for (const key of Object.keys(fallback)) {
+    const value = Number(features[key]);
+    out[key] = Number.isFinite(value) ? clamp(value) : fallback[key];
+  }
+  return out;
+}
+
 function cleanText(raw) {
   let text = raw || "";
 
@@ -116,7 +148,7 @@ function cleanText(raw) {
   text = text.replace(/\bAll\s+Politics\s+News\s+For you\s+Recently uploaded\b/gi, " ");
   text = text.replace(/\r/g, "\n");
   text = text.replace(/[ \t]+/g, " ");
-  text = text.replace(/\n{3,}/g, "\n\n");
+  text = text.replace(/\n{2,}/g, "\n");
   text = text.replace(/\s+([,.!?;:])/g, "$1");
   text = text.trim();
 
@@ -150,7 +182,7 @@ async function extractTextFromLink(link) {
 
     const html = await response.text();
 
-    const text = html
+    return html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
@@ -163,8 +195,6 @@ async function extractTextFromLink(link) {
       .replace(/&#39;/g, "'")
       .replace(/\s+/g, " ")
       .trim();
-
-    return text;
   } finally {
     clearTimeout(timeout);
   }
@@ -173,33 +203,14 @@ async function extractTextFromLink(link) {
 function detectStructure(text, sentences) {
   const lower = text.toLowerCase();
 
-  const speakerCues =
-    countMatches(lower, /\b(team a|team b|speaker 1|speaker 2|moderator|host|guest|debate|cross examination|rebuttal)\b/g) +
-    countMatches(lower, /\b(he said|she said|they said|let me read|have a watch|have a listen|clip|quoted|quote)\b/g);
+  const quoteSignals =
+    countMatches(lower, /\b(let me read|have a watch|have a listen|he said|she said|they said|quote|quoted|clip)\b/g);
 
-  const quoteCount =
-    countMatches(text, /["“”]/g) +
-    countMatches(lower, /\b(quote|quoted|let me read|he said|she said|they said)\b/g);
+  const debateSignals =
+    countMatches(lower, /\b(team a|team b|moderator|rebuttal|cross examination|opening statement|closing statement)\b/g);
 
-  const shortSentenceCount = sentences.filter((s) => s.length < 140).length;
-  const quoteDensity = safeDivide(quoteCount, Math.max(text.length / 200, 1));
-  const cueDensity = safeDivide(speakerCues + shortSentenceCount * 0.05, Math.max(sentences.length, 1));
-
-  if (
-    lower.includes("let me read") ||
-    lower.includes("have a watch") ||
-    lower.includes("have a listen") ||
-    lower.includes("i want to show you") ||
-    quoteDensity > 2.0 ||
-    cueDensity < 0.7
-  ) {
-    return "commentary";
-  }
-
-  if (speakerCues >= 4 && sentences.length > 8) {
-    return "debate";
-  }
-
+  if (debateSignals >= 2) return "debate";
+  if (quoteSignals >= 1 || sentences.length > 5) return "commentary";
   return "commentary";
 }
 
@@ -226,7 +237,7 @@ function detectTopics(text) {
     .filter(([, score]) => score > 0)
     .map(([topic]) => topic);
 
-  return sorted.length ? sorted.slice(0, 4) : ["mixed"];
+  return sorted.slice(0, 4);
 }
 
 function detectWorldview(text) {
@@ -252,7 +263,7 @@ function detectWorldview(text) {
     .slice(0, 2)
     .map(([lane]) => lane);
 
-  return sorted.length ? sorted : ["mixed"];
+  return sorted;
 }
 
 function scoreFeatures(text, sentences) {
@@ -377,37 +388,37 @@ function scoreFeatures(text, sentences) {
 function computeScores(features) {
   const clarity = clamp(
     0.30 * features.thesisClarity +
-      0.25 * features.specificity +
-      0.25 * features.structureCoherence +
-      0.20 * features.responsiveness
+    0.25 * features.specificity +
+    0.25 * features.structureCoherence +
+    0.20 * features.responsiveness
   );
 
   const integrity = clamp(
     0.30 * features.quoteFairness +
-      0.25 * features.distinctionHonesty +
-      0.25 * features.burdenDiscipline +
-      0.20 * (100 - features.emotionalPressure)
+    0.25 * features.distinctionHonesty +
+    0.25 * features.burdenDiscipline +
+    0.20 * (100 - features.emotionalPressure)
   );
 
   const honesty = clamp(
     0.35 * features.distinctionHonesty +
-      0.25 * features.quoteFairness +
-      0.20 * (100 - features.contradictionSeverity) +
-      0.20 * (100 - features.overreachSeverity)
+    0.25 * features.quoteFairness +
+    0.20 * (100 - features.contradictionSeverity) +
+    0.20 * (100 - features.overreachSeverity)
   );
 
   const manipulation = clamp(
     0.40 * features.tribalFraming +
-      0.35 * features.emotionalPressure +
-      0.25 * features.unsupportedClaimRate
+    0.35 * features.emotionalPressure +
+    0.25 * features.unsupportedClaimRate
   );
 
   const bsn = clamp(
     0.30 * features.unsupportedClaimRate +
-      0.25 * features.overreachSeverity +
-      0.20 * features.emotionalPressure +
-      0.15 * features.tribalFraming +
-      0.10 * features.contradictionSeverity
+    0.25 * features.overreachSeverity +
+    0.20 * features.emotionalPressure +
+    0.15 * features.tribalFraming +
+    0.10 * features.contradictionSeverity
   );
 
   return {
@@ -423,11 +434,11 @@ function deriveIgnorance(features, scores) {
   return round(
     clamp(
       20 +
-        0.30 * features.unsupportedClaimRate +
-        0.25 * features.overreachSeverity +
-        0.15 * (100 - features.distinctionHonesty) +
-        0.15 * (100 - features.burdenDiscipline) +
-        0.15 * (100 - scores.clarity)
+      0.30 * features.unsupportedClaimRate +
+      0.25 * features.overreachSeverity +
+      0.15 * (100 - features.distinctionHonesty) +
+      0.15 * (100 - features.burdenDiscipline) +
+      0.15 * (100 - scores.clarity)
     )
   );
 }
@@ -436,10 +447,10 @@ function deriveDeception(features, scores) {
   return round(
     clamp(
       10 +
-        0.35 * features.contradictionSeverity +
-        0.25 * features.overreachSeverity +
-        0.20 * (100 - features.quoteFairness) +
-        0.20 * (100 - scores.integrity)
+      0.35 * features.contradictionSeverity +
+      0.25 * features.overreachSeverity +
+      0.20 * (100 - features.quoteFairness) +
+      0.20 * (100 - scores.integrity)
     )
   );
 }
