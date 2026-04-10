@@ -1,142 +1,820 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Reasoning Audit</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reasoning Audit</title>
+  <style>
+    :root {
+      --bg: #eef3ff;
+      --bg2: #f8fbff;
+      --panel: #ffffff;
+      --panel2: #f5f8ff;
+      --line: #d8e2ff;
+      --line-strong: #b9ccff;
+      --text: #162033;
+      --muted: #67748e;
+      --blue: #4f7cff;
+      --blue-2: #7ea5ff;
+      --blue-soft: rgba(79, 124, 255, 0.12);
+      --danger: #d64545;
+      --danger-soft: rgba(214, 69, 69, 0.1);
+      --shadow: 0 18px 48px rgba(49, 76, 145, 0.10);
+      --shadow-soft: 0 8px 22px rgba(49, 76, 145, 0.07);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+    }
 
-<style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #eef3ff;
-}
+    * { box-sizing: border-box; }
 
-.container {
-  max-width: 1200px;
-  margin: auto;
-  padding: 20px;
-}
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      font-family: Inter, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(126,165,255,0.18), transparent 24%),
+        radial-gradient(circle at top right, rgba(79,124,255,0.12), transparent 22%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+    }
 
-h1 {
-  margin-bottom: 10px;
-}
+    body { padding: 28px; }
 
-textarea, input {
-  width: 100%;
-  padding: 12px;
-  margin-top: 8px;
-  margin-bottom: 12px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-}
+    .app {
+      width: min(1520px, 100%);
+      margin: 0 auto;
+    }
 
-button {
-  padding: 12px 18px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-}
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 22px;
+      padding: 28px 30px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245,248,255,0.98));
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+    }
 
-.primary {
-  background: #4f7cff;
-  color: white;
-}
+    .hero-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 0;
+    }
 
-.secondary {
-  background: white;
-  border: 1px solid #ccc;
-}
+    .orb {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+      background:
+        radial-gradient(circle at 35% 35%, rgba(255,255,255,0.96), rgba(126,165,255,0.56) 42%, rgba(79,124,255,0.95) 76%);
+      box-shadow:
+        inset 0 2px 10px rgba(255,255,255,0.55),
+        0 10px 22px rgba(79,124,255,0.22);
+    }
 
-.grid {
-  display: grid;
-  gap: 15px;
-}
+    .title {
+      margin: 0;
+      font-size: clamp(34px, 5vw, 58px);
+      line-height: 0.95;
+      font-weight: 1000;
+      letter-spacing: -0.04em;
+    }
 
-.grid-2 {
-  grid-template-columns: 1fr 1fr;
-}
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
 
-.card {
-  background: white;
-  padding: 15px;
-  border-radius: 10px;
-}
+    .hero-right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
 
-.label {
-  font-size: 12px;
-  color: gray;
-}
+    .chip {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
 
-.value {
-  font-size: 18px;
-  font-weight: bold;
-}
+    .chip.primary {
+      background: linear-gradient(180deg, #eef4ff, #dde8ff);
+      border-color: var(--line-strong);
+      color: #2552d9;
+    }
 
-.error {
-  color: red;
-  margin-top: 10px;
-}
-</style>
+    .layout {
+      display: grid;
+      gap: 22px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 22px;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, var(--panel), var(--panel2));
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-soft);
+      padding: 22px;
+    }
+
+    .section-title {
+      margin: 0 0 16px;
+      font-size: clamp(22px, 2.4vw, 34px);
+      font-weight: 950;
+      letter-spacing: -0.04em;
+    }
+
+    .section-title .accent { color: var(--blue); }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field label,
+    .mini-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    input[type="text"], textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: var(--radius-md);
+      padding: 14px 15px;
+      font-size: 15px;
+      outline: none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus {
+      border-color: var(--blue-2);
+      box-shadow: 0 0 0 4px var(--blue-soft);
+    }
+
+    textarea {
+      min-height: 320px;
+      resize: vertical;
+      line-height: 1.55;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 14px 20px;
+      font-size: 13px;
+      font-weight: 1000;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+
+    .primary-btn {
+      color: #fff;
+      background: linear-gradient(180deg, var(--blue-2), var(--blue));
+      box-shadow: 0 10px 22px rgba(79,124,255,0.28);
+    }
+
+    .secondary-btn {
+      color: var(--text);
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .helper-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: rgba(79,124,255,0.08);
+      color: #2552d9;
+      border: 1px solid rgba(79,124,255,0.18);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .error {
+      display: none;
+      margin-top: 16px;
+      border: 1px solid rgba(214,69,69,0.22);
+      background: var(--danger-soft);
+      color: #9c2e2e;
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .footer-note {
+      margin-top: 8px;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .stat,
+    .score-card,
+    .box,
+    .feature-item {
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .stat {
+      padding: 16px;
+      border-radius: 18px;
+    }
+
+    .stat .mini-label { margin-bottom: 8px; }
+
+    .stat-value {
+      font-size: 30px;
+      font-weight: 1000;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+    }
+
+    .readout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .readout-full { grid-column: 1 / -1; }
+
+    .box {
+      min-height: 60px;
+      border-radius: 16px;
+      padding: 14px 15px;
+      line-height: 1.55;
+      font-size: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .score-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+
+    .score-card {
+      padding: 16px;
+      border-radius: 18px;
+    }
+
+    .score {
+      font-size: 32px;
+      font-weight: 1000;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+      margin: 8px 0 4px;
+    }
+
+    .score-sub {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .feature-item {
+      border-radius: 16px;
+      padding: 14px 15px;
+    }
+
+    .feature-title {
+      font-weight: 900;
+      margin-bottom: 6px;
+    }
+
+    .feature-meta {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .muted-note {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 1180px) {
+      .grid-2,
+      .field-grid,
+      .readout,
+      .score-row,
+      .stats-grid,
+      .features {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        flex-direction: column;
+      }
+
+      .hero-right {
+        justify-content: flex-start;
+      }
+    }
+  </style>
 </head>
-
 <body>
+  <div class="app">
+    <div class="hero">
+      <div class="hero-left">
+        <div class="orb"></div>
+        <div>
+          <h1 class="title">Reasoning Audit</h1>
+          <div class="subtitle">Bright layout. Real output. Same-origin API.</div>
+        </div>
+      </div>
 
-<div class="container">
+      <div class="hero-right">
+        <div class="chip">Full Rewrite</div>
+        <div class="chip">Same Origin</div>
+        <div class="chip primary" id="topMode">Mode: -</div>
+      </div>
+    </div>
 
-<h1>Reasoning Audit</h1>
+    <div class="layout">
+      <div class="grid-2">
+        <div class="panel">
+          <h2 class="section-title"><span class="accent">Input</span> Intake</h2>
 
-<div class="card">
-  <div class="label">Transcript / Text</div>
-  <textarea id="text"></textarea>
+          <div class="field-grid">
+            <div class="field">
+              <label for="labelA">Label A</label>
+              <input id="labelA" type="text" placeholder="Optional label" />
+            </div>
+            <div class="field">
+              <label for="labelB">Label B</label>
+              <input id="labelB" type="text" placeholder="Optional label" />
+            </div>
+          </div>
 
-  <div class="label">Link (optional)</div>
-  <input id="link" />
+          <div class="field" style="margin-top:14px;">
+            <label for="text">Transcript / Text</label>
+            <textarea id="text" placeholder="Paste transcript or argument text here..."></textarea>
+          </div>
 
-  <button class="primary" onclick="analyze()">Analyze</button>
-  <button class="secondary" onclick="clearAll()">Clear</button>
+          <div class="field" style="margin-top:14px;">
+            <label for="link">Link (optional)</label>
+            <input id="link" type="text" placeholder="Paste a page or video link..." />
+          </div>
 
-  <div id="error" class="error"></div>
-</div>
+          <div class="actions">
+            <button class="primary-btn" id="analyzeBtn">Analyze</button>
+            <button class="secondary-btn" id="clearBtn">Clear</button>
+            <div class="helper-pill" id="modePill">Mode: -</div>
+          </div>
 
-<div class="grid grid-2">
+          <div id="error" class="error"></div>
+          <div class="footer-note" id="apiNote">API: /api/analyze</div>
+        </div>
 
-<div class="card">
-  <div class="label">Structure</div>
-  <div id="structure" class="value">-</div>
+        <div class="panel">
+          <h2 class="section-title"><span class="accent">Quick</span> View</h2>
 
-  <div class="label">Topics</div>
-  <div id="topics">-</div>
+          <div class="stats-grid">
+            <div class="stat">
+              <div class="mini-label">Structure</div>
+              <div id="structure" class="stat-value">-</div>
+            </div>
+            <div class="stat">
+              <div class="mini-label">Winner</div>
+              <div id="winner" class="stat-value">-</div>
+            </div>
+            <div class="stat">
+              <div class="mini-label">Confidence</div>
+              <div id="confidence" class="stat-value">-</div>
+            </div>
+            <div class="stat">
+              <div class="mini-label">BS Meter</div>
+              <div id="bsMeter" class="stat-value">-</div>
+            </div>
+          </div>
 
-  <div class="label">Worldview</div>
-  <div id="worldview">-</div>
-</div>
+          <div class="readout" style="margin-top:14px;">
+            <div class="readout-full">
+              <div class="mini-label">Topics</div>
+              <div id="topics" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Worldview</div>
+              <div id="worldview" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Mode</div>
+              <div id="analysisMode" class="box">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Core Read</div>
+              <div id="coreRead" class="box">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-<div class="card">
-  <div class="label">Clarity</div>
-  <div id="clarity">-</div>
+      <div class="panel">
+        <h2 class="section-title"><span class="accent">Score</span> Board</h2>
+        <div class="score-row">
+          <div class="score-card">
+            <div class="mini-label">Clarity</div>
+            <div id="clarity" class="score">-</div>
+            <div id="clarityBand" class="score-sub">-</div>
+          </div>
+          <div class="score-card">
+            <div class="mini-label">Integrity</div>
+            <div id="integrity" class="score">-</div>
+            <div id="integrityBand" class="score-sub">-</div>
+          </div>
+          <div class="score-card">
+            <div class="mini-label">Honesty</div>
+            <div id="honesty" class="score">-</div>
+            <div id="honestyBand" class="score-sub">-</div>
+          </div>
+          <div class="score-card">
+            <div class="mini-label">Manipulation</div>
+            <div id="manipulationScore" class="score">-</div>
+            <div id="manipulationBand" class="score-sub">-</div>
+          </div>
+          <div class="score-card">
+            <div class="mini-label">BSN</div>
+            <div id="bsn" class="score">-</div>
+            <div id="bsnBand" class="score-sub">-</div>
+          </div>
+        </div>
+      </div>
 
-  <div class="label">Integrity</div>
-  <div id="integrity">-</div>
+      <div class="grid-2">
+        <div class="panel">
+          <h2 class="section-title"><span class="accent">Primary</span> Summary</h2>
+          <div class="readout">
+            <div class="readout-full">
+              <div class="mini-label">Label</div>
+              <div id="primaryLabel" class="box">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Main Position</div>
+              <div id="primaryMain" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Lane</div>
+              <div id="primaryLane" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Score</div>
+              <div id="primaryScore" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Integrity</div>
+              <div id="primaryIntegrity" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Reasoning</div>
+              <div id="primaryReasoning" class="box">-</div>
+            </div>
+          </div>
+        </div>
 
-  <div class="label">Honesty</div>
-  <div id="honesty">-</div>
+        <div class="panel">
+          <h2 class="section-title"><span class="accent">Secondary</span> Summary</h2>
+          <div class="readout">
+            <div class="readout-full">
+              <div class="mini-label">Label</div>
+              <div id="secondaryLabel" class="box">-</div>
+            </div>
+            <div class="readout-full">
+              <div class="mini-label">Main Position</div>
+              <div id="secondaryMain" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Lane</div>
+              <div id="secondaryLane" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Score</div>
+              <div id="secondaryScore" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Integrity</div>
+              <div id="secondaryIntegrity" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">Reasoning</div>
+              <div id="secondaryReasoning" class="box">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-  <div class="label">Manipulation</div>
-  <div id="manipulation">-</div>
+      <div class="panel">
+        <h2 class="section-title"><span class="accent">Feature</span> Readout</h2>
+        <div id="features" class="features">
+          <div class="muted-note">No feature data yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  <div class="label">BSN</div>
-  <div id="bsn">-</div>
-</div>
+  <script>
+    const API_URL = "/api/analyze";
 
-</div>
+    const $ = (id) => document.getElementById(id);
 
-</div>
+    function clean(value) {
+      if (value == null) return "-";
+      const text = String(value).replace(/[ \t]+/g, " ").trim();
+      return text || "-";
+    }
 
-<script>
-const API_URL = "/api/analyze";
+    function cap(value) {
+      const text = clean(value);
+      if (text === "-") return "-";
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    }
 
+    function setText(id, value) {
+      const el = $(id);
+      if (!el) return;
+      el.textContent = clean(value);
+    }
+
+    function showError(message) {
+      const box = $("error");
+      box.textContent = clean(message);
+      box.style.display = "block";
+    }
+
+    function hideError() {
+      const box = $("error");
+      box.textContent = "";
+      box.style.display = "none";
+    }
+
+    function band(score) {
+      if (score >= 75) return "High";
+      if (score >= 45) return "Mixed";
+      return "Low";
+    }
+
+    function bsnBand(score) {
+      if (score >= 75) return "Severe";
+      if (score >= 50) return "High";
+      if (score >= 25) return "Moderate";
+      return "Low";
+    }
+
+    function resetFeatures() {
+      $("features").innerHTML = '<div class="muted-note">No feature data yet.</div>';
+    }
+
+    function resetAll() {
+      [
+        "structure","winner","confidence","bsMeter","topics","worldview","analysisMode","coreRead",
+        "clarity","clarityBand","integrity","integrityBand","honesty","honestyBand",
+        "manipulationScore","manipulationBand","bsn","bsnBand",
+        "primaryLabel","primaryMain","primaryLane","primaryScore","primaryIntegrity","primaryReasoning",
+        "secondaryLabel","secondaryMain","secondaryLane","secondaryScore","secondaryIntegrity","secondaryReasoning",
+        "topMode","modePill"
+      ].forEach(id => setText(id, "-"));
+
+      setText("apiNote", `API: ${API_URL}`);
+      hideError();
+      resetFeatures();
+    }
+
+    function renderFeatures(features) {
+      const wrap = $("features");
+      wrap.innerHTML = "";
+
+      if (!features) {
+        resetFeatures();
+        return;
+      }
+
+      const items = [
+        ["Thesis Clarity", features.thesisClarity],
+        ["Specificity", features.specificity],
+        ["Structure Coherence", features.structureCoherence],
+        ["Responsiveness", features.responsiveness],
+        ["Quote Fairness", features.quoteFairness],
+        ["Distinction Honesty", features.distinctionHonesty],
+        ["Burden Discipline", features.burdenDiscipline],
+        ["Emotional Pressure", features.emotionalPressure],
+        ["Overreach Severity", features.overreachSeverity],
+        ["Unsupported Claim Rate", features.unsupportedClaimRate],
+        ["Tribal Framing", features.tribalFraming],
+        ["Contradiction Severity", features.contradictionSeverity]
+      ];
+
+      items.forEach(([label, value]) => {
+        const node = document.createElement("div");
+        node.className = "feature-item";
+        node.innerHTML = `
+          <div class="feature-title">${label}</div>
+          <div class="feature-meta">Score: ${clean(value)}</div>
+        `;
+        wrap.appendChild(node);
+      });
+    }
+
+    function render(data) {
+      const structure = clean(data.structure);
+      const topics = Array.isArray(data.topics) && data.topics.length ? data.topics.map(cap).join(" • ") : "-";
+      const worldview = Array.isArray(data.worldview) && data.worldview.length ? data.worldview.map(cap).join(" • ") : "-";
+
+      const clarity = Number(data?.scores?.clarity ?? 0);
+      const integrity = Number(data?.scores?.integrity ?? 0);
+      const honesty = Number(data?.scores?.honesty ?? 0);
+      const manipulation = Number(data?.scores?.manipulation ?? 0);
+      const bsn = Number(data?.scores?.bsn ?? 0);
+
+      const honestyLabel = clean(data?.labels?.honesty || band(honesty));
+      const manipulationLabel = clean(data?.labels?.manipulation || band(manipulation));
+      const bsnLabel = clean(data?.labels?.bsn || bsnBand(bsn));
+      const ignorance = clean(data?.labels?.ignorance || "-");
+      const deception = clean(data?.labels?.deception || "-");
+
+      const mode = structure === "debate" ? "Debate Judgment" : "Reasoning Audit";
+
+      setText("structure", cap(structure));
+      setText("winner", structure === "debate" ? "No winner logic yet" : "Suppressed");
+      setText("confidence", structure === "debate" ? "Low" : "N/A");
+      setText("bsMeter", bsnLabel);
+      setText("topics", topics);
+      setText("worldview", worldview);
+      setText("analysisMode", mode);
+      setText("coreRead", structure === "debate"
+        ? "Debate detected, but the backend still needs real side separation before comparison means anything."
+        : "Commentary / monologue input detected. Winner judgment is suppressed and reasoning audit is shown instead."
+      );
+      setText("topMode", "Mode: " + mode);
+      setText("modePill", "Mode: " + mode);
+
+      setText("clarity", clarity);
+      setText("clarityBand", band(clarity));
+      setText("integrity", integrity);
+      setText("integrityBand", band(integrity));
+      setText("honesty", honesty);
+      setText("honestyBand", honestyLabel);
+      setText("manipulationScore", manipulation);
+      setText("manipulationBand", manipulationLabel);
+      setText("bsn", bsn);
+      setText("bsnBand", bsnLabel);
+
+      const labelA = $("labelA").value.trim() || "Primary";
+      const labelB = $("labelB").value.trim() || "Secondary";
+
+      setText("primaryLabel", labelA);
+      setText("primaryMain", structure === "debate"
+        ? "Debate structure detected, but this backend does not yet split real sides into separate argument streams."
+        : "Primary speaker is being treated as one commentary stream rather than a clean two-team exchange."
+      );
+      setText("primaryLane", worldview.split(" • ")[0] || worldview);
+      setText("primaryScore", Math.round((clarity + integrity + honesty) / 3));
+      setText("primaryIntegrity", `Integrity ${integrity} • Honesty ${honestyLabel}`);
+      setText("primaryReasoning", `Clarity ${clarity} • Manipulation ${manipulationLabel} • BSN ${bsnLabel}`);
+
+      setText("secondaryLabel", labelB);
+      setText("secondaryMain", structure === "debate"
+        ? "Secondary-side boxes remain placeholder until backend side-splitting exists."
+        : `No second side extracted. Ignorance ${ignorance} • Deception risk ${deception}.`
+      );
+      setText("secondaryLane", structure === "debate" ? worldview : "Not split");
+      setText("secondaryScore", structure === "debate" ? "Pending" : "N/A");
+      setText("secondaryIntegrity", structure === "debate" ? "Pending split logic" : "Not available");
+      setText("secondaryReasoning", structure === "debate" ? "Pending split logic" : "Not available");
+
+      renderFeatures(data?.debug?.features);
+    }
+
+    async function analyze() {
+      hideError();
+
+      const text = $("text").value.trim();
+      const link = $("link").value.trim();
+
+      if (!text && !link) {
+        showError("Paste text or provide a link first.");
+        return;
+      }
+
+      $("analyzeBtn").disabled = true;
+      $("analyzeBtn").textContent = "Analyzing...";
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, link })
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !data) {
+          throw new Error((data && data.error) || "Request failed");
+        }
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        render(data);
+      } catch (err) {
+        showError(err.message || "Request failed");
+      } finally {
+        $("analyzeBtn").disabled = false;
+        $("analyzeBtn").textContent = "Analyze";
+      }
+    }
+
+    $("analyzeBtn").addEventListener("click", analyze);
+    $("clearBtn").addEventListener("click", () => {
+      $("text").value = "";
+      $("link").value = "";
+      $("labelA").value = "";
+      $("labelB").value = "";
+      resetAll();
+    });
+
+    resetAll();
+  </script>
+</body>
+</html>
 function set(id, value) {
   document.getElementById(id).innerText = value ?? "-";
 }
