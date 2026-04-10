@@ -17,23 +17,17 @@
       --primary: #4f7cff;
       --primary-2: #7ba3ff;
       --primary-soft: rgba(79, 124, 255, 0.12);
-      --success: #0f9d73;
-      --warn: #c47c12;
       --danger: #d64545;
       --shadow: 0 18px 50px rgba(46, 72, 133, 0.12);
       --shadow-soft: 0 8px 24px rgba(46, 72, 133, 0.08);
       --radius-xl: 28px;
       --radius-lg: 20px;
       --radius-md: 14px;
-      --radius-sm: 10px;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
-    html,
-    body {
+    html, body {
       margin: 0;
       padding: 0;
       min-height: 100%;
@@ -45,9 +39,7 @@
         linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
     }
 
-    body {
-      padding: 24px;
-    }
+    body { padding: 24px; }
 
     .app {
       width: min(1480px, 100%);
@@ -158,9 +150,7 @@
       letter-spacing: -0.03em;
     }
 
-    .section-title .accent {
-      color: var(--primary);
-    }
+    .section-title .accent { color: var(--primary); }
 
     .field-grid {
       display: grid;
@@ -226,18 +216,11 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       cursor: pointer;
-      transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
+      transition: transform 0.12s ease, opacity 0.12s ease;
     }
 
-    button:hover {
-      transform: translateY(-1px);
-    }
-
-    button:disabled {
-      opacity: 0.65;
-      cursor: not-allowed;
-      transform: none;
-    }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
 
     .primary-btn {
       color: #fff;
@@ -300,9 +283,7 @@
       border-radius: 18px;
     }
 
-    .stat .mini-label {
-      margin-bottom: 8px;
-    }
+    .stat .mini-label { margin-bottom: 8px; }
 
     .stat-value {
       font-size: 28px;
@@ -385,9 +366,7 @@
       font-size: 14px;
     }
 
-    .footer-note {
-      margin-top: 6px;
-    }
+    .footer-note { margin-top: 6px; }
 
     @media (max-width: 1180px) {
       .grid-2,
@@ -398,13 +377,8 @@
         grid-template-columns: 1fr;
       }
 
-      .hero {
-        flex-direction: column;
-      }
-
-      .hero-right {
-        justify-content: flex-start;
-      }
+      .hero { flex-direction: column; }
+      .hero-right { justify-content: flex-start; }
     }
   </style>
 </head>
@@ -415,13 +389,13 @@
         <div class="orb"></div>
         <div>
           <h1 class="title">Reasoning Audit</h1>
-          <div class="subtitle">Bright console. Correct backend wire-up.</div>
+          <div class="subtitle">Auto-target backend. No hardcoded localhost stupidity.</div>
         </div>
       </div>
 
       <div class="hero-right">
         <div class="chip">Full Rewrite</div>
-        <div class="chip">Backend 3001</div>
+        <div class="chip">Auto API Target</div>
         <div class="chip primary" id="topMode">Mode: -</div>
       </div>
     </div>
@@ -459,9 +433,7 @@
           </div>
 
           <div class="error" id="errorBox"></div>
-          <div class="footer-note">
-            Sends text and link to the real backend endpoint at <strong>http://localhost:3001/api/analyze</strong>.
-          </div>
+          <div class="footer-note" id="apiNote">API: -</div>
         </div>
 
         <div class="panel">
@@ -696,8 +668,13 @@
   </div>
 
   <script>
-    const API_URL = "http://localhost:3001/api/analyze";
+    function getApiUrl() {
+      const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+      const host = window.location.hostname || "localhost";
+      return `${protocol}//${host}:3001/api/analyze`;
+    }
 
+    const API_URL = getApiUrl();
     const $ = (id) => document.getElementById(id);
 
     function clean(value) {
@@ -749,6 +726,7 @@
         "topMode", "modePill", "core_disagreement"
       ].forEach((id) => setText(id, "-"));
 
+      setText("apiNote", `API: ${API_URL}`);
       resetFeatureList();
       hideError();
     }
@@ -816,12 +794,12 @@
       const clarity = Number(data?.scores?.clarity ?? 0);
       const integrity = Number(data?.scores?.integrity ?? 0);
       const honesty = Number(data?.scores?.honesty ?? 0);
-      const manipulation = Number(data?.scores?.manipulation ?? 0);
+      const manipulationScore = Number(data?.scores?.manipulation ?? 0);
       const bsn = Number(data?.scores?.bsn ?? 0);
 
       const honestyLabel = clean(data?.labels?.honesty || scoreBand(honesty));
       const ignoranceLabel = clean(data?.labels?.ignorance || "-");
-      const manipulationLabel = clean(data?.labels?.manipulation || scoreBand(manipulation));
+      const manipulationLabel = clean(data?.labels?.manipulation || scoreBand(manipulationScore));
       const deceptionLabel = clean(data?.labels?.deception || "-");
       const bsnLabel = clean(data?.labels?.bsn || bsnBand(bsn));
 
@@ -843,7 +821,7 @@
       setText("integrityLabel", scoreBand(integrity));
       setText("honestyScore", honesty);
       setText("honestySub", honestyLabel);
-      setText("manipulationScore", manipulation);
+      setText("manipulationScore", manipulationScore);
       setText("manipulationSub", manipulationLabel);
       setText("bsnScore", bsn);
       setText("bsnSub", bsnLabel);
@@ -852,7 +830,7 @@
       setText(
         "teamA_main_position",
         structure === "debate"
-          ? "Debate structure detected, but this backend still does not split true sides into separate argument streams."
+          ? "Debate structure detected, but the backend still does not split real sides into separate streams."
           : "Primary speaker is being treated as one commentary stream rather than a clean two-team exchange."
       );
       setText("teamA_lane", worldview.split(" • ")[0] || worldview);
@@ -882,14 +860,8 @@
 
       setText("strongestArgumentSide", structure === "debate" ? "Unknown until side split" : "Primary speaker");
       setText("weakestOverall", bsn >= 50 ? "Overreach / unsupported claims" : "Not strongly flagged");
-      setText(
-        "strongestArgument",
-        "This screen now renders the actual backend response instead of pretending there are fields that do not exist."
-      );
-      setText(
-        "whyStrongest",
-        "Because it stops the fake zeroed-out limbo and uses the real API target on localhost:3001."
-      );
+      setText("strongestArgument", "This screen now renders the actual backend response.");
+      setText("whyStrongest", "Because it targets the backend using the page hostname instead of hardcoding localhost.");
       setText(
         "failedResponseByOtherSide",
         structure === "debate"
@@ -903,7 +875,7 @@
 
       setText("same_lane_engagement", structure === "debate" ? "Unknown until side split" : "False");
       setText("lane_mismatch", structure === "debate" ? "Unknown until side split" : "Likely");
-      setText("manipulation", `Level: ${manipulationLabel} • Score: ${manipulation}`);
+      setText("manipulation", `Level: ${manipulationLabel} • Score: ${manipulationScore}`);
       setText("fluff", `Current BSN: ${bsnLabel} (${bsn})`);
 
       setText(
@@ -942,7 +914,7 @@
         const data = await response.json().catch(() => null);
 
         if (!response.ok || !data) {
-          showError((data && data.error) || "Backend returned invalid JSON.");
+          showError((data && data.error) || `Backend request failed at ${API_URL}`);
           return;
         }
 
@@ -953,7 +925,7 @@
 
         renderResult(data);
       } catch (error) {
-        showError("Request failed. Make sure the backend is running on http://localhost:3001.");
+        showError(`Request failed at ${API_URL}`);
       } finally {
         $("analyzeBtn").disabled = false;
         $("analyzeBtn").textContent = "Gauge Reasoning";
