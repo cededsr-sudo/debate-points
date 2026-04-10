@@ -1,949 +1,191 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reasoning Audit Console</title>
-  <style>
-    :root {
-      --bg: #eef4ff;
-      --bg2: #f8fbff;
-      --panel: #ffffff;
-      --panel2: #f4f8ff;
-      --line: #d9e4ff;
-      --line-strong: #b8ccff;
-      --text: #182033;
-      --muted: #64708b;
-      --primary: #4f7cff;
-      --primary-2: #7ba3ff;
-      --primary-soft: rgba(79, 124, 255, 0.12);
-      --danger: #d64545;
-      --shadow: 0 18px 50px rgba(46, 72, 133, 0.12);
-      --shadow-soft: 0 8px 24px rgba(46, 72, 133, 0.08);
-      --radius-xl: 28px;
-      --radius-lg: 20px;
-      --radius-md: 14px;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Reasoning Audit</title>
 
-    * { box-sizing: border-box; }
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #eef3ff;
+}
 
-    html, body {
-      margin: 0;
-      padding: 0;
-      min-height: 100%;
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at top left, rgba(123, 163, 255, 0.18), transparent 28%),
-        radial-gradient(circle at top right, rgba(79, 124, 255, 0.14), transparent 24%),
-        linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
-    }
+.container {
+  max-width: 1200px;
+  margin: auto;
+  padding: 20px;
+}
 
-    body { padding: 24px; }
+h1 {
+  margin-bottom: 10px;
+}
 
-    .app {
-      width: min(1480px, 100%);
-      margin: 0 auto;
-    }
+textarea, input {
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
 
-    .hero {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 20px;
-      padding: 28px 30px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(246,250,255,0.98));
-      box-shadow: var(--shadow);
-      margin-bottom: 20px;
-    }
+button {
+  padding: 12px 18px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
 
-    .hero-left {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      min-width: 0;
-    }
+.primary {
+  background: #4f7cff;
+  color: white;
+}
 
-    .orb {
-      width: 62px;
-      height: 62px;
-      border-radius: 50%;
-      background:
-        radial-gradient(circle at 35% 35%, rgba(255,255,255,0.95), rgba(123,163,255,0.55) 40%, rgba(79,124,255,0.95) 75%);
-      box-shadow:
-        inset 0 2px 10px rgba(255,255,255,0.55),
-        0 10px 24px rgba(79,124,255,0.25);
-      flex: 0 0 auto;
-    }
+.secondary {
+  background: white;
+  border: 1px solid #ccc;
+}
 
-    .title {
-      margin: 0;
-      font-size: clamp(28px, 4vw, 52px);
-      line-height: 0.95;
-      font-weight: 1000;
-      letter-spacing: -0.03em;
-    }
+.grid {
+  display: grid;
+  gap: 15px;
+}
 
-    .subtitle {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 13px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      font-weight: 800;
-    }
+.grid-2 {
+  grid-template-columns: 1fr 1fr;
+}
 
-    .hero-right {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
+.card {
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+}
 
-    .chip {
-      min-height: 42px;
-      display: inline-flex;
-      align-items: center;
-      padding: 0 14px;
-      border-radius: 999px;
-      background: var(--panel);
-      color: var(--text);
-      border: 1px solid var(--line);
-      font-size: 11px;
-      font-weight: 900;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      box-shadow: var(--shadow-soft);
-    }
+.label {
+  font-size: 12px;
+  color: gray;
+}
 
-    .chip.primary {
-      background: linear-gradient(180deg, #eef4ff, #dfeaff);
-      border-color: var(--line-strong);
-      color: #2451d8;
-    }
+.value {
+  font-size: 18px;
+  font-weight: bold;
+}
 
-    .layout {
-      display: grid;
-      gap: 20px;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 20px;
-    }
-
-    .panel {
-      background: linear-gradient(180deg, var(--panel), var(--panel2));
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      padding: 22px;
-      box-shadow: var(--shadow-soft);
-    }
-
-    .section-title {
-      margin: 0 0 16px;
-      font-size: clamp(20px, 2vw, 32px);
-      font-weight: 950;
-      letter-spacing: -0.03em;
-    }
-
-    .section-title .accent { color: var(--primary); }
-
-    .field-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .field label,
-    .mini-label {
-      font-size: 11px;
-      color: var(--muted);
-      font-weight: 900;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-    }
-
-    input[type="text"],
-    textarea {
-      width: 100%;
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--text);
-      border-radius: var(--radius-md);
-      padding: 14px 15px;
-      outline: none;
-      font-size: 15px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    input[type="text"]:focus,
-    textarea:focus {
-      border-color: var(--primary-2);
-      box-shadow: 0 0 0 4px var(--primary-soft);
-    }
-
-    textarea {
-      resize: vertical;
-      min-height: 300px;
-      line-height: 1.55;
-    }
-
-    .actions {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-top: 18px;
-      align-items: center;
-    }
-
-    button {
-      border: 0;
-      border-radius: 14px;
-      padding: 14px 18px;
-      font-size: 13px;
-      font-weight: 1000;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: transform 0.12s ease, opacity 0.12s ease;
-    }
-
-    button:hover { transform: translateY(-1px); }
-    button:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
-
-    .primary-btn {
-      color: #fff;
-      background: linear-gradient(180deg, var(--primary-2), var(--primary));
-      box-shadow: 0 10px 24px rgba(79,124,255,0.28);
-    }
-
-    .secondary-btn {
-      color: var(--text);
-      background: #fff;
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow-soft);
-    }
-
-    .helper-pill {
-      display: inline-flex;
-      align-items: center;
-      min-height: 42px;
-      padding: 0 14px;
-      border-radius: 999px;
-      background: rgba(79,124,255,0.08);
-      color: #2451d8;
-      border: 1px solid rgba(79,124,255,0.18);
-      font-size: 11px;
-      font-weight: 900;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .error {
-      display: none;
-      margin-top: 16px;
-      border: 1px solid rgba(214,69,69,0.18);
-      background: rgba(214,69,69,0.08);
-      color: #982828;
-      border-radius: var(--radius-md);
-      padding: 14px 16px;
-      font-size: 14px;
-      line-height: 1.5;
-      font-weight: 700;
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-    }
-
-    .stat,
-    .score-card,
-    .box,
-    .list-item {
-      background: #fff;
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow-soft);
-    }
-
-    .stat {
-      padding: 16px;
-      border-radius: 18px;
-    }
-
-    .stat .mini-label { margin-bottom: 8px; }
-
-    .stat-value {
-      font-size: 28px;
-      font-weight: 1000;
-      letter-spacing: -0.04em;
-      line-height: 1.1;
-    }
-
-    .readout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-
-    .readout-full {
-      grid-column: 1 / -1;
-    }
-
-    .box {
-      min-height: 58px;
-      border-radius: 16px;
-      padding: 14px 15px;
-      line-height: 1.55;
-      font-size: 15px;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .score-row {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 12px;
-      margin-top: 6px;
-    }
-
-    .score-card {
-      padding: 16px;
-      border-radius: 18px;
-    }
-
-    .score-card .score {
-      font-size: 30px;
-      font-weight: 1000;
-      letter-spacing: -0.04em;
-      margin: 8px 0 4px;
-      line-height: 1.1;
-    }
-
-    .score-card .sub {
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .list {
-      display: grid;
-      gap: 12px;
-    }
-
-    .list-item {
-      border-radius: 16px;
-      padding: 14px 15px;
-    }
-
-    .list-title {
-      font-weight: 900;
-      margin-bottom: 6px;
-    }
-
-    .list-meta {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .muted-note,
-    .footer-note {
-      color: var(--muted);
-      line-height: 1.55;
-      font-size: 14px;
-    }
-
-    .footer-note { margin-top: 6px; }
-
-    @media (max-width: 1180px) {
-      .grid-2,
-      .field-grid,
-      .readout,
-      .score-row,
-      .stats-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .hero { flex-direction: column; }
-      .hero-right { justify-content: flex-start; }
-    }
-  </style>
+.error {
+  color: red;
+  margin-top: 10px;
+}
+</style>
 </head>
+
 <body>
-  <div class="app">
-    <div class="hero">
-      <div class="hero-left">
-        <div class="orb"></div>
-        <div>
-          <h1 class="title">Reasoning Audit</h1>
-          <div class="subtitle">Auto-target backend. No hardcoded localhost stupidity.</div>
-        </div>
-      </div>
 
-      <div class="hero-right">
-        <div class="chip">Full Rewrite</div>
-        <div class="chip">Auto API Target</div>
-        <div class="chip primary" id="topMode">Mode: -</div>
-      </div>
-    </div>
+<div class="container">
 
-    <div class="layout">
-      <div class="grid-2">
-        <div class="panel">
-          <h2 class="section-title"><span class="accent">Input</span> Intake</h2>
+<h1>Reasoning Audit</h1>
 
-          <div class="field-grid">
-            <div class="field">
-              <label for="teamAName">Label A</label>
-              <input id="teamAName" type="text" placeholder="Optional label for left summary" />
-            </div>
-            <div class="field">
-              <label for="teamBName">Label B</label>
-              <input id="teamBName" type="text" placeholder="Optional label for right summary" />
-            </div>
-          </div>
+<div class="card">
+  <div class="label">Transcript / Text</div>
+  <textarea id="text"></textarea>
 
-          <div class="field" style="margin-top:14px;">
-            <label for="transcriptText">Transcript / Text</label>
-            <textarea id="transcriptText" placeholder="Paste transcript or argument text here..."></textarea>
-          </div>
+  <div class="label">Link (optional)</div>
+  <input id="link" />
 
-          <div class="field" style="margin-top:14px;">
-            <label for="videoLink">Link (optional)</label>
-            <input id="videoLink" type="text" placeholder="Paste a page or video link..." />
-          </div>
+  <button class="primary" onclick="analyze()">Analyze</button>
+  <button class="secondary" onclick="clearAll()">Clear</button>
 
-          <div class="actions">
-            <button class="primary-btn" id="analyzeBtn">Gauge Reasoning</button>
-            <button class="secondary-btn" id="clearBtn">Clear</button>
-            <div class="helper-pill" id="modePill">Mode: -</div>
-          </div>
+  <div id="error" class="error"></div>
+</div>
 
-          <div class="error" id="errorBox"></div>
-          <div class="footer-note" id="apiNote">API: -</div>
-        </div>
+<div class="grid grid-2">
 
-        <div class="panel">
-          <h2 class="section-title"><span class="accent">Quick</span> View</h2>
+<div class="card">
+  <div class="label">Structure</div>
+  <div id="structure" class="value">-</div>
 
-          <div class="stats-grid">
-            <div class="stat">
-              <div class="mini-label">Structure</div>
-              <div class="stat-value" id="structure">-</div>
-            </div>
-            <div class="stat">
-              <div class="mini-label">Winner</div>
-              <div class="stat-value" id="winner">-</div>
-            </div>
-            <div class="stat">
-              <div class="mini-label">Confidence</div>
-              <div class="stat-value" id="confidence">-</div>
-            </div>
-            <div class="stat">
-              <div class="mini-label">BS Meter</div>
-              <div class="stat-value" id="bsMeter">-</div>
-            </div>
-          </div>
+  <div class="label">Topics</div>
+  <div id="topics">-</div>
 
-          <div class="readout" style="margin-top:14px;">
-            <div class="readout-full">
-              <div class="mini-label">Topics</div>
-              <div class="box" id="topics">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Worldview</div>
-              <div class="box" id="worldview">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Mode</div>
-              <div class="box" id="analysisMode">-</div>
-            </div>
-            <div class="readout-full">
-              <div class="mini-label">Core Read</div>
-              <div class="box" id="core_disagreement">-</div>
-            </div>
-          </div>
-        </div>
-      </div>
+  <div class="label">Worldview</div>
+  <div id="worldview">-</div>
+</div>
 
-      <div class="panel">
-        <h2 class="section-title"><span class="accent">Score</span> Board</h2>
-        <div class="score-row">
-          <div class="score-card">
-            <div class="mini-label">Clarity</div>
-            <div class="score" id="clarityScore">-</div>
-            <div class="sub" id="clarityLabel">-</div>
-          </div>
-          <div class="score-card">
-            <div class="mini-label">Integrity</div>
-            <div class="score" id="integrityScore">-</div>
-            <div class="sub" id="integrityLabel">-</div>
-          </div>
-          <div class="score-card">
-            <div class="mini-label">Honesty</div>
-            <div class="score" id="honestyScore">-</div>
-            <div class="sub" id="honestySub">-</div>
-          </div>
-          <div class="score-card">
-            <div class="mini-label">Manipulation</div>
-            <div class="score" id="manipulationScore">-</div>
-            <div class="sub" id="manipulationSub">-</div>
-          </div>
-          <div class="score-card">
-            <div class="mini-label">BSN</div>
-            <div class="score" id="bsnScore">-</div>
-            <div class="sub" id="bsnSub">-</div>
-          </div>
-        </div>
-      </div>
+<div class="card">
+  <div class="label">Clarity</div>
+  <div id="clarity">-</div>
 
-      <div class="grid-2">
-        <div class="panel">
-          <h2 class="section-title"><span class="accent">Primary</span> Summary</h2>
-          <div class="readout">
-            <div class="readout-full">
-              <div class="mini-label">Label</div>
-              <div class="box" id="teamAHeader">Side A</div>
-            </div>
-            <div class="readout-full">
-              <div class="mini-label">Main Position</div>
-              <div class="box" id="teamA_main_position">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Lane</div>
-              <div class="box" id="teamA_lane">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Score</div>
-              <div class="box" id="teamAScore">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Integrity</div>
-              <div class="box" id="teamA_integrity">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Reasoning</div>
-              <div class="box" id="teamA_reasoning">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Truth</div>
-              <div class="box" id="teamA_truth">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Opinion</div>
-              <div class="box" id="teamA_opinion">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Overreach</div>
-              <div class="box" id="teamA_lies">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Noise</div>
-              <div class="box" id="teamA_lala">-</div>
-            </div>
-          </div>
-        </div>
+  <div class="label">Integrity</div>
+  <div id="integrity">-</div>
 
-        <div class="panel">
-          <h2 class="section-title"><span class="accent">Secondary</span> Summary</h2>
-          <div class="readout">
-            <div class="readout-full">
-              <div class="mini-label">Label</div>
-              <div class="box" id="teamBHeader">Side B</div>
-            </div>
-            <div class="readout-full">
-              <div class="mini-label">Main Position</div>
-              <div class="box" id="teamB_main_position">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Lane</div>
-              <div class="box" id="teamB_lane">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Score</div>
-              <div class="box" id="teamBScore">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Integrity</div>
-              <div class="box" id="teamB_integrity">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Reasoning</div>
-              <div class="box" id="teamB_reasoning">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Truth</div>
-              <div class="box" id="teamB_truth">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Opinion</div>
-              <div class="box" id="teamB_opinion">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Overreach</div>
-              <div class="box" id="teamB_lies">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Noise</div>
-              <div class="box" id="teamB_lala">-</div>
-            </div>
-          </div>
-        </div>
-      </div>
+  <div class="label">Honesty</div>
+  <div id="honesty">-</div>
 
-      <div class="grid-2">
-        <div class="panel">
-          <h2 class="section-title"><span class="accent">Reasoning</span> Character</h2>
-          <div class="readout">
-            <div>
-              <div class="mini-label">Strongest Side</div>
-              <div class="box" id="strongestArgumentSide">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Weakest Overall</div>
-              <div class="box" id="weakestOverall">-</div>
-            </div>
-            <div class="readout-full">
-              <div class="mini-label">Strongest Argument</div>
-              <div class="box" id="strongestArgument">-</div>
-            </div>
-            <div class="readout-full">
-              <div class="mini-label">Why It Stands Out</div>
-              <div class="box" id="whyStrongest">-</div>
-            </div>
-            <div class="readout-full">
-              <div class="mini-label">Failed Response By Other Side</div>
-              <div class="box" id="failedResponseByOtherSide">-</div>
-            </div>
-            <div class="readout-full">
-              <div class="mini-label">Overall Why</div>
-              <div class="box" id="why">-</div>
-            </div>
-          </div>
-        </div>
+  <div class="label">Manipulation</div>
+  <div id="manipulation">-</div>
 
-        <div class="panel">
-          <h2 class="section-title"><span class="accent">Lane</span> + Pressure</h2>
-          <div class="readout">
-            <div>
-              <div class="mini-label">Same Lane Engagement</div>
-              <div class="box" id="same_lane_engagement">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Lane Mismatch</div>
-              <div class="box" id="lane_mismatch">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Manipulation</div>
-              <div class="box" id="manipulation">-</div>
-            </div>
-            <div>
-              <div class="mini-label">Fluff / Drag</div>
-              <div class="box" id="fluff">-</div>
-            </div>
-          </div>
-        </div>
-      </div>
+  <div class="label">BSN</div>
+  <div id="bsn">-</div>
+</div>
 
-      <div class="panel">
-        <h2 class="section-title"><span class="accent">Feature</span> Readout</h2>
-        <div id="sourcesList" class="list">
-          <div class="muted-note">No feature data yet.</div>
-        </div>
-      </div>
-    </div>
-  </div>
+</div>
 
-  <script>
-    function getApiUrl() {
-      const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-      const host = window.location.hostname || "localhost";
-      return `${protocol}//${host}:3001/api/analyze`;
+</div>
+
+<script>
+const API_URL = "/api/analyze";
+
+function set(id, value) {
+  document.getElementById(id).innerText = value ?? "-";
+}
+
+function clearAll() {
+  document.getElementById("text").value = "";
+  document.getElementById("link").value = "";
+  document.getElementById("error").innerText = "";
+
+  ["structure","topics","worldview","clarity","integrity","honesty","manipulation","bsn"]
+    .forEach(id => set(id, "-"));
+}
+
+async function analyze() {
+  const text = document.getElementById("text").value;
+  const link = document.getElementById("link").value;
+
+  document.getElementById("error").innerText = "";
+
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ text, link })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Request failed");
     }
 
-    const API_URL = getApiUrl();
-    const $ = (id) => document.getElementById(id);
+    set("structure", data.structure);
+    set("topics", (data.topics || []).join(", "));
+    set("worldview", (data.worldview || []).join(", "));
 
-    function clean(value) {
-      if (value == null) return "-";
-      const text = String(value).replace(/[ \t]+/g, " ").trim();
-      return text || "-";
-    }
+    set("clarity", data?.scores?.clarity);
+    set("integrity", data?.scores?.integrity);
+    set("honesty", data?.scores?.honesty);
+    set("manipulation", data?.scores?.manipulation);
+    set("bsn", data?.scores?.bsn);
 
-    function cap(value) {
-      const text = clean(value);
-      if (text === "-") return "-";
-      return text.charAt(0).toUpperCase() + text.slice(1);
-    }
+  } catch (err) {
+    document.getElementById("error").innerText = err.message;
+  }
+}
+</script>
 
-    function setText(id, value) {
-      const el = $(id);
-      if (!el) return;
-      el.textContent = clean(value);
-    }
-
-    function showError(message) {
-      const box = $("errorBox");
-      box.textContent = clean(message);
-      box.style.display = "block";
-    }
-
-    function hideError() {
-      const box = $("errorBox");
-      box.textContent = "";
-      box.style.display = "none";
-    }
-
-    function resetFeatureList() {
-      $("sourcesList").innerHTML = '<div class="muted-note">No feature data yet.</div>';
-    }
-
-    function resetResults() {
-      [
-        "structure", "winner", "confidence", "bsMeter", "topics", "worldview", "analysisMode",
-        "clarityScore", "clarityLabel", "integrityScore", "integrityLabel",
-        "honestyScore", "honestySub", "manipulationScore", "manipulationSub",
-        "bsnScore", "bsnSub", "teamAHeader", "teamA_main_position", "teamA_lane",
-        "teamAScore", "teamA_integrity", "teamA_reasoning", "teamA_truth", "teamA_opinion",
-        "teamA_lies", "teamA_lala", "teamBHeader", "teamB_main_position", "teamB_lane",
-        "teamBScore", "teamB_integrity", "teamB_reasoning", "teamB_truth", "teamB_opinion",
-        "teamB_lies", "teamB_lala", "strongestArgumentSide", "weakestOverall",
-        "strongestArgument", "whyStrongest", "failedResponseByOtherSide", "why",
-        "same_lane_engagement", "lane_mismatch", "manipulation", "fluff",
-        "topMode", "modePill", "core_disagreement"
-      ].forEach((id) => setText(id, "-"));
-
-      setText("apiNote", `API: ${API_URL}`);
-      resetFeatureList();
-      hideError();
-    }
-
-    function scoreBand(score) {
-      if (score >= 75) return "High";
-      if (score >= 45) return "Mixed";
-      return "Low";
-    }
-
-    function bsnBand(score) {
-      if (score >= 75) return "Severe";
-      if (score >= 50) return "High";
-      if (score >= 25) return "Moderate";
-      return "Low";
-    }
-
-    function renderFeatureList(features) {
-      const wrap = $("sourcesList");
-      wrap.innerHTML = "";
-
-      if (!features) {
-        resetFeatureList();
-        return;
-      }
-
-      const entries = [
-        ["Thesis Clarity", features.thesisClarity],
-        ["Specificity", features.specificity],
-        ["Structure Coherence", features.structureCoherence],
-        ["Responsiveness", features.responsiveness],
-        ["Quote Fairness", features.quoteFairness],
-        ["Distinction Honesty", features.distinctionHonesty],
-        ["Burden Discipline", features.burdenDiscipline],
-        ["Emotional Pressure", features.emotionalPressure],
-        ["Overreach Severity", features.overreachSeverity],
-        ["Unsupported Claim Rate", features.unsupportedClaimRate],
-        ["Tribal Framing", features.tribalFraming],
-        ["Contradiction Severity", features.contradictionSeverity]
-      ];
-
-      entries.forEach(([label, value]) => {
-        const item = document.createElement("div");
-        item.className = "list-item";
-        item.innerHTML = `
-          <div class="list-title">${label}</div>
-          <div class="list-meta">Score: ${clean(value)}</div>
-        `;
-        wrap.appendChild(item);
-      });
-    }
-
-    function renderResult(data) {
-      const labelA = $("teamAName").value.trim() || "Primary";
-      const labelB = $("teamBName").value.trim() || "Secondary";
-
-      const structure = clean(data.structure);
-      const topics = Array.isArray(data.topics) && data.topics.length
-        ? data.topics.map(cap).join(" • ")
-        : "-";
-      const worldview = Array.isArray(data.worldview) && data.worldview.length
-        ? data.worldview.map(cap).join(" • ")
-        : "-";
-
-      const clarity = Number(data?.scores?.clarity ?? 0);
-      const integrity = Number(data?.scores?.integrity ?? 0);
-      const honesty = Number(data?.scores?.honesty ?? 0);
-      const manipulationScore = Number(data?.scores?.manipulation ?? 0);
-      const bsn = Number(data?.scores?.bsn ?? 0);
-
-      const honestyLabel = clean(data?.labels?.honesty || scoreBand(honesty));
-      const ignoranceLabel = clean(data?.labels?.ignorance || "-");
-      const manipulationLabel = clean(data?.labels?.manipulation || scoreBand(manipulationScore));
-      const deceptionLabel = clean(data?.labels?.deception || "-");
-      const bsnLabel = clean(data?.labels?.bsn || bsnBand(bsn));
-
-      const mode = structure === "debate" ? "Debate Judgment" : "Reasoning Audit";
-
-      setText("structure", cap(structure));
-      setText("winner", structure === "debate" ? "No winner logic yet" : "Suppressed");
-      setText("confidence", structure === "debate" ? "Low" : "N/A");
-      setText("bsMeter", bsnLabel);
-      setText("topics", topics);
-      setText("worldview", worldview);
-      setText("analysisMode", mode);
-      setText("topMode", "Mode: " + mode);
-      setText("modePill", "Mode: " + mode);
-
-      setText("clarityScore", clarity);
-      setText("clarityLabel", scoreBand(clarity));
-      setText("integrityScore", integrity);
-      setText("integrityLabel", scoreBand(integrity));
-      setText("honestyScore", honesty);
-      setText("honestySub", honestyLabel);
-      setText("manipulationScore", manipulationScore);
-      setText("manipulationSub", manipulationLabel);
-      setText("bsnScore", bsn);
-      setText("bsnSub", bsnLabel);
-
-      setText("teamAHeader", labelA);
-      setText(
-        "teamA_main_position",
-        structure === "debate"
-          ? "Debate structure detected, but the backend still does not split real sides into separate streams."
-          : "Primary speaker is being treated as one commentary stream rather than a clean two-team exchange."
-      );
-      setText("teamA_lane", worldview.split(" • ")[0] || worldview);
-      setText("teamAScore", Math.round((clarity + integrity + honesty) / 3));
-      setText("teamA_integrity", `Integrity ${integrity} • Honesty ${honestyLabel}`);
-      setText("teamA_reasoning", `Clarity ${clarity} • Manipulation ${manipulationLabel} • BSN ${bsnLabel}`);
-      setText("teamA_truth", "This backend gives a score-based reasoning audit, not a full external fact-check.");
-      setText("teamA_opinion", `Topics: ${topics}`);
-      setText("teamA_lies", `Deception risk: ${deceptionLabel}`);
-      setText("teamA_lala", `Ignorance: ${ignoranceLabel}`);
-
-      setText("teamBHeader", labelB);
-      setText(
-        "teamB_main_position",
-        structure === "debate"
-          ? "Secondary-side boxes stay placeholder until you add real side-splitting logic to the backend."
-          : "No second side is extracted from commentary mode."
-      );
-      setText("teamB_lane", structure === "debate" ? worldview : "Not split");
-      setText("teamBScore", structure === "debate" ? "Pending" : "N/A");
-      setText("teamB_integrity", structure === "debate" ? "Pending split logic" : "Not available");
-      setText("teamB_reasoning", structure === "debate" ? "Pending split logic" : "Not available");
-      setText("teamB_truth", structure === "debate" ? "Pending split logic" : "Not available");
-      setText("teamB_opinion", structure === "debate" ? "Pending split logic" : "Not available");
-      setText("teamB_lies", structure === "debate" ? "Pending split logic" : "Not available");
-      setText("teamB_lala", structure === "debate" ? "Pending split logic" : "Not available");
-
-      setText("strongestArgumentSide", structure === "debate" ? "Unknown until side split" : "Primary speaker");
-      setText("weakestOverall", bsn >= 50 ? "Overreach / unsupported claims" : "Not strongly flagged");
-      setText("strongestArgument", "This screen now renders the actual backend response.");
-      setText("whyStrongest", "Because it targets the backend using the page hostname instead of hardcoding localhost.");
-      setText(
-        "failedResponseByOtherSide",
-        structure === "debate"
-          ? "No reliable side-to-side failure logic yet."
-          : "No other side extracted from commentary mode."
-      );
-      setText(
-        "why",
-        `Structure ${structure}. Clarity ${clarity}. Integrity ${integrity}. Honesty ${honestyLabel}. Manipulation ${manipulationLabel}. BSN ${bsnLabel}.`
-      );
-
-      setText("same_lane_engagement", structure === "debate" ? "Unknown until side split" : "False");
-      setText("lane_mismatch", structure === "debate" ? "Unknown until side split" : "Likely");
-      setText("manipulation", `Level: ${manipulationLabel} • Score: ${manipulationScore}`);
-      setText("fluff", `Current BSN: ${bsnLabel} (${bsn})`);
-
-      setText(
-        "core_disagreement",
-        structure === "debate"
-          ? "Debate detected, but the backend still needs real side separation before comparative judgment can mean anything."
-          : "Commentary / monologue input detected. Winner judgment is suppressed and reasoning audit is shown instead."
-      );
-
-      renderFeatureList(data?.debug?.features);
-    }
-
-    async function analyze() {
-      hideError();
-
-      const text = $("transcriptText").value.trim();
-      const link = $("videoLink").value.trim();
-
-      if (!text && !link) {
-        showError("Paste text or provide a link first.");
-        return;
-      }
-
-      $("analyzeBtn").disabled = true;
-      $("analyzeBtn").textContent = "Analyzing...";
-
-      try {
-        const response = await fetch(API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ text, link })
-        });
-
-        const data = await response.json().catch(() => null);
-
-        if (!response.ok || !data) {
-          showError((data && data.error) || `Backend request failed at ${API_URL}`);
-          return;
-        }
-
-        if (data.error) {
-          showError(data.error);
-          return;
-        }
-
-        renderResult(data);
-      } catch (error) {
-        showError(`Request failed at ${API_URL}`);
-      } finally {
-        $("analyzeBtn").disabled = false;
-        $("analyzeBtn").textContent = "Gauge Reasoning";
-      }
-    }
-
-    function clearAll() {
-      $("teamAName").value = "";
-      $("teamBName").value = "";
-      $("transcriptText").value = "";
-      $("videoLink").value = "";
-      resetResults();
-    }
-
-    $("analyzeBtn").addEventListener("click", analyze);
-    $("clearBtn").addEventListener("click", clearAll);
-
-    resetResults();
-  </script>
 </body>
 </html>
