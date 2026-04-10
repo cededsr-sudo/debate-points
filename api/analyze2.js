@@ -1,542 +1,454 @@
-module.exports = async function handler(req, res) {
-  res.setHeader("Content-Type", "application/json");
+const express = require("express");
 
-  try {
-    const body = req.body || {};
-    const teamAName = clean(body.teamAName || "Team A");
-    const teamBName = clean(body.teamBName || "Team B");
-    const transcriptText = getTranscript(body);
-    const videoLink = clean(body.videoLink || "");
+const app = express();
+const PORT = process.env.PORT || 3001;
 
-    if (!transcriptText || transcriptText.trim().length < 40) {
-      return res.status(200).json(fallback(teamAName, teamBName, "Transcript too short or missing"));
-    }
+app.use(express.json({ limit: "50mb" }));
 
-    const cleaned = cleanTranscript(transcriptText);
-    const debateText = trimFrontMatter(cleaned);
-    const sections = splitSections(debateText);
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  next();
+});
 
-    const aLines = collectLines(sections.aOpening, sections.crossA);
-    const bLines = collectLines(sections.bOpening, sections.crossB);
+app.options("*", (req, res) => res.sendStatus(204));
 
-    if (!aLines.length || !bLines.length) {
-      return res.status(200).json(fallback(teamAName, teamBName, "Could not isolate both sides"));
-    }
-
-    const scoredA = scorePool(aLines, "A");
-    const scoredB = scorePool(bLines, "B");
-
-    const teamA = buildSide(scoredA);
-    const teamB = buildSide(scoredB);
-
-    const teamA_lane = detectLane(scoredA);
-    const teamB_lane = detectLane(scoredB);
-
-    const verdict = buildVerdict({
-      teamAName,
-      teamBName,
-      scoredA,
-      scoredB,
-      teamA_lane,
-      teamB_lane
-    });
-
-    const sources = buildSources(scoredA, scoredB, videoLink);
-
-    return res.status(200).json({
-      teamAName,
-      teamBName,
-      winner: verdict.winner,
-      confidence: verdict.confidence,
-      teamAScore: verdict.teamAScore,
-      teamBScore: verdict.teamBScore,
-
-      teamA,
-      teamB,
-
-      teamA_integrity: verdict.teamA_integrity,
-      teamB_integrity: verdict.teamB_integrity,
-      teamA_reasoning: verdict.teamA_reasoning,
-      teamB_reasoning: verdict.teamB_reasoning,
-
-      teamA_lane,
-      teamB_lane,
-      same_lane_engagement: verdict.same_lane_engagement,
-      lane_mismatch: verdict.lane_mismatch,
-
-      strongestArgumentSide: verdict.strongestArgumentSide,
-      strongestArgument: verdict.strongestArgument,
-      whyStrongest: verdict.whyStrongest,
-      failedResponseByOtherSide: verdict.failedResponseByOtherSide,
-      weakestOverall: verdict.weakestOverall,
-
-      bsMeter: verdict.bsMeter,
-      manipulation: verdict.manipulation,
-      fluff: verdict.fluff,
-
-      core_disagreement: verdict.core_disagreement,
-      why: verdict.why,
-
-      analysisMode: "deterministic-bullets-v2",
-      sources,
-      error: null
-    });
-  } catch (err) {
-    return res.status(200).json(fallback("Team A", "Team B", err && err.message ? err.message : "Unknown backend error"));
-  }
-};
-
-/* -------------------- INPUT -------------------- */
-
-function getTranscript(body) {
-  const keys = ["transcriptText", "transcript", "rawTranscript", "text"];
-  for (const key of keys) {
-    if (typeof body[key] === "string" && body[key].trim()) return body[key];
-  }
-  return "";
+function clamp(value, min = 0, max = 100) {
+  return Math.max(min, Math.min(max, value));
 }
 
-function clean(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
+function round(value) {
+  return Math.round(value);
 }
 
-/* -------------------- CLEAN -------------------- */
-
-function cleanTranscript(text) {
-  let t = String(text || "");
-
-  t = t.replace(/\r/g, "\n");
-  t = t.replace(/\b\d{1,3}:\d{2,3}(?::\d{2})?\b/g, " ");
-  t = t.replace(/\b\d+\s*hour[s]?\s*,?\s*\d+\s*minute[s]?\s*,?\s*\d+\s*second[s]?\b/gi, " ");
-  t = t.replace(/\b\d+\s*minute[s]?\s*,?\s*\d+\s*second[s]?\b/gi, " ");
-  t = t.replace(/\b\d+\s*minute[s]?\b/gi, " ");
-  t = t.replace(/\b\d+\s*second[s]?\b/gi, " ");
-  t = t.replace(/\[(.*?)\]/g, " ");
-  t = t.replace(/(\d)([A-Za-z])/g, "$1 $2");
-  t = t.replace(/([A-Za-z])(\d)/g, "$1 $2");
-  t = t.replace(/\b(uh|um|er|ah)\b/gi, " ");
-  t = t.replace(/\s+/g, " ").trim();
-
-  return t;
+function safeDivide(a, b) {
+  return b === 0 ? 0 : a / b;
 }
 
-function trimFrontMatter(text) {
-  const lower = text.toLowerCase();
-  const markers = [
-    "i have 10 minutes for an opening statement",
-    "a major hurdle for the origin of life research",
-    "mr farina as my guest welcome"
-  ];
+function countMatches(text, regex) {
+  const matches = text.match(regex);
+  return matches ? matches.length : 0;
+}
 
-  for (const m of markers) {
-    const i = lower.indexOf(m);
-    if (i !== -1) return text.slice(i);
-  }
+function cleanText(raw) {
+  let text = raw || "";
+
+  text = text.replace(/\b\d{1,2}:\d{1,2}(?:\d{1,2})?\s*(?:seconds?|minutes?(?:,\s*\d+\s*seconds?)?)?/gi, " ");
+  text = text.replace(/\b\d{1,2}:\s*,\s*\d+\s*seconds?\b/gi, " ");
+  text = text.replace(/\b\d+\s*minutes?,?\s*\d*\s*seconds?\b/gi, " ");
+  text = text.replace(/\bSync to video time\b/gi, " ");
+  text = text.replace(/\bAll\s+Politics\s+News\s+For you\s+Recently uploaded\b/gi, " ");
+  text = text.replace(/\r/g, "\n");
+  text = text.replace(/[ \t]+/g, " ");
+  text = text.replace(/\n{3,}/g, "\n\n");
+  text = text.replace(/\s+([,.!?;:])/g, "$1");
+  text = text.trim();
+
   return text;
 }
 
 function splitSentences(text) {
-  return String(text || "")
-    .replace(/([.?!])\s+/g, "$1|||")
-    .replace(/;/g, ".|||")
-    .split("|||")
-    .map(clean)
+  return text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((s) => s.trim())
     .filter(Boolean);
 }
 
-function usableSentence(s) {
-  if (!s || s.length < 40) return false;
-  if (s.split(/\s+/).length < 8) return false;
+async function extractTextFromLink(link) {
+  const response = await fetch(link, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 ReasoningAuditBot/1.0",
+      Accept: "text/html,application/xhtml+xml"
+    }
+  });
 
-  const x = s.toLowerCase();
-  const banned = [
-    "good evening everyone",
-    "some quick logistics",
-    "in case of emergency",
-    "please silence your cell phones",
-    "describe the ground rules",
-    "please join me in welcoming",
-    "let's welcome the two debaters",
-    "thank you very much",
-    "live stream",
-    "restroom",
-    "photography",
-    "videography",
-    "neutral corners",
-    "weighing in"
-  ];
+  if (!response.ok) {
+    throw new Error(`Failed to fetch link: ${response.status}`);
+  }
 
-  return !banned.some(b => x.includes(b));
+  const html = await response.text();
+
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+    .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|br|section|article)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-/* -------------------- SPLIT -------------------- */
-
-function splitSections(text) {
+function detectStructure(text, sentences) {
   const lower = text.toLowerCase();
 
-  const bStart =
-    lower.indexOf("mr farino your opening statement please") !== -1
-      ? lower.indexOf("mr farino your opening statement please")
-      : lower.indexOf("mr farina your opening statement please");
+  const speakerCues =
+    countMatches(lower, /\b(team a|team b|speaker 1|speaker 2|moderator|host|guest|debate|cross examination|rebuttal)\b/g) +
+    countMatches(lower, /\b(he said|she said|they said|let me read|have a watch|have a listen|clip|quoted|quote)\b/g);
 
-  const crossStart =
-    lower.indexOf("we now turn to dr tour who will ask a question") !== -1
-      ? lower.indexOf("we now turn to dr tour who will ask a question")
-      : lower.indexOf("one of the things that we have to make in order to have life are polypeptides");
+  const quoteCount =
+    countMatches(text, /["“”]/g) +
+    countMatches(lower, /\b(quote|quoted|let me read|he said|she said|they said)\b/g);
 
-  if (bStart === -1) {
-    const mid = Math.floor(text.length / 2);
-    return {
-      aOpening: text.slice(0, mid),
-      bOpening: text.slice(mid),
-      crossA: [],
-      crossB: []
-    };
+  const shortSentenceCount = sentences.filter((s) => s.length < 140).length;
+  const quoteDensity = safeDivide(quoteCount, Math.max(text.length / 200, 1));
+  const cueDensity = safeDivide(speakerCues + shortSentenceCount * 0.05, Math.max(sentences.length, 1));
+
+  if (
+    lower.includes("let me read") ||
+    lower.includes("have a watch") ||
+    lower.includes("have a listen") ||
+    lower.includes("i want to show you") ||
+    quoteDensity > 2.0 ||
+    cueDensity < 0.7
+  ) {
+    return "commentary";
   }
 
-  const aOpening = text.slice(0, bStart);
-  const bOpening = crossStart !== -1 ? text.slice(bStart, crossStart) : text.slice(bStart);
-  const cross = crossStart !== -1 ? text.slice(crossStart) : "";
-
-  const crossLines = splitSentences(cross);
-  const crossA = [];
-  const crossB = [];
-  let who = "A";
-
-  for (const line of crossLines) {
-    const x = line.toLowerCase();
-
-    if (/show me the prebiotic chemistry|it's not there|i studied every one of your papers|these are the ones you've got to do|i'm asking you to come up and show me the chemistry/.test(x)) {
-      who = "A";
-    }
-
-    if (/you're missing a mountain of research|here's one|i brought actual papers|we've got research for that|nucleotide polymerization has been demonstrated|there are no papers that show/i.test(x)) {
-      who = "B";
-    }
-
-    if (who === "A") crossA.push(line);
-    else crossB.push(line);
+  if (speakerCues >= 4 && sentences.length > 8) {
+    return "debate";
   }
 
-  return { aOpening, bOpening, crossA, crossB };
+  return "commentary";
 }
 
-function collectLines(openingText, crossLines) {
-  const lines = [
-    ...splitSentences(openingText),
-    ...(crossLines || [])
-  ].filter(usableSentence);
-
-  const seen = new Set();
-  const out = [];
-  for (const line of lines) {
-    const key = line.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(line);
-  }
-  return out;
-}
-
-/* -------------------- SCORE -------------------- */
-
-function scorePool(lines, side) {
-  return lines.map(text => {
-    const f = features(text);
-    return { side, text, features: f, score: score(f) };
-  }).sort((a, b) => b.score - a.score);
-}
-
-function features(text) {
-  const x = text.toLowerCase();
-
-  return {
-    evidence: hits(x, ["data","study","paper","journal","experiment","evidence","shows","demonstrates","prebiotic","chemistry","rna","nmr","spectrum","peptide","polypeptide","nucleotide","yield","coupling","polymerization","research"]),
-    reasoning: hits(x, ["because","therefore","hence","since","if","then","which means","as a result","in order to"]),
-    attack: hits(x, ["liar","lies","fraud","charlatan","delusional","idiotic","toxic","clueless","embarrassing","ignorance"]),
-    fluff: hits(x, ["thank you","glad to be here","pleasure to be here","enjoy it","welcome"]),
-    opinion: hits(x, ["i think","i believe","i maintain","i presume","i hope"]),
-    science: hits(x, ["data","study","paper","experiment","chemistry","prebiotic","rna","nmr","peptide","nucleotide","cell"]),
-    theology: hits(x, ["god","bible","jesus","faith","religious","creationist","scripture"]),
-    history: hits(x, ["history","historical","record","records","community","trend"]),
-    claim: /(is|are|means|shows|demonstrates|requires|fails|cannot|does not|did not|there is|there are|we have|we do not)/i.test(text),
-    words: text.split(/\s+/).length
+function detectTopics(text) {
+  const lower = text.toLowerCase();
+  const topicScores = {
+    political: 0,
+    moral: 0,
+    theological: 0,
+    media: 0,
+    empirical: 0,
+    tribal: 0
   };
+
+  topicScores.political += countMatches(lower, /\b(trump|president|maga|election|policy|america|conservative|left|right|government|iran|israel|midterms)\b/g);
+  topicScores.moral += countMatches(lower, /\b(right|wrong|moral|immoral|virtue|evil|goodness|clarity|justice|hate|integrity)\b/g);
+  topicScores.theological += countMatches(lower, /\b(god|torah|bible|judaism|jews|chosen|messianic|rabbi|esau|jacob|cain|abel|christianity|christian|scripture)\b/g);
+  topicScores.media += countMatches(lower, /\b(podcast|podcasters|cnn|fox|new york times|tweet|truth|show|television|tv|journalist|clip|documentary)\b/g);
+  topicScores.empirical += countMatches(lower, /\b(evidence|proof|fact|reported|video|claim|support|data|source|experiment)\b/g);
+  topicScores.tribal += countMatches(lower, /\b(real maga|not maga|our side|their side|coalition|betrayal|turn on|dark side|base)\b/g);
+
+  const sorted = Object.entries(topicScores)
+    .sort((a, b) => b[1] - a[1])
+    .filter(([, score]) => score > 0)
+    .map(([topic]) => topic);
+
+  return sorted.length ? sorted.slice(0, 4) : ["mixed"];
 }
 
-function score(f) {
-  let s = 0;
-  if (f.claim) s += 4;
-  s += Math.min(6, f.evidence);
-  s += Math.min(4, f.reasoning * 1.5);
-  if (f.words >= 12) s += 2;
-  if (f.words >= 18 && f.words <= 44) s += 2;
-  s -= Math.min(3, f.opinion);
-  s -= Math.min(4, f.fluff * 2);
+function detectWorldview(text) {
+  const lower = text.toLowerCase();
 
-  const attackOnly = f.attack > 0 && f.evidence === 0 && f.reasoning === 0;
-  if (attackOnly) s -= 8;
-  else s -= Math.min(3, f.attack);
-
-  return Math.round(s * 10) / 10;
-}
-
-function hits(text, words) {
-  let n = 0;
-  for (const w of words) {
-    const m = text.match(new RegExp("\\b" + esc(w) + "\\b", "gi"));
-    if (m) n += m.length;
-  }
-  return n;
-}
-
-function esc(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/* -------------------- TEAM BLOCKS -------------------- */
-
-function buildSide(pool) {
-  return {
-    main_position: bullets(best(pool, x => x.features.claim && (x.features.evidence > 0 || x.features.reasoning > 0) && x.features.attack === 0)),
-    truth: bullets(best(pool, x => x.features.evidence > 0 && x.features.claim && x.features.attack === 0)),
-    lies: bullets(worst(pool, x => x.features.attack > 0 || (x.features.claim && x.features.evidence === 0 && x.features.reasoning === 0))),
-    opinion: bullets(best(pool, x => x.features.opinion > 0 || (x.features.claim && x.features.evidence === 0 && x.features.reasoning === 0))),
-    lala: bullets(worst(pool, x => x.features.fluff > 0 || (x.features.attack > 0 && x.features.evidence === 0)))
+  const lanes = {
+    political: 0,
+    tribal: 0,
+    theological: 0,
+    moral: 0,
+    empirical: 0
   };
+
+  lanes.political += countMatches(lower, /\b(trump|president|policy|election|government|america|maga|conservative|left|right|coalition)\b/g);
+  lanes.tribal += countMatches(lower, /\b(real maga|not maga|our side|their side|betrayal|base|coalition|turn on)\b/g);
+  lanes.theological += countMatches(lower, /\b(god|torah|bible|messianic|rabbi|esau|jacob|chosen|judaism|christianity|christian)\b/g);
+  lanes.moral += countMatches(lower, /\b(right|wrong|moral|immoral|virtue|evil|goodness|clarity|justice)\b/g);
+  lanes.empirical += countMatches(lower, /\b(evidence|proof|fact|source|reported|video|support|data)\b/g);
+
+  const sorted = Object.entries(lanes)
+    .sort((a, b) => b[1] - a[1])
+    .filter(([, score]) => score > 0)
+    .slice(0, 2)
+    .map(([lane]) => lane);
+
+  return sorted.length ? sorted : ["mixed"];
 }
 
-function best(pool, test) {
-  const rows = pool.filter(test).slice(0, 3);
-  return rows.length ? rows : pool.slice(0, 3);
-}
+function scoreFeatures(text, sentences) {
+  const lower = text.toLowerCase();
+  const textLength = text.length;
+  const sentenceCount = sentences.length;
 
-function worst(pool, test) {
-  const rows = pool.filter(test).sort((a, b) => a.score - b.score).slice(0, 3);
-  return rows.length ? rows : [...pool].sort((a, b) => a.score - b.score).slice(0, 3);
-}
+  const logicalConnectors = countMatches(lower, /\b(because|therefore|so|thus|hence|which means|that means|for example|for instance|in other words)\b/g);
+  const hedges = countMatches(lower, /\b(maybe|perhaps|i think|i believe|it seems|likely|possibly|might)\b/g);
+  const directAssertions = countMatches(lower, /\b(is|are|was|were|does|did|will|won't|can't|cannot)\b/g);
+  const insults = countMatches(lower, /\b(stupid|loser|losers|low iq|crazy|nut jobs|clowns|idiot|dumb|moral rot|lunacy|deranged)\b/g);
+  const tribalTerms = countMatches(lower, /\b(maga|real maga|not maga|our side|their side|base|coalition|dark side|traitor)\b/g);
+  const evidenceTerms = countMatches(lower, /\b(evidence|proof|reported|source|video|clip|lawsuit|record|fact|support)\b/g);
+  const quoteTerms = countMatches(lower, /\b(he said|she said|they said|let me read|quote|quoted|have a watch|have a listen)\b/g);
+  const overclaimTerms = countMatches(lower, /\b(obviously|clearly|beyond doubt|everyone knows|always|never|completely|totally|absolutely|once and for all)\b/g);
+  const contradictionMarkers = countMatches(lower, /\b(but|however|although|on the other hand|yet|still)\b/g);
+  const questionCount = countMatches(text, /\?/g);
 
-function bullets(rows) {
-  if (!rows || !rows.length) return "-";
-  return rows.slice(0, 3).map(r => "• " + cleanBullet(r.text)).join("\n");
-}
+  const avgSentenceLength = sentenceCount ? textLength / sentenceCount : textLength;
 
-function cleanBullet(text) {
-  const s = clean(text).replace(/^[-•\s]+/, "");
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
-}
-
-/* -------------------- LANE -------------------- */
-
-function detectLane(pool) {
-  const text = pool.map(x => x.text.toLowerCase()).join(" ");
-  const science = hits(text, ["data","study","paper","experiment","chemistry","prebiotic","rna","nmr","peptide","nucleotide","cell"]);
-  const theology = hits(text, ["god","bible","jesus","faith","religious","creationist","scripture"]);
-  const history = hits(text, ["history","historical","record","records","community","trend"]);
-
-  const ranked = [
-    { name: "science / evidence lane", score: science },
-    { name: "history / evidence lane", score: history },
-    { name: "theology / scripture lane", score: theology }
-  ].sort((a, b) => b.score - a.score);
-
-  if (ranked[0].score === 0) return "mixed / unclear lane";
-  if (ranked[1].score > 0 && ranked[1].score / ranked[0].score > 0.55) return "mixed lane with overlapping frameworks";
-  return ranked[0].name;
-}
-
-function sameLane(a, b) {
-  if (a === b) return true;
-  if (a.includes("mixed") && b.includes("science")) return true;
-  if (b.includes("mixed") && a.includes("science")) return true;
-  return false;
-}
-
-/* -------------------- VERDICT -------------------- */
-
-function buildVerdict(ctx) {
-  const a = summarize(ctx.scoredA);
-  const b = summarize(ctx.scoredB);
-
-  let teamAScore = Math.round(
-    50 +
-    (a.topAvg - b.topAvg) * 2.4 +
-    (a.evidence - b.evidence) * 2.0 +
-    (a.reasoning - b.reasoning) * 1.8 -
-    (a.attack - b.attack) * 1.8 -
-    (a.fluff - b.fluff) * 1.2
+  const thesisClarity = clamp(
+    35 +
+      logicalConnectors * 4 +
+      Math.min(sentenceCount, 20) * 0.7 -
+      Math.max(avgSentenceLength - 180, 0) * 0.15
   );
 
-  teamAScore = clamp(teamAScore, 1, 99);
-  const teamBScore = clamp(100 - teamAScore, 1, 99);
+  const specificity = clamp(
+    25 +
+      evidenceTerms * 5 +
+      countMatches(lower, /\b(trump|tucker|candace|alex jones|megyn|israel|iran|cnn|fox)\b/g) * 2 -
+      hedges * 2
+  );
 
-  const diff = Math.abs(teamAScore - teamBScore);
-  const winner = diff === 0 ? "Tie" : (teamAScore > teamBScore ? ctx.teamAName : ctx.teamBName);
-  const confidence = diff >= 24 ? "high" : diff >= 12 ? "medium" : "low";
+  const structureCoherence = clamp(
+    40 +
+      logicalConnectors * 4 +
+      contradictionMarkers * 1.5 -
+      insults * 3 -
+      Math.max(sentenceCount - 120, 0) * 0.3
+  );
 
-  const strongestA = pickStrongestArgument(ctx.scoredA);
-  const strongestB = pickStrongestArgument(ctx.scoredB);
+  const responsiveness = clamp(
+    30 +
+      countMatches(lower, /\b(response|respond|rebuttal|answer|criticize|against|reaction|doubling down)\b/g) * 6 +
+      questionCount * 2 -
+      countMatches(lower, /\b(anyway|moving on|before we get to that|by the way)\b/g) * 4
+  );
 
-  let strongestArgumentSide = ctx.teamAName;
-  let strongestArgumentText = strongestA ? strongestA.text : "";
-  let strongestScore = strongestA ? strongestA.score : -999;
+  const quoteFairness = clamp(
+    55 +
+      hedges * 2 -
+      insults * 4 -
+      overclaimTerms * 2 -
+      Math.max(quoteTerms - evidenceTerms, 0) * 2
+  );
 
-  if (strongestB && strongestB.score > strongestScore) {
-    strongestArgumentSide = ctx.teamBName;
-    strongestArgumentText = strongestB.text;
-  }
+  const distinctionHonesty = clamp(
+    45 +
+      hedges * 3 +
+      countMatches(lower, /\b(i think|i believe|to me|it seems|i would say|in my view)\b/g) * 3 -
+      overclaimTerms * 3 -
+      countMatches(lower, /\b(proves|proof that|beyond any reasonable doubt)\b/g) * 4
+  );
 
-  const otherSide = strongestArgumentSide === ctx.teamAName ? ctx.teamBName : ctx.teamAName;
-  const weakest = [...ctx.scoredA, ...ctx.scoredB].sort((x, y) => x.score - y.score)[0];
+  const burdenDiscipline = clamp(
+    40 +
+      evidenceTerms * 4 -
+      overclaimTerms * 3 -
+      insults * 2 -
+      countMatches(lower, /\b(liar|hoax|fake|anti-semitic|supremacist|hostage)\b/g) * 2
+  );
+
+  const emotionalPressure = clamp(
+    20 +
+      insults * 8 +
+      tribalTerms * 5 +
+      countMatches(lower, /\b(hate|evil|dark side|traitor|lunacy|dangerous|heinous|obscene)\b/g) * 5
+  );
+
+  const overreachSeverity = clamp(
+    20 +
+      overclaimTerms * 7 +
+      countMatches(lower, /\b(everyone knows|always|never|all of them|no one|once and for all|opposite of maga)\b/g) * 6
+  );
+
+  const unsupportedClaimRate = clamp(
+    30 +
+      Math.max(directAssertions - evidenceTerms - hedges, 0) * 2 +
+      overclaimTerms * 3
+  );
+
+  const tribalFraming = clamp(
+    15 +
+      tribalTerms * 9 +
+      countMatches(lower, /\b(real conservative|real maga|our side|their side|coalition|base)\b/g) * 5
+  );
+
+  const contradictionSeverity = clamp(
+    15 +
+      Math.max(countMatches(lower, /\b(he doesn't care|he does care|i don't care|i care)\b/g) - 1, 0) * 8 +
+      Math.max(countMatches(lower, /\b(always|never)\b/g) - 1, 0) * 4 +
+      Math.max(contradictionMarkers - logicalConnectors, 0) * 1.5
+  );
 
   return {
-    winner,
-    confidence,
-    teamAScore,
-    teamBScore,
-
-    teamA_integrity: integrityText(a),
-    teamB_integrity: integrityText(b),
-    teamA_reasoning: reasoningText(a),
-    teamB_reasoning: reasoningText(b),
-
-    same_lane_engagement: sameLane(ctx.teamA_lane, ctx.teamB_lane),
-    lane_mismatch: !sameLane(ctx.teamA_lane, ctx.teamB_lane),
-
-    strongestArgumentSide,
-    strongestArgument: strongestArgumentText ? "• " + cleanBullet(strongestArgumentText) : "-",
-    whyStrongest: strongestArgumentText ? "• Clear claim\n• Concrete support language\n• Less rhetorical drag" : "-",
-    failedResponseByOtherSide: strongestArgumentText ? `• ${otherSide} did not answer with equally specific support` : "-",
-    weakestOverall: weakest ? "• " + cleanBullet(weakest.text) : "-",
-
-    bsMeter: bsMeter(a, b),
-    manipulation: manipulationText(a, b),
-    fluff: fluffText(a, b),
-
-    core_disagreement: "• Team A says origin-of-life research still lacks an experimentally valid path to life\n• Team B says viable prebiotic pathways already exist and the criticism is distorted",
-    why: winner === "Tie"
-      ? "• Neither side separated clearly enough on support-weighted lines"
-      : `• ${winner} had stronger support-bearing lines\n• ${winner} carried less rhetorical drag overall`
+    thesisClarity: round(thesisClarity),
+    specificity: round(specificity),
+    structureCoherence: round(structureCoherence),
+    responsiveness: round(responsiveness),
+    quoteFairness: round(quoteFairness),
+    distinctionHonesty: round(distinctionHonesty),
+    burdenDiscipline: round(burdenDiscipline),
+    emotionalPressure: round(emotionalPressure),
+    overreachSeverity: round(overreachSeverity),
+    unsupportedClaimRate: round(unsupportedClaimRate),
+    tribalFraming: round(tribalFraming),
+    contradictionSeverity: round(contradictionSeverity)
   };
 }
 
-function summarize(pool) {
-  const top = pool.slice(0, Math.max(3, Math.ceil(pool.length * 0.15)));
+function computeScores(features) {
+  const clarity = clamp(
+    0.30 * features.thesisClarity +
+      0.25 * features.specificity +
+      0.25 * features.structureCoherence +
+      0.20 * features.responsiveness
+  );
+
+  const integrity = clamp(
+    0.30 * features.quoteFairness +
+      0.25 * features.distinctionHonesty +
+      0.25 * features.burdenDiscipline +
+      0.20 * (100 - features.emotionalPressure)
+  );
+
+  const honesty = clamp(
+    0.35 * features.distinctionHonesty +
+      0.25 * features.quoteFairness +
+      0.20 * (100 - features.contradictionSeverity) +
+      0.20 * (100 - features.overreachSeverity)
+  );
+
+  const manipulation = clamp(
+    0.40 * features.tribalFraming +
+      0.35 * features.emotionalPressure +
+      0.25 * features.unsupportedClaimRate
+  );
+
+  const bsn = clamp(
+    0.30 * features.unsupportedClaimRate +
+      0.25 * features.overreachSeverity +
+      0.20 * features.emotionalPressure +
+      0.15 * features.tribalFraming +
+      0.10 * features.contradictionSeverity
+  );
+
   return {
-    topAvg: avg(top.map(x => x.score)),
-    evidence: avg(top.map(x => x.features.evidence)),
-    reasoning: avg(top.map(x => x.features.reasoning)),
-    attack: avg(pool.map(x => x.features.attack)),
-    fluff: avg(pool.map(x => x.features.fluff))
+    clarity: round(clarity),
+    integrity: round(integrity),
+    honesty: round(honesty),
+    manipulation: round(manipulation),
+    bsn: round(bsn)
   };
 }
 
-function avg(arr) {
-  return arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : 0;
+function deriveIgnorance(features, scores) {
+  return round(
+    clamp(
+      20 +
+        0.30 * features.unsupportedClaimRate +
+        0.25 * features.overreachSeverity +
+        0.15 * (100 - features.distinctionHonesty) +
+        0.15 * (100 - features.burdenDiscipline) +
+        0.15 * (100 - scores.clarity)
+    )
+  );
 }
 
-function pickStrongestArgument(pool) {
-  return pool.find(x =>
-    x.features.claim &&
-    (x.features.evidence > 0 || x.features.reasoning > 0) &&
-    !(x.features.attack > 0 && x.features.evidence === 0 && x.features.reasoning === 0)
-  ) || pool[0] || null;
+function deriveDeception(features, scores) {
+  return round(
+    clamp(
+      10 +
+        0.35 * features.contradictionSeverity +
+        0.25 * features.overreachSeverity +
+        0.20 * (100 - features.quoteFairness) +
+        0.20 * (100 - scores.integrity)
+    )
+  );
 }
 
-function integrityText(s) {
-  if (s.attack > 0.9 && s.evidence < 0.8) return "• Too attack-heavy\n• Support load is thin";
-  if (s.topAvg >= 7 && s.evidence >= 1.2) return "• Mostly grounded\n• Support-bearing claims are present";
-  return "• Mixed integrity\n• Some usable claims, but uneven support";
-}
-
-function reasoningText(s) {
-  if (s.reasoning >= 1.5 && s.evidence >= 1.2) return "• Strong reasoning chain\n• Claims tie to support";
-  if (s.reasoning >= 0.8) return "• Reasoning is present\n• Still uneven in places";
-  return "• Reasoning is thin\n• Conclusions outrun support";
-}
-
-function bsMeter(a, b) {
-  const total = a.attack + b.attack + a.fluff + b.fluff;
-  if (total > 3) return "high";
-  if (total > 1.5) return "medium";
+function honestyLabel(score) {
+  if (score >= 75) return "high";
+  if (score >= 45) return "mixed";
   return "low";
 }
 
-function manipulationText(a, b) {
-  if (a.attack < 0.4 && b.attack < 0.4) return "• Low manipulation pressure\n• Most selected lines stay on claims";
-  return a.attack > b.attack
-    ? "• Team A leans harder on personal framing\n• Rhetorical pressure is elevated"
-    : "• Team B leans harder on personal framing\n• Rhetorical pressure is elevated";
+function ignoranceLabel(score) {
+  if (score < 30) return "low";
+  if (score < 60) return "moderate";
+  return "high";
 }
 
-function fluffText(a, b) {
-  const total = a.fluff + b.fluff;
-  if (total < 0.5) return "• Low fluff\n• Most selected lines carry argument weight";
-  if (total < 1.3) return "• Moderate fluff\n• Some airtime is wasted on posture";
-  return "• High fluff\n• Too much filler or non-core motion";
+function manipulationLabel(score) {
+  if (score < 30) return "low";
+  if (score < 60) return "moderate";
+  return "high";
 }
 
-/* -------------------- SOURCES -------------------- */
-
-function buildSources(aPool, bPool, videoLink) {
-  return [...aPool, ...bPool]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
-    .map(x => ({
-      claim: cleanBullet(x.text),
-      status: x.features.evidence > 0 && x.features.reasoning > 0
-        ? "supported-language"
-        : (x.features.attack > 0 && x.features.evidence === 0 ? "flagged-overreach" : "needs-review"),
-      note: x.features.evidence > 0 && x.features.reasoning > 0
-        ? "Contains claim-plus-support language."
-        : (x.features.attack > 0 && x.features.evidence === 0 ? "Leans more on accusation than support." : "Transcript-only claim."),
-      source: videoLink ? "transcript / debate video reference" : "transcript"
-    }));
+function deceptionLabel(score) {
+  if (score < 25) return "none";
+  if (score < 50) return "possible";
+  return "likely";
 }
 
-/* -------------------- FALLBACK -------------------- */
-
-function fallback(teamAName, teamBName, error) {
-  return {
-    teamAName,
-    teamBName,
-    winner: "",
-    confidence: "low",
-    teamAScore: 50,
-    teamBScore: 50,
-
-    teamA: { main_position: "-", truth: "-", lies: "-", opinion: "-", lala: "-" },
-    teamB: { main_position: "-", truth: "-", lies: "-", opinion: "-", lala: "-" },
-
-    teamA_integrity: "-",
-    teamB_integrity: "-",
-    teamA_reasoning: "-",
-    teamB_reasoning: "-",
-
-    teamA_lane: "mixed / unclear lane",
-    teamB_lane: "mixed / unclear lane",
-    same_lane_engagement: false,
-    lane_mismatch: true,
-
-    strongestArgumentSide: "-",
-    strongestArgument: "-",
-    whyStrongest: "-",
-    failedResponseByOtherSide: "-",
-    weakestOverall: "-",
-
-    bsMeter: "medium",
-    manipulation: "-",
-    fluff: "-",
-
-    core_disagreement: "-",
-    why: "-",
-
-    analysisMode: "fallback",
-    sources: [],
-    error: clean(error || "Unknown error")
-  };
+function bsnLabel(score) {
+  if (score < 25) return "low";
+  if (score < 50) return "moderate";
+  if (score < 75) return "high";
+  return "severe";
 }
 
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
+app.get("/health", (req, res) => {
+  res.json({ ok: true });
+});
+
+app.post("/api/analyze", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const textInput = typeof body.text === "string" ? body.text.trim() : "";
+    const linkInput = typeof body.link === "string" ? body.link.trim() : "";
+
+    if (!textInput && !linkInput) {
+      return res.status(400).json({ error: "Provide text or link." });
+    }
+
+    let rawText = textInput;
+
+    if (!rawText && linkInput) {
+      rawText = await extractTextFromLink(linkInput);
+    }
+
+    if (!rawText || rawText.length < 40) {
+      return res.status(400).json({ error: "Not enough content to analyze." });
+    }
+
+    const cleaned = cleanText(rawText);
+    const sentences = splitSentences(cleaned);
+    const structure = detectStructure(cleaned, sentences);
+    const topics = detectTopics(cleaned);
+    const worldview = detectWorldview(cleaned);
+    const features = scoreFeatures(cleaned, sentences);
+    const scores = computeScores(features);
+    const ignorance = deriveIgnorance(features, scores);
+    const deception = deriveDeception(features, scores);
+
+    return res.json({
+      structure,
+      topics,
+      scores,
+      labels: {
+        honesty: honestyLabel(scores.honesty),
+        ignorance: ignoranceLabel(ignorance),
+        manipulation: manipulationLabel(scores.manipulation),
+        deception: deceptionLabel(deception),
+        bsn: bsnLabel(scores.bsn)
+      },
+      worldview,
+      winner: null,
+      debug: {
+        features,
+        textLength: rawText.length,
+        cleanedLength: cleaned.length,
+        sentenceCount: sentences.length
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Failed to analyze input." });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Backend running on http://localhost:${PORT}`);
+});
