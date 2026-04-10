@@ -1,18 +1,93 @@
-const express = require("express");
+export default async function handler(req, res) {
+  setCors(res);
 
-const app = express();
-const PORT = process.env.PORT || 3001;
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
 
-app.use(express.json({ limit: "50mb" }));
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-app.use((req, res, next) => {
+  try {
+    const body = normalizeBody(req.body);
+    const textInput = typeof body.text === "string" ? body.text.trim() : "";
+    const linkInput = typeof body.link === "string" ? body.link.trim() : "";
+
+    if (!textInput && !linkInput) {
+      return res.status(400).json({ error: "Provide text or link." });
+    }
+
+    let rawText = textInput;
+
+    if (!rawText && linkInput) {
+      rawText = await extractTextFromLink(linkInput);
+    }
+
+    if (!rawText || rawText.length < 40) {
+      return res.status(400).json({ error: "Not enough content to analyze." });
+    }
+
+    const cleaned = cleanText(rawText);
+    const sentences = splitSentences(cleaned);
+
+    if (!sentences.length) {
+      return res.status(400).json({ error: "Could not parse usable text." });
+    }
+
+    const structure = detectStructure(cleaned, sentences);
+    const topics = detectTopics(cleaned);
+    const worldview = detectWorldview(cleaned);
+    const features = scoreFeatures(cleaned, sentences);
+    const scores = computeScores(features);
+    const ignorance = deriveIgnorance(features, scores);
+    const deception = deriveDeception(features, scores);
+
+    return res.status(200).json({
+      structure,
+      topics,
+      worldview,
+      scores,
+      labels: {
+        honesty: honestyLabel(scores.honesty),
+        ignorance: ignoranceLabel(ignorance),
+        manipulation: manipulationLabel(scores.manipulation),
+        deception: deceptionLabel(deception),
+        bsn: bsnLabel(scores.bsn)
+      },
+      winner: null,
+      debug: {
+        features,
+        textLength: rawText.length,
+        cleanedLength: cleaned.length,
+        sentenceCount: sentences.length
+      }
+    });
+  } catch (error) {
+    console.error("analyze error:", error);
+    return res.status(500).json({
+      error: error?.message || "Failed to analyze input."
+    });
+  }
+}
+
+function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  next();
-});
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+}
 
-app.options("*", (req, res) => res.sendStatus(204));
+function normalizeBody(body) {
+  if (!body) return {};
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body);
+    } catch {
+      return {};
+    }
+  }
+  return body;
+}
 
 function clamp(value, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
@@ -56,32 +131,43 @@ function splitSentences(text) {
 }
 
 async function extractTextFromLink(link) {
-  const response = await fetch(link, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 ReasoningAuditBot/1.0",
-      Accept: "text/html,application/xhtml+xml"
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const response = await fetch(link, {
+      method: "GET",
+      headers: {
+        "User-Agent": "ReasoningAudit/1.0",
+        "Accept": "text/html,application/xhtml+xml,text/plain"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch link: ${response.status}`);
     }
-  });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch link: ${response.status}`);
+    const html = await response.text();
+
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+      .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|br|section|article)>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return text;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const html = await response.text();
-
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
-    .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
-    .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|br|section|article)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function detectStructure(text, sentences) {
@@ -388,67 +474,3 @@ function bsnLabel(score) {
   if (score < 75) return "high";
   return "severe";
 }
-
-app.get("/health", (req, res) => {
-  res.json({ ok: true });
-});
-
-app.post("/api/analyze", async (req, res) => {
-  try {
-    const body = req.body || {};
-    const textInput = typeof body.text === "string" ? body.text.trim() : "";
-    const linkInput = typeof body.link === "string" ? body.link.trim() : "";
-
-    if (!textInput && !linkInput) {
-      return res.status(400).json({ error: "Provide text or link." });
-    }
-
-    let rawText = textInput;
-
-    if (!rawText && linkInput) {
-      rawText = await extractTextFromLink(linkInput);
-    }
-
-    if (!rawText || rawText.length < 40) {
-      return res.status(400).json({ error: "Not enough content to analyze." });
-    }
-
-    const cleaned = cleanText(rawText);
-    const sentences = splitSentences(cleaned);
-    const structure = detectStructure(cleaned, sentences);
-    const topics = detectTopics(cleaned);
-    const worldview = detectWorldview(cleaned);
-    const features = scoreFeatures(cleaned, sentences);
-    const scores = computeScores(features);
-    const ignorance = deriveIgnorance(features, scores);
-    const deception = deriveDeception(features, scores);
-
-    return res.json({
-      structure,
-      topics,
-      scores,
-      labels: {
-        honesty: honestyLabel(scores.honesty),
-        ignorance: ignoranceLabel(ignorance),
-        manipulation: manipulationLabel(scores.manipulation),
-        deception: deceptionLabel(deception),
-        bsn: bsnLabel(scores.bsn)
-      },
-      worldview,
-      winner: null,
-      debug: {
-        features,
-        textLength: rawText.length,
-        cleanedLength: cleaned.length,
-        sentenceCount: sentences.length
-      }
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: "Failed to analyze input." });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
-});
