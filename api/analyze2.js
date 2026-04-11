@@ -58,13 +58,10 @@ function unique(items, limit = 8) {
   for (const item of items) {
     const value = cleanText(item);
     if (!value) continue;
-
     const key = value.toLowerCase();
     if (seen.has(key)) continue;
-
     seen.add(key);
     out.push(value);
-
     if (out.length >= limit) break;
   }
 
@@ -328,6 +325,13 @@ function removeTimestamps(text) {
     .trim();
 }
 
+function cleanInputText(text) {
+  return removeTimestamps(cleanText(text))
+    .replace(/[^\x00-\x7F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function splitIntoSegments(text) {
   const raw = cleanText(text);
   if (!raw) return [];
@@ -350,7 +354,8 @@ function splitIntoSegments(text) {
 }
 
 function parseSpeakerTurns(segment) {
-  const lines = segment
+  const cleanedSegment = cleanText(segment);
+  const lines = cleanedSegment
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
@@ -394,8 +399,7 @@ function parseSpeakerTurns(segment) {
   }
 
   if (turns.length < 2) {
-    const cleaned = removeTimestamps(segment);
-    const chunks = cleaned
+    const chunks = cleanInputText(segment)
       .split(/(?<=[.!?])\s+(?=[A-Z])/)
       .map((chunk) => cleanText(chunk))
       .filter(Boolean);
@@ -522,6 +526,38 @@ function rankParticipants(participants) {
   });
 }
 
+function enforceDebateOutcome(debate) {
+  if (!debate || !Array.isArray(debate.participants) || debate.participants.length < 2) {
+    return makeBaseResponse().debate;
+  }
+
+  const a = normalizeParticipant(debate.participants[0], "Speaker A");
+  const b = normalizeParticipant(debate.participants[1], "Speaker B");
+
+  const aScore = (a.honesty * 1.2) + (a.points.length * 5) - (a.lying * 1.1);
+  const bScore = (b.honesty * 1.2) + (b.points.length * 5) - (b.lying * 1.1);
+
+  let honestSide = debate.honestSide;
+  let dishonestSide = debate.dishonestSide;
+
+  if (!honestSide || honestSide === "unclear" || !dishonestSide || dishonestSide === "unclear") {
+    if (aScore >= bScore) {
+      honestSide = a.name;
+      dishonestSide = b.name;
+    } else {
+      honestSide = b.name;
+      dishonestSide = a.name;
+    }
+  }
+
+  return {
+    summary: `${honestSide} is more grounded and consistent. ${dishonestSide} relies more on weak support, exaggeration, or confusion tactics.`,
+    honestSide,
+    dishonestSide,
+    participants: [a, b]
+  };
+}
+
 function analyzeDebate(segment) {
   const baseDebate = makeBaseResponse().debate;
   const turns = parseSpeakerTurns(segment);
@@ -580,7 +616,7 @@ function chooseBestSegment(text) {
   if (!segments.length) return "";
 
   const scored = segments.map((segment, index) => {
-    const cleaned = removeTimestamps(segment);
+    const cleaned = cleanInputText(segment);
     const words = splitWords(cleaned).length;
     const turns = parseSpeakerTurns(segment);
     const speakerCount = new Set(turns.map((t) => cleanText(t.speaker)).filter(Boolean)).size;
@@ -601,47 +637,15 @@ function chooseBestSegment(text) {
   scored.sort((a, b) => b.score - a.score);
   return scored[0].segment;
 }
-function enforceDebateOutcome(debate) {
-  if (!debate || !Array.isArray(debate.participants)) {
-    return debate;
-  }
 
-  const a = debate.participants[0];
-  const b = debate.participants[1];
-
-  // stronger scoring gap logic
-  const aScore = (a.honesty * 1.2) + (a.points.length * 5) - (a.lying * 1.1);
-  const bScore = (b.honesty * 1.2) + (b.points.length * 5) - (b.lying * 1.1);
-
-  let honestSide = debate.honestSide;
-  let dishonestSide = debate.dishonestSide;
-
-  // 🔥 FORCE a decision if unclear
-  if (honestSide === "unclear" || dishonestSide === "unclear") {
-    if (aScore > bScore) {
-      honestSide = a.name;
-      dishonestSide = b.name;
-    } else if (bScore > aScore) {
-      honestSide = b.name;
-      dishonestSide = a.name;
-    } else {
-      honestSide = a.name;
-      dishonestSide = b.name;
-    }
-  }
-
-  // 🔥 rewrite summary to be decisive
-  const summary = `${honestSide} is more grounded and consistent. ${dishonestSide} relies more on weak support, exaggeration, or confusion tactics.`;
-
-  return {
-    summary,
-    honestSide,
-    dishonestSide,
-    participants: [a, b]
-  };
-}
 function buildAnalysis(text, link) {
-  const combined = `${cleanText(text)} ${cleanText(link)}`.trim();
+  let combined = `${cleanText(text)} ${cleanText(link)}`.trim();
+
+  combined = combined
+    .replace(/[^\x00-\x7F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
   const base = makeBaseResponse();
 
   if (!combined) {
@@ -656,7 +660,7 @@ function buildAnalysis(text, link) {
       topics: extractTopics(focusedSegment),
       worldview: extractWorldview(focusedSegment),
       scores: analyzeOverallScores(focusedSegment),
-      debate: analyzeDebate(focusedSegment)
+      debate: enforceDebateOutcome(analyzeDebate(focusedSegment))
     });
 
     const hasUsefulDebate =
@@ -677,7 +681,7 @@ function buildAnalysis(text, link) {
       topics: extractTopics(combined),
       worldview: extractWorldview(combined),
       scores: analyzeOverallScores(combined),
-      debate: analyzeDebate(combined)
+      debate: enforceDebateOutcome(analyzeDebate(combined))
     });
   } catch {
     try {
@@ -686,7 +690,7 @@ function buildAnalysis(text, link) {
         topics: extractTopics(combined),
         worldview: extractWorldview(combined),
         scores: analyzeOverallScores(combined),
-        debate: analyzeDebate(combined)
+        debate: enforceDebateOutcome(analyzeDebate(combined))
       });
     } catch {
       return normalizeOutput(base);
