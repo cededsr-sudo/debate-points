@@ -42,35 +42,35 @@
     body { padding: 28px; }
 
     .app {
-      width: min(1400px, 100%);
+      width: min(1450px, 100%);
       margin: 0 auto;
+    }
+
+    .hero, .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,248,255,0.98));
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+      border-radius: var(--radius-xl);
     }
 
     .hero {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
       gap: 20px;
-      margin-bottom: 22px;
       padding: 28px 30px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245,248,255,0.98));
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow);
+      margin-bottom: 22px;
     }
 
     .hero-left {
       display: flex;
       align-items: center;
       gap: 16px;
-      min-width: 0;
     }
 
     .orb {
       width: 64px;
       height: 64px;
       border-radius: 50%;
-      flex: 0 0 auto;
       background:
         radial-gradient(circle at 35% 35%, rgba(255,255,255,0.96), rgba(126,165,255,0.56) 42%, rgba(79,124,255,0.95) 76%);
       box-shadow:
@@ -99,7 +99,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      justify-content: flex-end;
+      align-content: flex-start;
     }
 
     .chip {
@@ -115,7 +115,6 @@
       font-weight: 900;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--text);
     }
 
     .chip.primary {
@@ -135,10 +134,6 @@
     }
 
     .panel {
-      background: linear-gradient(180deg, var(--panel), var(--panel2));
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow-soft);
       padding: 22px;
     }
 
@@ -149,9 +144,7 @@
       letter-spacing: -0.04em;
     }
 
-    .section-title .accent {
-      color: var(--blue);
-    }
+    .section-title .accent { color: var(--blue); }
 
     .field {
       display: flex;
@@ -168,8 +161,7 @@
       text-transform: uppercase;
     }
 
-    input[type="text"],
-    textarea {
+    input[type="text"], textarea {
       width: 100%;
       border: 1px solid var(--line);
       background: #fff;
@@ -179,13 +171,6 @@
       font-size: 15px;
       outline: none;
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    input[type="text"]:focus,
-    textarea:focus {
-      border-color: var(--blue2);
-      box-shadow: 0 0 0 4px var(--blue-soft);
     }
 
     textarea {
@@ -211,11 +196,7 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       cursor: pointer;
-      transition: transform 0.12s ease, opacity 0.12s ease;
     }
-
-    button:hover { transform: translateY(-1px); }
-    button:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
 
     .primary-btn {
       color: #fff;
@@ -230,84 +211,64 @@
       box-shadow: var(--shadow-soft);
     }
 
-    .helper-pill {
-      display: inline-flex;
-      align-items: center;
-      min-height: 42px;
-      padding: 0 14px;
-      border-radius: 999px;
-      background: rgba(79,124,255,0.08);
-      color: #2552d9;
-      border: 1px solid rgba(79,124,255,0.18);
-      font-size: 11px;
-      font-weight: 900;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .error {
-      display: none;
+    .error, .okbox {
       margin-top: 16px;
-      border: 1px solid rgba(214,69,69,0.22);
-      background: var(--danger-soft);
-      color: #9c2e2e;
       border-radius: var(--radius-md);
       padding: 14px 16px;
       font-size: 14px;
       font-weight: 700;
       line-height: 1.5;
+      display: none;
     }
 
-    .footer-note {
-      margin-top: 8px;
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.55;
+    .error {
+      border: 1px solid rgba(214,69,69,0.22);
+      background: var(--danger-soft);
+      color: #9c2e2e;
     }
 
-    .stats-grid {
+    .okbox {
+      border: 1px solid rgba(79,124,255,0.18);
+      background: rgba(79,124,255,0.08);
+      color: #2552d9;
+    }
+
+    .stats-grid, .score-row {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
       gap: 12px;
     }
 
-    .stat,
-    .score-card,
-    .box {
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    .score-row { grid-template-columns: repeat(5, 1fr); }
+
+    .stat, .score-card, .box, .codebox {
       background: #fff;
       border: 1px solid var(--line);
       box-shadow: var(--shadow-soft);
-    }
-
-    .stat {
-      padding: 16px;
       border-radius: 18px;
     }
 
-    .stat .mini-label {
-      margin-bottom: 8px;
-    }
+    .stat, .score-card { padding: 16px; }
 
-    .stat-value {
+    .stat-value, .score {
       font-size: 30px;
       font-weight: 1000;
       line-height: 1.1;
       letter-spacing: -0.04em;
+      margin-top: 8px;
     }
 
     .readout {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 14px;
+      margin-top: 14px;
     }
 
-    .readout-full {
-      grid-column: 1 / -1;
-    }
+    .readout-full { grid-column: 1 / -1; }
 
     .box {
       min-height: 60px;
-      border-radius: 16px;
       padding: 14px 15px;
       line-height: 1.55;
       font-size: 15px;
@@ -315,23 +276,14 @@
       word-break: break-word;
     }
 
-    .score-row {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 12px;
-    }
-
-    .score-card {
-      padding: 16px;
-      border-radius: 18px;
-    }
-
-    .score {
-      font-size: 32px;
-      font-weight: 1000;
-      line-height: 1.1;
-      letter-spacing: -0.04em;
-      margin: 8px 0 4px;
+    .codebox {
+      padding: 14px 15px;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      min-height: 120px;
     }
 
     .score-sub {
@@ -341,19 +293,12 @@
     }
 
     @media (max-width: 1180px) {
-      .grid-2,
-      .readout,
-      .score-row,
-      .stats-grid {
+      .grid-2, .readout, .score-row, .stats-grid {
         grid-template-columns: 1fr;
       }
 
       .hero {
         flex-direction: column;
-      }
-
-      .hero-right {
-        justify-content: flex-start;
       }
     }
   </style>
@@ -365,7 +310,7 @@
         <div class="orb"></div>
         <div>
           <h1 class="title">Reasoning Audit</h1>
-          <div class="subtitle">Bright layout. Real output. Same-origin API.</div>
+          <div class="subtitle">No more silent failure nonsense.</div>
         </div>
       </div>
 
@@ -373,6 +318,7 @@
         <div class="chip">Full Rewrite</div>
         <div class="chip">Same Origin</div>
         <div class="chip primary" id="modeChip">Mode: -</div>
+        <div class="chip" id="statusChip">HTTP: -</div>
       </div>
     </div>
 
@@ -394,11 +340,11 @@
           <div class="actions">
             <button class="primary-btn" id="analyzeBtn">Analyze</button>
             <button class="secondary-btn" id="clearBtn">Clear</button>
-            <div class="helper-pill">API: /api/analyze</div>
+            <button class="secondary-btn" id="pingBtn">Ping API</button>
           </div>
 
+          <div id="okbox" class="okbox"></div>
           <div id="error" class="error"></div>
-          <div class="footer-note">This frontend matches the fixed backend contract only.</div>
         </div>
 
         <div class="panel">
@@ -419,7 +365,7 @@
             </div>
           </div>
 
-          <div class="readout" style="margin-top:14px;">
+          <div class="readout">
             <div class="readout-full">
               <div class="mini-label">Topics</div>
               <div id="topics" class="box">-</div>
@@ -434,32 +380,27 @@
 
       <div class="panel">
         <h2 class="section-title"><span class="accent">Score</span> Board</h2>
-
         <div class="score-row">
           <div class="score-card">
             <div class="mini-label">Clarity</div>
             <div id="clarity" class="score">-</div>
             <div class="score-sub">How readable the reasoning is</div>
           </div>
-
           <div class="score-card">
             <div class="mini-label">Integrity</div>
             <div id="integrity" class="score">-</div>
             <div class="score-sub">How grounded and fair it is</div>
           </div>
-
           <div class="score-card">
             <div class="mini-label">Honesty</div>
             <div id="honesty" class="score">-</div>
             <div class="score-sub">How direct vs evasive it is</div>
           </div>
-
           <div class="score-card">
             <div class="mini-label">Manipulation</div>
             <div id="manipulation" class="score">-</div>
             <div class="score-sub">Pressure, spin, loaded framing</div>
           </div>
-
           <div class="score-card">
             <div class="mini-label">BSN</div>
             <div id="bsn" class="score">-</div>
@@ -467,12 +408,17 @@
           </div>
         </div>
       </div>
+
+      <div class="panel">
+        <h2 class="section-title"><span class="accent">Raw</span> Response</h2>
+        <div class="mini-label">Parsed JSON</div>
+        <div id="rawJson" class="codebox">-</div>
+      </div>
     </div>
   </div>
 
   <script>
     const API_URL = "/api/analyze";
-
     const $ = (id) => document.getElementById(id);
 
     function cleanValue(value, fallback = "-") {
@@ -488,19 +434,26 @@
     }
 
     function showError(message) {
-      const box = $("error");
-      box.textContent = cleanValue(message, "Request failed.");
-      box.style.display = "block";
+      $("okbox").style.display = "none";
+      $("error").textContent = cleanValue(message, "Request failed.");
+      $("error").style.display = "block";
     }
 
-    function hideError() {
-      const box = $("error");
-      box.textContent = "";
-      box.style.display = "none";
+    function showOk(message) {
+      $("error").style.display = "none";
+      $("okbox").textContent = cleanValue(message, "OK");
+      $("okbox").style.display = "block";
+    }
+
+    function hideMessages() {
+      $("error").style.display = "none";
+      $("okbox").style.display = "none";
+      $("error").textContent = "";
+      $("okbox").textContent = "";
     }
 
     function resetUI() {
-      hideError();
+      hideMessages();
       setText("structure", "-");
       setText("topics", "-");
       setText("worldview", "-");
@@ -512,9 +465,11 @@
       setText("manipulation", "-");
       setText("bsn", "-");
       setText("modeChip", "Mode: -");
+      setText("statusChip", "HTTP: -");
+      setText("rawJson", "-");
     }
 
-    function renderResult(data) {
+    function renderResult(data, status) {
       const structure = cleanValue(data.structure);
       const topics = Array.isArray(data.topics) && data.topics.length ? data.topics : ["-"];
       const worldview = Array.isArray(data.worldview) && data.worldview.length ? data.worldview : ["-"];
@@ -531,10 +486,12 @@
       setText("manipulation", scores.manipulation ?? 0, "0");
       setText("bsn", scores.bsn ?? 0, "0");
       setText("modeChip", `Mode: ${structure}`);
+      setText("statusChip", `HTTP: ${status}`);
+      setText("rawJson", JSON.stringify(data, null, 2));
     }
 
     async function analyze() {
-      hideError();
+      hideMessages();
 
       const text = $("text").value.trim();
       const link = $("link").value.trim();
@@ -550,29 +507,79 @@
       try {
         const res = await fetch(API_URL, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, link })
         });
 
-        const data = await res.json().catch(() => null);
+        const raw = await res.text();
+        let data = null;
+
+        try {
+          data = raw ? JSON.parse(raw) : null;
+        } catch {
+          data = { raw };
+        }
+
+        setText("statusChip", `HTTP: ${res.status}`);
+        setText("rawJson", typeof data === "object" ? JSON.stringify(data, null, 2) : String(data));
 
         if (!res.ok) {
-          throw new Error((data && data.error) || "Request failed.");
+          throw new Error((data && data.error) || `Request failed with status ${res.status}`);
         }
 
         if (!data || typeof data !== "object") {
           throw new Error("Backend returned invalid JSON.");
         }
 
-        renderResult(data);
+        renderResult(data, res.status);
+        showOk("Analyze request completed.");
       } catch (err) {
-        resetUI();
         showError(err.message || "Request failed.");
       } finally {
         $("analyzeBtn").disabled = false;
         $("analyzeBtn").textContent = "Analyze";
+      }
+    }
+
+    async function pingApi() {
+      hideMessages();
+      $("pingBtn").disabled = true;
+      $("pingBtn").textContent = "Pinging...";
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "Trump war Iran CNN data evidence because I support it but I don't know.", link: "" })
+        });
+
+        const raw = await res.text();
+        let data = null;
+
+        try {
+          data = raw ? JSON.parse(raw) : null;
+        } catch {
+          data = { raw };
+        }
+
+        setText("statusChip", `HTTP: ${res.status}`);
+        setText("rawJson", typeof data === "object" ? JSON.stringify(data, null, 2) : String(data));
+
+        if (!res.ok) {
+          throw new Error((data && data.error) || `Ping failed with status ${res.status}`);
+        }
+
+        if (!data || typeof data !== "object") {
+          throw new Error("Ping returned invalid JSON.");
+        }
+
+        renderResult(data, res.status);
+        showOk("API is alive and returned JSON.");
+      } catch (err) {
+        showError(err.message || "Ping failed.");
+      } finally {
+        $("pingBtn").disabled = false;
+        $("pingBtn").textContent = "Ping API";
       }
     }
 
@@ -584,6 +591,7 @@
 
     $("analyzeBtn").addEventListener("click", analyze);
     $("clearBtn").addEventListener("click", clearAll);
+    $("pingBtn").addEventListener("click", pingApi);
 
     resetUI();
   </script>
