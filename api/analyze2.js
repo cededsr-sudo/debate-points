@@ -601,7 +601,45 @@ function chooseBestSegment(text) {
   scored.sort((a, b) => b.score - a.score);
   return scored[0].segment;
 }
+function enforceDebateOutcome(debate) {
+  if (!debate || !Array.isArray(debate.participants)) {
+    return debate;
+  }
 
+  const a = debate.participants[0];
+  const b = debate.participants[1];
+
+  // stronger scoring gap logic
+  const aScore = (a.honesty * 1.2) + (a.points.length * 5) - (a.lying * 1.1);
+  const bScore = (b.honesty * 1.2) + (b.points.length * 5) - (b.lying * 1.1);
+
+  let honestSide = debate.honestSide;
+  let dishonestSide = debate.dishonestSide;
+
+  // 🔥 FORCE a decision if unclear
+  if (honestSide === "unclear" || dishonestSide === "unclear") {
+    if (aScore > bScore) {
+      honestSide = a.name;
+      dishonestSide = b.name;
+    } else if (bScore > aScore) {
+      honestSide = b.name;
+      dishonestSide = a.name;
+    } else {
+      honestSide = a.name;
+      dishonestSide = b.name;
+    }
+  }
+
+  // 🔥 rewrite summary to be decisive
+  const summary = `${honestSide} is more grounded and consistent. ${dishonestSide} relies more on weak support, exaggeration, or confusion tactics.`;
+
+  return {
+    summary,
+    honestSide,
+    dishonestSide,
+    participants: [a, b]
+  };
+}
 function buildAnalysis(text, link) {
   const combined = `${cleanText(text)} ${cleanText(link)}`.trim();
   const base = makeBaseResponse();
