@@ -12,7 +12,27 @@ function makeBaseResponse() {
       manipulation: 0,
       bsn: 0
     },
-    arguments: [],
+    scan: [],
+    analytics: {
+      line_count: 0,
+      question_count: 0,
+      exclamation_count: 0,
+      repeated_punctuation_count: 0,
+      all_caps_count: 0,
+      quote_count: 0,
+      parenthetical_count: 0,
+      dash_break_count: 0,
+      interruption_signals: 0,
+      evidence_signals: 0,
+      dodge_signals: 0,
+      trash_signals: 0,
+      manipulation_signals: 0,
+      unsupported_claims: 0,
+      pressure_questions: 0,
+      certainty_markers: 0,
+      hedge_markers: 0,
+      punctuation_intensity: 0
+    },
     summary: {
       text: "No analysis available.",
       strongest_points: [],
@@ -62,18 +82,33 @@ function normalizeArray(value, limit = 8) {
   return unique(value, limit);
 }
 
-function normalizeArgument(arg) {
+function normalizeScanItem(item, index) {
+  const punctuation = item && item.punctuation && typeof item.punctuation === "object" ? item.punctuation : {};
+
   return {
-    type: cleanText(arg && arg.type) || "claim",
-    text: cleanText(arg && arg.text) || "General argument detected but not cleanly parsed.",
-    strength: clamp(Number(arg && arg.strength)),
-    issues: normalizeArray(arg && arg.issues, 6)
+    index: Number.isFinite(Number(item && item.index)) ? Number(item.index) : index + 1,
+    text: cleanText(item && item.text) || "General argument detected but not cleanly parsed.",
+    label: cleanText(item && item.label) || "point",
+    strength: clamp(Number(item && item.strength)),
+    reason: cleanText(item && item.reason) || "No reason available.",
+    flags: normalizeArray(item && item.flags, 8),
+    punctuation: {
+      question_marks: clamp(Number(punctuation.question_marks), 0, 999),
+      exclamations: clamp(Number(punctuation.exclamations), 0, 999),
+      ellipses: clamp(Number(punctuation.ellipses), 0, 999),
+      repeated_punctuation: Boolean(punctuation.repeated_punctuation),
+      all_caps_words: clamp(Number(punctuation.all_caps_words), 0, 999),
+      quotes: clamp(Number(punctuation.quotes), 0, 999),
+      parentheticals: clamp(Number(punctuation.parentheticals), 0, 999),
+      dash_breaks: clamp(Number(punctuation.dash_breaks), 0, 999)
+    }
   };
 }
 
 function normalizeOutput(value) {
   const base = makeBaseResponse();
   const scores = value && value.scores && typeof value.scores === "object" ? value.scores : {};
+  const analytics = value && value.analytics && typeof value.analytics === "object" ? value.analytics : {};
   const summary = value && value.summary && typeof value.summary === "object" ? value.summary : {};
 
   return {
@@ -87,14 +122,34 @@ function normalizeOutput(value) {
       manipulation: clamp(Number(scores.manipulation)),
       bsn: clamp(Number(scores.bsn))
     },
-    arguments: Array.isArray(value && value.arguments)
-      ? value.arguments.map(normalizeArgument).slice(0, 12)
+    scan: Array.isArray(value && value.scan)
+      ? value.scan.map((item, index) => normalizeScanItem(item, index)).slice(0, 160)
       : [],
+    analytics: {
+      line_count: clamp(Number(analytics.line_count), 0, 99999),
+      question_count: clamp(Number(analytics.question_count), 0, 99999),
+      exclamation_count: clamp(Number(analytics.exclamation_count), 0, 99999),
+      repeated_punctuation_count: clamp(Number(analytics.repeated_punctuation_count), 0, 99999),
+      all_caps_count: clamp(Number(analytics.all_caps_count), 0, 99999),
+      quote_count: clamp(Number(analytics.quote_count), 0, 99999),
+      parenthetical_count: clamp(Number(analytics.parenthetical_count), 0, 99999),
+      dash_break_count: clamp(Number(analytics.dash_break_count), 0, 99999),
+      interruption_signals: clamp(Number(analytics.interruption_signals), 0, 99999),
+      evidence_signals: clamp(Number(analytics.evidence_signals), 0, 99999),
+      dodge_signals: clamp(Number(analytics.dodge_signals), 0, 99999),
+      trash_signals: clamp(Number(analytics.trash_signals), 0, 99999),
+      manipulation_signals: clamp(Number(analytics.manipulation_signals), 0, 99999),
+      unsupported_claims: clamp(Number(analytics.unsupported_claims), 0, 99999),
+      pressure_questions: clamp(Number(analytics.pressure_questions), 0, 99999),
+      certainty_markers: clamp(Number(analytics.certainty_markers), 0, 99999),
+      hedge_markers: clamp(Number(analytics.hedge_markers), 0, 99999),
+      punctuation_intensity: clamp(Number(analytics.punctuation_intensity))
+    },
     summary: {
       text: cleanText(summary.text) || base.summary.text,
-      strongest_points: normalizeArray(summary.strongest_points, 5),
-      weakest_points: normalizeArray(summary.weakest_points, 5),
-      notable_problems: normalizeArray(summary.notable_problems, 8)
+      strongest_points: normalizeArray(summary.strongest_points, 6),
+      weakest_points: normalizeArray(summary.weakest_points, 6),
+      notable_problems: normalizeArray(summary.notable_problems, 10)
     }
   };
 }
@@ -164,17 +219,18 @@ function splitWords(text) {
   return (text.toLowerCase().match(/[a-z0-9']+/g) || []).filter(Boolean);
 }
 
-function stripTimestampsKeepLines(text) {
+function stripNoiseKeepLines(text) {
   return cleanText(text)
+    .replace(/^\s*intro\s*:?\s*$/gim, "")
     .replace(/^\s*\d+:\d+\s*/gm, "")
     .replace(/^\s*\d+\s*seconds?\s*$/gim, "")
     .replace(/^\s*\d+\s*minutes?,?\s*\d*\s*seconds?\s*$/gim, "")
-    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "");
+    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "")
+    .replace(/[^\x00-\x7F]+/g, " ");
 }
 
 function removeNoise(text) {
-  return stripTimestampsKeepLines(text)
-    .replace(/[^\x00-\x7F]+/g, " ")
+  return stripNoiseKeepLines(text)
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/\s+\n/g, "\n")
@@ -274,69 +330,6 @@ function extractWorldview(text) {
   return unique(worldview, 8);
 }
 
-function splitSentences(text) {
-  const compact = removeNoise(text).replace(/\n+/g, " ");
-  return compact
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
-    .map((s) => cleanText(s))
-    .filter(Boolean);
-}
-
-function analyzeScores(text) {
-  const words = splitWords(text);
-  const wordCount = words.length;
-  const sentences = splitSentences(text);
-  const sentenceCount = Math.max(sentences.length, 1);
-  const avgSentenceLength = wordCount / sentenceCount;
-
-  const connectors = countMatches(text, [
-    "because", "therefore", "however", "for example", "if", "then", "but", "so", "since"
-  ]);
-  const evidenceCount = countMatches(text, [
-    "evidence", "proof", "source", "study", "data", "statistics", "according to", "poll", "research"
-  ]);
-  const hedgeCount = countMatches(text, [
-    "maybe", "perhaps", "probably", "possibly", "kind of", "sort of", "seems"
-  ]);
-  const pressureCount = countMatches(text, [
-    "stop", "let me", "you keep", "talking over", "attitude", "obviously", "clearly"
-  ]);
-  const exaggerationCount = countMatches(text, [
-    "always", "never", "everyone", "nobody", "totally", "completely"
-  ]);
-  const evasionCount = countMatches(text, [
-    "that's not the point", "totally different statistics", "i've read the opposite",
-    "anyway", "whatever", "i do not believe they are"
-  ]);
-
-  let clarity = 35 + Math.min(connectors * 6, 24);
-  if (avgSentenceLength >= 7 && avgSentenceLength <= 24) clarity += 18;
-  if (avgSentenceLength > 35) clarity -= 15;
-  if (wordCount < 8) clarity -= 20;
-
-  let integrity = 45 + Math.min(evidenceCount * 8, 32);
-  integrity -= Math.min(exaggerationCount * 4, 20);
-  integrity -= Math.min(evasionCount * 8, 24);
-
-  let honesty = 50 + Math.min(evidenceCount * 4, 20);
-  honesty -= Math.min(hedgeCount * 5, 25);
-  honesty -= Math.min(evasionCount * 8, 24);
-
-  let manipulation = 10 + Math.min(pressureCount * 8, 40);
-  manipulation += Math.min(exaggerationCount * 5, 20);
-
-  let bsn = 15 + Math.min(evasionCount * 10, 30) + Math.min(exaggerationCount * 5, 20);
-  if (evidenceCount === 0 && connectors === 0 && wordCount > 20) bsn += 15;
-
-  return {
-    clarity: clamp(clarity),
-    integrity: clamp(integrity),
-    honesty: clamp(honesty),
-    manipulation: clamp(manipulation),
-    bsn: clamp(bsn)
-  };
-}
-
 function scoreSegment(segment) {
   const cleaned = removeNoise(segment.body);
   const words = splitWords(cleaned).length;
@@ -353,7 +346,7 @@ function scoreSegment(segment) {
 
   const evidenceHits = countMatches(cleaned, [
     "statistics", "study", "data", "research", "poll", "evidence", "proof",
-    "according to", "predictor", "outcomes"
+    "according to", "predictor", "outcomes", "poverty", "mental health"
   ]);
 
   const challengeHits = countMatches(cleaned, [
@@ -362,13 +355,13 @@ function scoreSegment(segment) {
 
   let score = 0;
   score += Math.min(words, 1500) / 30;
-  score += interruptionHits * 18;
-  score += accusationHits * 18;
-  score += evidenceHits * 8;
-  score += challengeHits * 7;
+  score += interruptionHits * 20;
+  score += accusationHits * 20;
+  score += evidenceHits * 15;
+  score += challengeHits * 10;
 
   if (/candace owens vs feminists/i.test(segment.title)) {
-    score += 50;
+    score += 60;
   }
 
   return score;
@@ -376,20 +369,69 @@ function scoreSegment(segment) {
 
 function chooseBestSegment(text) {
   const segments = splitIntoSegments(text);
-  if (!segments.length) return { title: "Full Text", body: removeNoise(text) };
+  if (!segments.length) {
+    return { title: "Full Text", body: removeNoise(text) };
+  }
 
-  const scored = segments
+  return segments
     .map((segment) => ({ ...segment, score: scoreSegment(segment) }))
-    .sort((a, b) => b.score - a.score);
-
-  return scored[0];
+    .sort((a, b) => b.score - a.score)[0];
 }
 
-function classifyArgument(sentence) {
-  const lower = sentence.toLowerCase();
-  const issues = [];
-  let type = "claim";
+function breakLines(text) {
+  const rawLines = stripNoiseKeepLines(text)
+    .split(/\n+/)
+    .map((line) => cleanText(line))
+    .filter(Boolean);
+
+  const lines = [];
+  for (const line of rawLines) {
+    const pieces = line
+      .replace(/\s+/g, " ")
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+      .map((piece) => cleanText(piece))
+      .filter(Boolean);
+
+    if (pieces.length) {
+      lines.push(...pieces);
+    } else {
+      lines.push(line);
+    }
+  }
+
+  return lines;
+}
+
+function scanPunctuation(text) {
+  const questionMarks = (text.match(/\?/g) || []).length;
+  const exclamations = (text.match(/!/g) || []).length;
+  const ellipses = (text.match(/\.\.\./g) || []).length;
+  const repeatedPunctuation = /(\?\?+|!!+|!\?|\?!)/.test(text);
+  const allCapsWords = (text.match(/\b[A-Z]{2,}\b/g) || []).length;
+  const quotes = (text.match(/["“”']/g) || []).length;
+  const parentheticals = (text.match(/\([^)]*\)/g) || []).length;
+  const dashBreaks = (text.match(/--| - |—/g) || []).length;
+
+  return {
+    question_marks: questionMarks,
+    exclamations,
+    ellipses,
+    repeated_punctuation: repeatedPunctuation,
+    all_caps_words: allCapsWords,
+    quotes,
+    parentheticals,
+    dash_breaks: dashBreaks
+  };
+}
+
+function classifyLine(text, index) {
+  const lower = text.toLowerCase();
+  const punctuation = scanPunctuation(text);
+
+  let label = "point";
   let strength = 45;
+  let reason = "Recognized as a substantive line.";
+  const flags = [];
 
   const hasEvidence = [
     "study", "statistics", "data", "research", "according to", "poll",
@@ -397,8 +439,14 @@ function classifyArgument(sentence) {
     "higher incomes", "behavioral problems", "divorced"
   ].some((term) => lower.includes(term));
 
-  const isChallenge = [
-    "how can", "how is that", "what do you mean", "how are you measuring", "why are you"
+  const isQuestion = punctuation.question_marks > 0;
+  const isPressureQuestion = [
+    "how are you measuring",
+    "how can you say",
+    "how is that",
+    "what do you mean",
+    "why are you",
+    "so how can"
   ].some((term) => lower.includes(term));
 
   const isDodge = [
@@ -407,7 +455,7 @@ function classifyArgument(sentence) {
     "that's not what i'm talking about",
     "i do not believe they are",
     "i'm saying that",
-    "because everything that you said i've actually read the exact opposite"
+    "i've read the opposite"
   ].some((term) => lower.includes(term));
 
   const isManipulation = [
@@ -418,139 +466,198 @@ function classifyArgument(sentence) {
     "you don't want to",
     "you keep",
     "not allowing me to respond",
-    "not productive"
+    "not productive",
+    "walk away and feel like i've won"
   ].some((term) => lower.includes(term));
 
   const isCounter = [
-    "that's not true", "that is not true", "wrong", "that's a lie", "that is a lie"
+    "that's not true",
+    "that is not true",
+    "wrong",
+    "that's a lie",
+    "that is a lie"
   ].some((term) => lower.includes(term));
 
-  if (hasEvidence) {
-    type = "evidence";
-    strength += 25;
-  }
+  const isUnsupported = [
+    "obviously",
+    "clearly",
+    "because you said so",
+    "i do not believe",
+    "it is obvious"
+  ].some((term) => lower.includes(term));
 
-  if (isChallenge) {
-    type = "challenge";
+  const isTrash = [
+    "nice to meet you",
+    "great conversation",
+    "good job",
+    "okay.",
+    "yeah.",
+    "hello.",
+    "good to see you"
+  ].includes(lower);
+
+  if (isTrash) {
+    label = "trash";
+    strength = 10;
+    reason = "Adds little or nothing to the argument.";
+    flags.push("filler");
+  } else if (hasEvidence) {
+    label = "evidence";
+    strength += 30;
+    reason = "Uses measurable or source-like language.";
+    flags.push("evidence-based");
+  } else if (isPressureQuestion) {
+    label = "question";
+    strength += 28;
+    reason = "Directly pressures the other side for method, evidence, or consistency.";
+    flags.push("evidence-pressure");
+  } else if (isQuestion) {
+    label = "question";
     strength += 12;
+    reason = "Questions the other side's claim or framing.";
   }
 
   if (isCounter) {
-    type = "counterpoint";
-    strength += 8;
-    issues.push("accusation");
+    label = "counter";
+    strength += 14;
+    reason = "Directly rejects the previous claim.";
+    flags.push("rebuttal");
   }
 
   if (isDodge) {
-    type = "dodge";
-    strength -= 15;
-    issues.push("non-answer");
-    issues.push("unsupported assertion");
+    label = "dodge";
+    strength = Math.max(12, strength - 18);
+    reason = "Rejects or evades the other side without naming support.";
+    flags.push("deflection");
+    flags.push("no evidence");
   }
 
   if (isManipulation) {
-    type = "manipulation";
-    strength -= 12;
-    issues.push("pressure tactic");
+    label = "manipulation";
+    strength = Math.max(8, strength - 10);
+    reason = "Uses pressure, control, or personal framing instead of argument.";
+    flags.push("personal attack");
+    flags.push("conversation control");
   }
 
-  if (lower.includes("obviously") || lower.includes("clearly") || lower.includes("absolutely")) {
-    issues.push("unsupported certainty");
+  if (isUnsupported) {
+    if (label === "point") label = "unsupported";
+    strength = Math.max(10, strength - 10);
+    if (!reason || reason === "Recognized as a substantive line.") {
+      reason = "Makes a claim without grounding it.";
+    }
+    flags.push("unsupported certainty");
+  }
+
+  if (punctuation.repeated_punctuation) {
+    flags.push("heightened punctuation");
+    strength = Math.max(8, strength - 4);
+  }
+
+  if (punctuation.all_caps_words > 0) {
+    flags.push("all-caps emphasis");
+    strength = Math.max(8, strength - 3);
+  }
+
+  if (text.length > 220) {
+    strength -= 4;
+  }
+
+  if (text.length < 18) {
     strength -= 8;
   }
 
-  if (lower.includes("everyone") || lower.includes("never") || lower.includes("always")) {
-    issues.push("overgeneralization");
-    strength -= 6;
-  }
-
-  if (lower.includes("because") || lower.includes("so how can") || lower.includes("which means")) {
-    strength += 8;
-  }
-
-  if (sentence.length > 200) strength -= 4;
-  if (sentence.length < 24) strength -= 8;
-
   return {
-    type,
-    text: sentence.length > 220 ? `${sentence.slice(0, 217)}...` : sentence,
+    index: index + 1,
+    text,
+    label,
     strength: clamp(strength),
-    issues: unique(issues, 6)
+    reason,
+    flags: unique(flags, 8),
+    punctuation
   };
 }
 
-function extractArguments(text) {
-  const sentences = splitSentences(text);
+function buildAnalytics(scan) {
+  const analytics = {
+    line_count: scan.length,
+    question_count: 0,
+    exclamation_count: 0,
+    repeated_punctuation_count: 0,
+    all_caps_count: 0,
+    quote_count: 0,
+    parenthetical_count: 0,
+    dash_break_count: 0,
+    interruption_signals: 0,
+    evidence_signals: 0,
+    dodge_signals: 0,
+    trash_signals: 0,
+    manipulation_signals: 0,
+    unsupported_claims: 0,
+    pressure_questions: 0,
+    certainty_markers: 0,
+    hedge_markers: 0,
+    punctuation_intensity: 0
+  };
 
-  const picked = sentences
-    .filter((sentence) => sentence.length >= 24)
-    .filter((sentence) => {
-      const lower = sentence.toLowerCase();
-      return (
-        lower.includes("statistics") ||
-        lower.includes("study") ||
-        lower.includes("data") ||
-        lower.includes("research") ||
-        lower.includes("poll") ||
-        lower.includes("poverty") ||
-        lower.includes("predictor") ||
-        lower.includes("mental health") ||
-        lower.includes("behavioral problems") ||
-        lower.includes("higher incomes") ||
-        lower.includes("that's not true") ||
-        lower.includes("wrong") ||
-        lower.includes("how can") ||
-        lower.includes("how are you measuring") ||
-        lower.includes("totally different statistics") ||
-        lower.includes("attitude") ||
-        lower.includes("let me finish") ||
-        lower.includes("performative") ||
-        lower.includes("obviously") ||
-        lower.includes("because")
-      );
-    })
-    .map(classifyArgument)
-    .sort((a, b) => b.strength - a.strength);
+  for (const item of scan) {
+    analytics.question_count += item.punctuation.question_marks;
+    analytics.exclamation_count += item.punctuation.exclamations;
+    analytics.repeated_punctuation_count += item.punctuation.repeated_punctuation ? 1 : 0;
+    analytics.all_caps_count += item.punctuation.all_caps_words;
+    analytics.quote_count += item.punctuation.quotes;
+    analytics.parenthetical_count += item.punctuation.parentheticals;
+    analytics.dash_break_count += item.punctuation.dash_breaks;
 
-  if (!picked.length) {
-    const fallback = sentences.slice(0, 6).map(classifyArgument);
-    return fallback.length
-      ? fallback
-      : [{
-          type: "claim",
-          text: "General argument detected but not cleanly parsed.",
-          strength: 25,
-          issues: ["low parse confidence"]
-        }];
+    if (item.label === "evidence") analytics.evidence_signals += 1;
+    if (item.label === "dodge") analytics.dodge_signals += 1;
+    if (item.label === "trash") analytics.trash_signals += 1;
+    if (item.label === "manipulation") analytics.manipulation_signals += 1;
+    if (item.label === "unsupported") analytics.unsupported_claims += 1;
+    if (item.label === "question" && item.flags.includes("evidence-pressure")) analytics.pressure_questions += 1;
+
+    if (item.flags.includes("conversation control")) analytics.interruption_signals += 1;
+    if (item.flags.includes("unsupported certainty")) analytics.certainty_markers += 1;
+    if (item.text.toLowerCase().includes("maybe") || item.text.toLowerCase().includes("perhaps") || item.text.toLowerCase().includes("probably")) {
+      analytics.hedge_markers += 1;
+    }
   }
 
-  return picked.slice(0, 10);
+  analytics.punctuation_intensity = clamp(
+    (analytics.question_count * 4) +
+    (analytics.exclamation_count * 5) +
+    (analytics.repeated_punctuation_count * 10) +
+    (analytics.all_caps_count * 6),
+    0,
+    100
+  );
+
+  return analytics;
 }
 
-function buildSummary(argumentsList, segmentTitle) {
-  const strongest = argumentsList
-    .filter((item) => item.type === "evidence" || item.type === "challenge")
-    .slice(0, 3)
+function buildSummary(scan, title) {
+  const strongest = scan
+    .filter((item) => item.label === "evidence" || item.label === "question" || item.label === "counter")
+    .sort((a, b) => b.strength - a.strength)
+    .slice(0, 4)
     .map((item) => item.text);
 
-  const weakest = argumentsList
-    .filter((item) =>
-      item.type === "dodge" ||
-      item.type === "manipulation" ||
-      item.issues.includes("unsupported assertion") ||
-      item.issues.includes("unsupported certainty")
-    )
-    .slice(0, 3)
+  const weakest = scan
+    .filter((item) => item.label === "dodge" || item.label === "manipulation" || item.label === "unsupported" || item.label === "trash")
+    .sort((a, b) => a.strength - b.strength)
+    .slice(0, 4)
     .map((item) => item.text);
 
-  const problems = unique(argumentsList.flatMap((item) => item.issues || []), 8);
-  const title = cleanText(segmentTitle) || "Selected segment";
+  const notableProblems = unique(
+    scan.flatMap((item) => item.flags || []),
+    10
+  );
 
   return {
-    text: `${title} was selected as the strongest debate segment and reduced into argument moves.`,
-    strongest_points: strongest.length ? strongest : ["No especially strong argument units detected."],
-    weakest_points: weakest.length ? weakest : ["No especially weak argument units detected."],
-    notable_problems: problems.length ? problems : ["none flagged"]
+    text: `${cleanText(title) || "Selected segment"} was scanned line by line for points, trash, dodges, pressure, and punctuation.`,
+    strongest_points: strongest.length ? strongest : ["No especially strong lines detected."],
+    weakest_points: weakest.length ? weakest : ["No especially weak lines detected."],
+    notable_problems: notableProblems.length ? notableProblems : ["none flagged"]
   };
 }
 
@@ -564,15 +671,19 @@ function buildAnalysis(text, link) {
 
   const segment = chooseBestSegment(combined);
   const cleaned = removeNoise(segment.body);
-  const argumentsList = extractArguments(cleaned);
+  const rawLines = breakLines(cleaned);
+  const scan = rawLines.map((line, index) => classifyLine(line, index));
+
+  const analytics = buildAnalytics(scan);
 
   return normalizeOutput({
     structure: detectStructure(cleaned),
     topics: extractTopics(cleaned),
     worldview: extractWorldview(cleaned),
     scores: analyzeScores(cleaned),
-    arguments: argumentsList,
-    summary: buildSummary(argumentsList, segment.title)
+    scan,
+    analytics,
+    summary: buildSummary(scan, segment.title)
   });
 }
 
