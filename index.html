@@ -7,9 +7,7 @@
   <style>
     :root {
       --bg: #04070a;
-      --bg2: #071117;
       --panel: rgba(9, 16, 20, 0.94);
-      --panel-2: rgba(6, 11, 14, 0.96);
       --line: rgba(76, 255, 163, 0.16);
       --line-strong: rgba(76, 255, 163, 0.34);
       --text: #d8ffe9;
@@ -17,9 +15,7 @@
       --green: #4cff9f;
       --green-2: #9fffd3;
       --green-soft: rgba(76, 255, 159, 0.1);
-      --danger: #ff6b7a;
       --danger-soft: rgba(255, 107, 122, 0.12);
-      --warn-soft: rgba(255, 196, 92, 0.12);
       --shadow: 0 18px 48px rgba(0, 0, 0, 0.46);
       --radius-xl: 24px;
       --radius-lg: 18px;
@@ -54,14 +50,8 @@
       mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
     }
 
-    body {
-      padding: 24px;
-    }
-
-    .app {
-      width: min(1520px, 100%);
-      margin: 0 auto;
-    }
+    body { padding: 24px; }
+    .app { width: min(1540px, 100%); margin: 0 auto; }
 
     .hero, .panel {
       background: linear-gradient(180deg, rgba(8,14,18,0.94), rgba(6,10,13,0.96));
@@ -119,7 +109,6 @@
       font-weight: 1000;
       letter-spacing: -0.05em;
       color: #e8fff3;
-      text-shadow: 0 0 18px rgba(76,255,159,0.08);
     }
 
     .subtitle {
@@ -159,7 +148,6 @@
       background: linear-gradient(180deg, rgba(14,37,23,0.95), rgba(10,25,16,0.98));
       border-color: var(--line-strong);
       color: var(--green-2);
-      box-shadow: 0 0 22px rgba(76,255,159,0.08);
     }
 
     .layout {
@@ -169,13 +157,11 @@
 
     .grid-2 {
       display: grid;
-      grid-template-columns: 1.02fr 0.98fr;
+      grid-template-columns: 1fr 1fr;
       gap: 22px;
     }
 
-    .panel {
-      padding: 22px;
-    }
+    .panel { padding: 22px; }
 
     .section-title {
       margin: 0 0 16px;
@@ -184,9 +170,7 @@
       letter-spacing: -0.04em;
     }
 
-    .section-title .accent {
-      color: var(--green);
-    }
+    .section-title .accent { color: var(--green); }
 
     .field {
       display: flex;
@@ -212,16 +196,10 @@
       padding: 14px 15px;
       font-size: 15px;
       outline: none;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    input[type="text"]:focus, textarea:focus, select:focus {
-      border-color: var(--line-strong);
-      box-shadow: 0 0 0 4px rgba(76,255,159,0.08);
     }
 
     textarea {
-      min-height: 360px;
+      min-height: 320px;
       resize: vertical;
       line-height: 1.55;
     }
@@ -243,16 +221,11 @@
       letter-spacing: 0.1em;
       text-transform: uppercase;
       cursor: pointer;
-      transition: transform 0.12s ease, opacity 0.12s ease;
     }
-
-    button:hover { transform: translateY(-1px); }
-    button:disabled { opacity: 0.7; cursor: wait; transform: none; }
 
     .primary-btn {
       color: #031108;
       background: linear-gradient(180deg, var(--green-2), var(--green));
-      box-shadow: 0 12px 28px rgba(76,255,159,0.16);
     }
 
     .secondary-btn {
@@ -290,10 +263,10 @@
 
     .stats-grid { grid-template-columns: repeat(4, 1fr); }
     .score-row { grid-template-columns: repeat(5, 1fr); }
-    .analytics-grid { grid-template-columns: repeat(4, 1fr); }
+    .analytics-grid { grid-template-columns: repeat(5, 1fr); }
     .summary-grid { grid-template-columns: repeat(3, 1fr); }
 
-    .stat, .score-card, .box, .codebox, .analytic-card {
+    .stat, .score-card, .analytic-card, .box, .codebox {
       background: linear-gradient(180deg, rgba(8,15,19,0.9), rgba(5,10,13,0.96));
       border: 1px solid var(--line);
       border-radius: 18px;
@@ -312,15 +285,10 @@
       color: #e7fff2;
     }
 
-    .readout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin-top: 14px;
-    }
-
-    .readout-full {
-      grid-column: 1 / -1;
+    .score-sub, .analytic-sub {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
     }
 
     .box {
@@ -330,7 +298,6 @@
       font-size: 15px;
       white-space: pre-wrap;
       word-break: break-word;
-      color: var(--text);
     }
 
     .codebox {
@@ -344,12 +311,6 @@
       color: #bfffd9;
     }
 
-    .score-sub, .analytic-sub {
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
-    }
-
     .list {
       margin: 10px 0 0;
       padding-left: 18px;
@@ -358,14 +319,13 @@
     .list li {
       margin: 6px 0;
       line-height: 1.45;
-      color: var(--text);
     }
 
     .toolbar {
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
-      align-items: center;
+      align-items: end;
       margin-bottom: 14px;
     }
 
@@ -379,12 +339,13 @@
       border-radius: 18px;
       border: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(8,15,19,0.9), rgba(5,10,13,0.96));
+      max-height: 720px;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 1100px;
+      min-width: 1200px;
     }
 
     thead th {
@@ -397,7 +358,7 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
       text-align: left;
-      padding: 12px 12px;
+      padding: 12px;
       border-bottom: 1px solid var(--line);
       white-space: nowrap;
     }
@@ -408,7 +369,6 @@
       vertical-align: top;
       font-size: 14px;
       line-height: 1.45;
-      color: var(--text);
     }
 
     tbody tr:hover {
@@ -456,8 +416,8 @@
     }
 
     .text-cell {
-      max-width: 420px;
-      min-width: 320px;
+      max-width: 460px;
+      min-width: 340px;
       white-space: normal;
       word-break: break-word;
     }
@@ -471,7 +431,7 @@
     }
 
     @media (max-width: 1280px) {
-      .grid-2, .readout, .score-row, .stats-grid, .analytics-grid, .summary-grid {
+      .grid-2, .stats-grid, .score-row, .analytics-grid, .summary-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -487,7 +447,6 @@
           <div class="subtitle">2026 matrix sentence scan</div>
         </div>
       </div>
-
       <div class="hero-right">
         <div class="chip">Line Scan</div>
         <div class="chip">Punctuation</div>
@@ -501,38 +460,33 @@
       <div class="grid-2">
         <div class="panel">
           <h2 class="section-title"><span class="accent">Input</span> Intake</h2>
-
           <div class="field">
             <label for="text">Transcript / Text</label>
             <textarea id="text" placeholder="Paste transcript or argument text here..."></textarea>
           </div>
-
           <div class="field" style="margin-top:14px;">
             <label for="link">Link (optional)</label>
             <input id="link" type="text" placeholder="Paste a page or video link..." />
           </div>
-
           <div class="actions">
             <button class="primary-btn" id="analyzeBtn">Analyze</button>
             <button class="secondary-btn" id="clearBtn">Clear</button>
             <button class="secondary-btn" id="pingBtn">Ping API</button>
           </div>
-
           <div id="okbox" class="okbox"></div>
           <div id="error" class="error"></div>
         </div>
 
         <div class="panel">
-          <h2 class="section-title"><span class="accent">Quick</span> View</h2>
-
+          <h2 class="section-title"><span class="accent">Result</span> Header</h2>
           <div class="stats-grid">
             <div class="stat">
               <div class="mini-label">Structure</div>
               <div id="structure" class="stat-value">-</div>
             </div>
             <div class="stat">
-              <div class="mini-label">Topics</div>
-              <div id="topicsCount" class="stat-value">-</div>
+              <div class="mini-label">Segment</div>
+              <div id="segmentShort" class="stat-value">-</div>
             </div>
             <div class="stat">
               <div class="mini-label">Lines</div>
@@ -543,20 +497,13 @@
               <div id="punctHeat" class="stat-value">-</div>
             </div>
           </div>
-
-          <div class="readout">
-            <div class="readout-full">
-              <div class="mini-label">Topics</div>
-              <div id="topics" class="box">-</div>
-            </div>
-            <div class="readout-full">
-              <div class="mini-label">Worldview</div>
-              <div id="worldview" class="box">-</div>
-            </div>
-            <div class="readout-full">
-              <div class="mini-label">Summary</div>
-              <div id="summaryText" class="box">-</div>
-            </div>
+          <div style="margin-top:14px;">
+            <div class="mini-label">Selected Segment</div>
+            <div id="selectedSegment" class="box">-</div>
+          </div>
+          <div style="margin-top:14px;">
+            <div class="mini-label">Summary</div>
+            <div id="summaryText" class="box">-</div>
           </div>
         </div>
       </div>
@@ -567,27 +514,27 @@
           <div class="score-card">
             <div class="mini-label">Clarity</div>
             <div id="clarity" class="score">-</div>
-            <div class="score-sub">How readable the reasoning is</div>
+            <div class="score-sub">Readable reasoning</div>
           </div>
           <div class="score-card">
             <div class="mini-label">Integrity</div>
             <div id="integrity" class="score">-</div>
-            <div class="score-sub">How grounded the reasoning is</div>
+            <div class="score-sub">Grounded support</div>
           </div>
           <div class="score-card">
             <div class="mini-label">Honesty</div>
             <div id="honesty" class="score">-</div>
-            <div class="score-sub">How direct vs evasive it is</div>
+            <div class="score-sub">Direct vs evasive</div>
           </div>
           <div class="score-card">
             <div class="mini-label">Manipulation</div>
             <div id="manipulation" class="score">-</div>
-            <div class="score-sub">Pressure, control, framing</div>
+            <div class="score-sub">Pressure and framing</div>
           </div>
           <div class="score-card">
             <div class="mini-label">BSN</div>
             <div id="bsn" class="score">-</div>
-            <div class="score-sub">Contradiction + deflection load</div>
+            <div class="score-sub">Contradiction + dodge load</div>
           </div>
         </div>
       </div>
@@ -608,12 +555,17 @@
           <div class="analytic-card">
             <div class="mini-label">Trash</div>
             <div id="trashSignals" class="analytic-value">-</div>
-            <div class="analytic-sub">Filler / non-substantive lines</div>
+            <div class="analytic-sub">Filler / weak lines</div>
           </div>
           <div class="analytic-card">
             <div class="mini-label">Manipulation</div>
             <div id="manipulationSignals" class="analytic-value">-</div>
             <div class="analytic-sub">Pressure / personal framing</div>
+          </div>
+          <div class="analytic-card">
+            <div class="mini-label">Unsupported</div>
+            <div id="unsupportedClaims" class="analytic-value">-</div>
+            <div class="analytic-sub">Unsupported claim lines</div>
           </div>
           <div class="analytic-card">
             <div class="mini-label">Questions</div>
@@ -623,17 +575,22 @@
           <div class="analytic-card">
             <div class="mini-label">Pressure Qs</div>
             <div id="pressureQuestions" class="analytic-value">-</div>
-            <div class="analytic-sub">Direct pressure questions</div>
-          </div>
-          <div class="analytic-card">
-            <div class="mini-label">Unsupported</div>
-            <div id="unsupportedClaims" class="analytic-value">-</div>
-            <div class="analytic-sub">Unsupported claim lines</div>
+            <div class="analytic-sub">Evidence-pressure questions</div>
           </div>
           <div class="analytic-card">
             <div class="mini-label">Repeated Punct</div>
             <div id="repeatedPunct" class="analytic-value">-</div>
             <div class="analytic-sub">?? !! ?! spikes</div>
+          </div>
+          <div class="analytic-card">
+            <div class="mini-label">All Caps</div>
+            <div id="allCapsCount" class="analytic-value">-</div>
+            <div class="analytic-sub">Caps emphasis count</div>
+          </div>
+          <div class="analytic-card">
+            <div class="mini-label">Topics</div>
+            <div id="topicsCount" class="analytic-value">-</div>
+            <div class="analytic-sub">Detected topics</div>
           </div>
         </div>
       </div>
@@ -697,7 +654,7 @@
               </tr>
             </thead>
             <tbody id="scanBody">
-              <tr><td colspan="7">-</td></tr>
+              <tr><td colspan="7">No results yet.</td></tr>
             </tbody>
           </table>
         </div>
@@ -771,35 +728,29 @@
 
       return {
         structure: cleanValue(safe.structure, "mixed"),
+        selected_segment: cleanValue(safe.selected_segment, "none"),
         topics: Array.isArray(safe.topics) ? safe.topics : [],
         worldview: Array.isArray(safe.worldview) ? safe.worldview : [],
         scores: {
-          clarity: Number.isFinite(Number(scores.clarity)) ? Number(scores.clarity) : 0,
-          integrity: Number.isFinite(Number(scores.integrity)) ? Number(scores.integrity) : 0,
-          honesty: Number.isFinite(Number(scores.honesty)) ? Number(scores.honesty) : 0,
-          manipulation: Number.isFinite(Number(scores.manipulation)) ? Number(scores.manipulation) : 0,
-          bsn: Number.isFinite(Number(scores.bsn)) ? Number(scores.bsn) : 0
+          clarity: Number(scores.clarity) || 0,
+          integrity: Number(scores.integrity) || 0,
+          honesty: Number(scores.honesty) || 0,
+          manipulation: Number(scores.manipulation) || 0,
+          bsn: Number(scores.bsn) || 0
         },
         scan: Array.isArray(safe.scan) ? safe.scan : [],
         analytics: {
-          line_count: Number.isFinite(Number(analytics.line_count)) ? Number(analytics.line_count) : 0,
-          question_count: Number.isFinite(Number(analytics.question_count)) ? Number(analytics.question_count) : 0,
-          exclamation_count: Number.isFinite(Number(analytics.exclamation_count)) ? Number(analytics.exclamation_count) : 0,
-          repeated_punctuation_count: Number.isFinite(Number(analytics.repeated_punctuation_count)) ? Number(analytics.repeated_punctuation_count) : 0,
-          all_caps_count: Number.isFinite(Number(analytics.all_caps_count)) ? Number(analytics.all_caps_count) : 0,
-          quote_count: Number.isFinite(Number(analytics.quote_count)) ? Number(analytics.quote_count) : 0,
-          parenthetical_count: Number.isFinite(Number(analytics.parenthetical_count)) ? Number(analytics.parenthetical_count) : 0,
-          dash_break_count: Number.isFinite(Number(analytics.dash_break_count)) ? Number(analytics.dash_break_count) : 0,
-          interruption_signals: Number.isFinite(Number(analytics.interruption_signals)) ? Number(analytics.interruption_signals) : 0,
-          evidence_signals: Number.isFinite(Number(analytics.evidence_signals)) ? Number(analytics.evidence_signals) : 0,
-          dodge_signals: Number.isFinite(Number(analytics.dodge_signals)) ? Number(analytics.dodge_signals) : 0,
-          trash_signals: Number.isFinite(Number(analytics.trash_signals)) ? Number(analytics.trash_signals) : 0,
-          manipulation_signals: Number.isFinite(Number(analytics.manipulation_signals)) ? Number(analytics.manipulation_signals) : 0,
-          unsupported_claims: Number.isFinite(Number(analytics.unsupported_claims)) ? Number(analytics.unsupported_claims) : 0,
-          pressure_questions: Number.isFinite(Number(analytics.pressure_questions)) ? Number(analytics.pressure_questions) : 0,
-          certainty_markers: Number.isFinite(Number(analytics.certainty_markers)) ? Number(analytics.certainty_markers) : 0,
-          hedge_markers: Number.isFinite(Number(analytics.hedge_markers)) ? Number(analytics.hedge_markers) : 0,
-          punctuation_intensity: Number.isFinite(Number(analytics.punctuation_intensity)) ? Number(analytics.punctuation_intensity) : 0
+          line_count: Number(analytics.line_count) || 0,
+          evidence_signals: Number(analytics.evidence_signals) || 0,
+          dodge_signals: Number(analytics.dodge_signals) || 0,
+          trash_signals: Number(analytics.trash_signals) || 0,
+          manipulation_signals: Number(analytics.manipulation_signals) || 0,
+          unsupported_claims: Number(analytics.unsupported_claims) || 0,
+          pressure_questions: Number(analytics.pressure_questions) || 0,
+          question_count: Number(analytics.question_count) || 0,
+          repeated_punctuation_count: Number(analytics.repeated_punctuation_count) || 0,
+          all_caps_count: Number(analytics.all_caps_count) || 0,
+          punctuation_intensity: Number(analytics.punctuation_intensity) || 0
         },
         summary: {
           text: cleanValue(summary.text, "No summary available."),
@@ -811,8 +762,7 @@
     }
 
     function labelClass(label) {
-      const key = String(label || "").toLowerCase();
-      return `label-pill label-${key}`;
+      return `label-pill label-${String(label || "").toLowerCase()}`;
     }
 
     function renderScanTable() {
@@ -824,7 +774,6 @@
       const sortMode = $("sortMode").value;
 
       let rows = [...safe];
-
       if (labelFilter !== "all") {
         rows = rows.filter((item) => String(item.label).toLowerCase() === labelFilter);
       }
@@ -879,9 +828,9 @@
       hideMessages();
       currentData = null;
       setText("structure", "-");
-      setText("topics", "-");
-      setText("worldview", "-");
-      setText("topicsCount", "-");
+      setText("segmentShort", "-");
+      setText("selectedSegment", "-");
+      setText("summaryText", "-");
       setText("lineCount", "-");
       setText("punctHeat", "-");
       setText("clarity", "-");
@@ -889,22 +838,23 @@
       setText("honesty", "-");
       setText("manipulation", "-");
       setText("bsn", "-");
-      setText("summaryText", "-");
       setText("evidenceSignals", "-");
       setText("dodgeSignals", "-");
       setText("trashSignals", "-");
       setText("manipulationSignals", "-");
+      setText("unsupportedClaims", "-");
       setText("questionCount", "-");
       setText("pressureQuestions", "-");
-      setText("unsupportedClaims", "-");
       setText("repeatedPunct", "-");
+      setText("allCapsCount", "-");
+      setText("topicsCount", "-");
       setList("strongestPoints", ["-"]);
       setList("weakestPoints", ["-"]);
       setList("notableProblems", ["-"]);
       setText("modeChip", "Mode: -");
       setText("statusChip", "HTTP: -");
       setText("rawJson", "-");
-      $("scanBody").innerHTML = `<tr><td colspan="7">-</td></tr>`;
+      $("scanBody").innerHTML = `<tr><td colspan="7">No results yet.</td></tr>`;
     }
 
     function renderResult(data, status) {
@@ -912,9 +862,9 @@
       const safe = currentData;
 
       setText("structure", safe.structure);
-      setText("topics", safe.topics.join(", "), "-");
-      setText("worldview", safe.worldview.join(", "), "-");
-      setText("topicsCount", safe.topics.length, "0");
+      setText("segmentShort", safe.selected_segment.includes(":") ? safe.selected_segment.split(":")[0] : safe.selected_segment);
+      setText("selectedSegment", safe.selected_segment);
+      setText("summaryText", safe.summary.text);
       setText("lineCount", safe.analytics.line_count, "0");
       setText("punctHeat", safe.analytics.punctuation_intensity, "0");
       setText("clarity", safe.scores.clarity, "0");
@@ -922,15 +872,16 @@
       setText("honesty", safe.scores.honesty, "0");
       setText("manipulation", safe.scores.manipulation, "0");
       setText("bsn", safe.scores.bsn, "0");
-      setText("summaryText", safe.summary.text);
       setText("evidenceSignals", safe.analytics.evidence_signals, "0");
       setText("dodgeSignals", safe.analytics.dodge_signals, "0");
       setText("trashSignals", safe.analytics.trash_signals, "0");
       setText("manipulationSignals", safe.analytics.manipulation_signals, "0");
+      setText("unsupportedClaims", safe.analytics.unsupported_claims, "0");
       setText("questionCount", safe.analytics.question_count, "0");
       setText("pressureQuestions", safe.analytics.pressure_questions, "0");
-      setText("unsupportedClaims", safe.analytics.unsupported_claims, "0");
       setText("repeatedPunct", safe.analytics.repeated_punctuation_count, "0");
+      setText("allCapsCount", safe.analytics.all_caps_count, "0");
+      setText("topicsCount", safe.topics.length, "0");
       setList("strongestPoints", safe.summary.strongest_points);
       setList("weakestPoints", safe.summary.weakest_points);
       setList("notableProblems", safe.summary.notable_problems);
@@ -958,13 +909,8 @@
         data = null;
       }
 
-      if (!res.ok) {
-        throw new Error(`Request failed with status ${res.status}`);
-      }
-
-      if (!data || typeof data !== "object") {
-        throw new Error("Backend returned invalid JSON.");
-      }
+      if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+      if (!data || typeof data !== "object") throw new Error("Backend returned invalid JSON.");
 
       renderResult(data, res.status);
       showOk(successMessage);
@@ -1002,6 +948,7 @@
         await callAnalyze({
           text: `Chapter 3: Candace Owens vs Feminists
 You say women are more fulfilled at home with kids, but that does not bear out when you look at the stats.
+Maternal education is the number one predictor of childhood outcomes.
 We are looking at totally different statistics.
 How are you measuring that?
 You have an attitude.
