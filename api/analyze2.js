@@ -1,5 +1,7 @@
 export default async function handler(req, res) {
-  setCors(res);
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -10,9 +12,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = normalizeBody(req.body);
-    const textInput = typeof body.text === "string" ? body.text.trim() : "";
-    const linkInput = typeof body.link === "string" ? body.link.trim() : "";
+    const body =
+      typeof req.body === "string"
+        ? safeJsonParse(req.body)
+        : req.body || {};
+
+    const textInput =
+      typeof body.text === "string" ? body.text.trim() : "";
+    const linkInput =
+      typeof body.link === "string" ? body.link.trim() : "";
 
     if (!textInput && !linkInput) {
       return res.status(400).json({ error: "Provide text or link." });
@@ -28,19 +36,18 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Not enough content to analyze." });
     }
 
-    const cleaned = cleanText(rawText);
-    const normalized = removeAdReads(cleaned);
+    const cleaned = removeAdReads(cleanText(rawText));
 
-    if (!normalized || normalized.length < 20) {
+    if (!cleaned || cleaned.length < 20) {
       return res.status(400).json({ error: "Content became empty after cleanup." });
     }
 
-    const sentences = splitSentences(normalized);
-    const structure = detectStructure(normalized, sentences);
-    const topics = detectTopics(normalized);
-    const worldview = detectWorldview(normalized);
+    const sentences = splitSentences(cleaned);
 
-    const features = analyzeFeatures(normalized, sentences);
+    const structure = detectStructure(cleaned, sentences);
+    const topics = detectTopics(cleaned);
+    const worldview = detectWorldview(cleaned);
+    const features = analyzeFeatures(cleaned, sentences);
     const scores = computeScores(features);
 
     return res.status(200).json({
@@ -57,22 +64,12 @@ export default async function handler(req, res) {
   }
 }
 
-function setCors(res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-}
-
-function normalizeBody(body) {
-  if (!body) return {};
-  if (typeof body === "string") {
-    try {
-      return JSON.parse(body);
-    } catch {
-      return {};
-    }
+function safeJsonParse(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
   }
-  return body;
 }
 
 async function extractTextFromLink(link) {
@@ -118,13 +115,9 @@ function cleanText(raw) {
 
   text = text.replace(/\r/g, "\n");
 
-  // remove timecodes like 0:00, 12:34, 1:02:03
   text = text.replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ");
-
-  // remove transcript timing words
   text = text.replace(/\b\d+\s*(second|seconds|minute|minutes|hour|hours)\b/gi, " ");
 
-  // remove UI junk that keeps appearing in pasted transcripts
   text = text.replace(/\bSync to video time\b/gi, " ");
   text = text.replace(/\bRecently uploaded\b/gi, " ");
   text = text.replace(/\bPolitics News\b/gi, " ");
@@ -157,7 +150,6 @@ function removeAdReads(text) {
   for (const marker of adMarkers) {
     const idx = lower.indexOf(marker);
     if (idx !== -1) {
-      // cut out a chunk around the ad marker
       const start = Math.max(0, idx - 500);
       const end = Math.min(text.length, idx + 1200);
       working = working.slice(0, start) + " " + working.slice(end);
@@ -173,6 +165,15 @@ function splitSentences(text) {
     .split(/(?<=[.!?])\s+|\n+/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function countMatches(text, regex) {
+  const matches = text.match(regex);
+  return matches ? matches.length : 0;
+}
+
+function clampRound(value) {
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 function detectStructure(text, sentences) {
@@ -251,7 +252,6 @@ function analyzeFeatures(text, sentences) {
   const attacks = countMatches(lower, /\b(liar|liars|stupid|dumb|loser|losers|fake news|unhinged|dishonest)\b/g);
   const overclaims = countMatches(lower, /\b(obviously|clearly|absolutely|completely|always|never|that's just true|massive threat|huge win)\b/g);
   const contradictionMarkers = countMatches(lower, /\b(but|however|yet|still|although)\b/g);
-  const questions = countMatches(text, /\?/g);
   const directClaims = countMatches(lower, /\b(i support|i oppose|yes|no|my answer is|that's what i think)\b/g);
   const evasion = countMatches(lower, /\b(i don't know|we don't know|we'll find out|i wasn't there|i can't talk about|i'm not invited)\b/g);
 
@@ -262,7 +262,6 @@ function analyzeFeatures(text, sentences) {
     attacks,
     overclaims,
     contradictionMarkers,
-    questions,
     directClaims,
     evasion,
     avgSentenceLength
@@ -270,7 +269,7 @@ function analyzeFeatures(text, sentences) {
 }
 
 function computeScores(features) {
-  let clarity =
+  const clarity =
     58 +
     features.connectors * 4 +
     features.evidence * 2 +
@@ -278,27 +277,27 @@ function computeScores(features) {
     features.evasion * 4 -
     Math.max(features.avgSentenceLength - 180, 0) * 0.12;
 
-  let integrity =
+  const integrity =
     60 +
     features.evidence * 3 -
     features.attacks * 6 -
     features.overclaims * 3 -
     features.evasion * 2;
 
-  let honesty =
+  const honesty =
     60 +
     features.directClaims * 3 +
     features.evidence * 2 -
     features.evasion * 5 -
     features.overclaims * 3;
 
-  let manipulation =
+  const manipulation =
     15 +
     features.attacks * 8 +
     features.overclaims * 5 +
     features.evasion * 4;
 
-  let bsn =
+  const bsn =
     20 +
     features.evasion * 7 +
     features.contradictionMarkers * 3 +
@@ -312,13 +311,4 @@ function computeScores(features) {
     manipulation: clampRound(manipulation),
     bsn: clampRound(bsn)
   };
-}
-
-function clampRound(value) {
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-function countMatches(text, regex) {
-  const matches = text.match(regex);
-  return matches ? matches.length : 0;
 }
