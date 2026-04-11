@@ -9,16 +9,14 @@
       --bg: #eef3ff;
       --bg2: #f8fbff;
       --panel: #ffffff;
-      --panel2: #f5f8ff;
       --line: #d8e2ff;
       --text: #162033;
       --muted: #67748e;
       --blue: #4f7cff;
       --blue2: #7ea5ff;
-      --blue-soft: rgba(79, 124, 255, 0.12);
       --danger: #d64545;
       --danger-soft: rgba(214, 69, 69, 0.1);
-      --shadow: 0 18px 48px rgba(49, 76, 145, 0.10);
+      --ok-soft: rgba(79, 124, 255, 0.08);
       --shadow-soft: 0 8px 22px rgba(49, 76, 145, 0.07);
       --radius-xl: 28px;
       --radius-lg: 20px;
@@ -229,26 +227,27 @@
 
     .okbox {
       border: 1px solid rgba(79,124,255,0.18);
-      background: rgba(79,124,255,0.08);
+      background: var(--ok-soft);
       color: #2552d9;
     }
 
-    .stats-grid, .score-row {
+    .stats-grid, .score-row, .debate-grid {
       display: grid;
       gap: 12px;
     }
 
     .stats-grid { grid-template-columns: repeat(3, 1fr); }
     .score-row { grid-template-columns: repeat(5, 1fr); }
+    .debate-grid { grid-template-columns: 1fr 1fr; }
 
-    .stat, .score-card, .box, .codebox {
+    .stat, .score-card, .box, .codebox, .debate-card {
       background: #fff;
       border: 1px solid var(--line);
       box-shadow: var(--shadow-soft);
       border-radius: 18px;
     }
 
-    .stat, .score-card { padding: 16px; }
+    .stat, .score-card, .debate-card { padding: 16px; }
 
     .stat-value, .score {
       font-size: 30px;
@@ -267,21 +266,20 @@
 
     .readout-full { grid-column: 1 / -1; }
 
-    .box {
-      min-height: 60px;
+    .box, .codebox {
       padding: 14px 15px;
       line-height: 1.55;
-      font-size: 15px;
       white-space: pre-wrap;
       word-break: break-word;
     }
 
+    .box {
+      min-height: 60px;
+      font-size: 15px;
+    }
+
     .codebox {
-      padding: 14px 15px;
       font-size: 13px;
-      line-height: 1.5;
-      white-space: pre-wrap;
-      word-break: break-word;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       min-height: 120px;
     }
@@ -292,8 +290,25 @@
       font-weight: 700;
     }
 
+    .list {
+      margin: 10px 0 0;
+      padding-left: 18px;
+    }
+
+    .list li {
+      margin: 6px 0;
+      line-height: 1.45;
+    }
+
+    .subline {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
     @media (max-width: 1180px) {
-      .grid-2, .readout, .score-row, .stats-grid {
+      .grid-2, .readout, .score-row, .stats-grid, .debate-grid {
         grid-template-columns: 1fr;
       }
 
@@ -310,13 +325,13 @@
         <div class="orb"></div>
         <div>
           <h1 class="title">Reasoning Audit</h1>
-          <div class="subtitle">No more silent failure nonsense.</div>
+          <div class="subtitle">Simple debate analysis that actually renders.</div>
         </div>
       </div>
 
       <div class="hero-right">
-        <div class="chip">Full Rewrite</div>
-        <div class="chip">Same Origin</div>
+        <div class="chip">Frontend Fixed</div>
+        <div class="chip">Backend Fixed</div>
         <div class="chip primary" id="modeChip">Mode: -</div>
         <div class="chip" id="statusChip">HTTP: -</div>
       </div>
@@ -374,6 +389,18 @@
               <div class="mini-label">Worldview</div>
               <div id="worldview" class="box">-</div>
             </div>
+            <div class="readout-full">
+              <div class="mini-label">Debate Summary</div>
+              <div id="debateSummary" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">More Honest</div>
+              <div id="honestSide" class="box">-</div>
+            </div>
+            <div>
+              <div class="mini-label">More Dishonest</div>
+              <div id="dishonestSide" class="box">-</div>
+            </div>
           </div>
         </div>
       </div>
@@ -410,6 +437,33 @@
       </div>
 
       <div class="panel">
+        <h2 class="section-title"><span class="accent">Speaker</span> Breakdown</h2>
+        <div class="debate-grid">
+          <div class="debate-card">
+            <div class="mini-label">Speaker A</div>
+            <div id="speakerAName" class="stat-value">-</div>
+            <div class="subline">Honesty: <span id="speakerAHonesty">-</span></div>
+            <div class="subline">Lying: <span id="speakerALying">-</span></div>
+            <div class="mini-label" style="margin-top:14px;">Points</div>
+            <ul id="speakerAPoints" class="list"><li>-</li></ul>
+            <div class="mini-label" style="margin-top:14px;">Weaknesses</div>
+            <ul id="speakerAWeaknesses" class="list"><li>-</li></ul>
+          </div>
+
+          <div class="debate-card">
+            <div class="mini-label">Speaker B</div>
+            <div id="speakerBName" class="stat-value">-</div>
+            <div class="subline">Honesty: <span id="speakerBHonesty">-</span></div>
+            <div class="subline">Lying: <span id="speakerBLying">-</span></div>
+            <div class="mini-label" style="margin-top:14px;">Points</div>
+            <ul id="speakerBPoints" class="list"><li>-</li></ul>
+            <div class="mini-label" style="margin-top:14px;">Weaknesses</div>
+            <ul id="speakerBWeaknesses" class="list"><li>-</li></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
         <h2 class="section-title"><span class="accent">Raw</span> Response</h2>
         <div class="mini-label">Parsed JSON</div>
         <div id="rawJson" class="codebox">-</div>
@@ -431,6 +485,25 @@
       const el = $(id);
       if (!el) return;
       el.textContent = cleanValue(value, fallback);
+    }
+
+    function setList(id, items) {
+      const el = $(id);
+      if (!el) return;
+
+      const safeItems = Array.isArray(items) && items.length ? items : ["-"];
+      el.innerHTML = safeItems
+        .map((item) => `<li>${escapeHtml(cleanValue(item))}</li>`)
+        .join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
     }
 
     function showError(message) {
@@ -464,30 +537,119 @@
       setText("honesty", "-");
       setText("manipulation", "-");
       setText("bsn", "-");
+      setText("debateSummary", "-");
+      setText("honestSide", "-");
+      setText("dishonestSide", "-");
+      setText("speakerAName", "-");
+      setText("speakerBName", "-");
+      setText("speakerAHonesty", "-");
+      setText("speakerALying", "-");
+      setText("speakerBHonesty", "-");
+      setText("speakerBLying", "-");
+      setList("speakerAPoints", ["-"]);
+      setList("speakerAWeaknesses", ["-"]);
+      setList("speakerBPoints", ["-"]);
+      setList("speakerBWeaknesses", ["-"]);
       setText("modeChip", "Mode: -");
       setText("statusChip", "HTTP: -");
       setText("rawJson", "-");
     }
 
-    function renderResult(data, status) {
-      const structure = cleanValue(data.structure);
-      const topics = Array.isArray(data.topics) ? data.topics : ["not_array"];
-      const worldview = Array.isArray(data.worldview) ? data.worldview : ["not_array"];
-      const scores = (data && typeof data === "object" && data.scores) ? data.scores : {};
+    function normalizeResponse(data) {
+      const safe = data && typeof data === "object" ? data : {};
+      const debate = safe.debate && typeof safe.debate === "object" ? safe.debate : {};
+      const scores = safe.scores && typeof safe.scores === "object" ? safe.scores : {};
+      const participants = Array.isArray(debate.participants) ? debate.participants : [];
 
-      setText("structure", structure);
-      setText("topics", topics.join(", "));
-      setText("worldview", worldview.join(", "));
-      setText("topicsCount", topics.length, "0");
-      setText("worldviewCount", worldview.length, "0");
-      setText("clarity", scores.clarity ?? 0, "0");
-      setText("integrity", scores.integrity ?? 0, "0");
-      setText("honesty", scores.honesty ?? 0, "0");
-      setText("manipulation", scores.manipulation ?? 0, "0");
-      setText("bsn", scores.bsn ?? 0, "0");
-      setText("modeChip", `Mode: ${structure}`);
+      return {
+        structure: cleanValue(safe.structure, "mixed"),
+        topics: Array.isArray(safe.topics) ? safe.topics : [],
+        worldview: Array.isArray(safe.worldview) ? safe.worldview : [],
+        scores: {
+          clarity: Number.isFinite(Number(scores.clarity)) ? Number(scores.clarity) : 0,
+          integrity: Number.isFinite(Number(scores.integrity)) ? Number(scores.integrity) : 0,
+          honesty: Number.isFinite(Number(scores.honesty)) ? Number(scores.honesty) : 0,
+          manipulation: Number.isFinite(Number(scores.manipulation)) ? Number(scores.manipulation) : 0,
+          bsn: Number.isFinite(Number(scores.bsn)) ? Number(scores.bsn) : 0
+        },
+        debate: {
+          summary: cleanValue(debate.summary, "No analysis available."),
+          honestSide: cleanValue(debate.honestSide, "unclear"),
+          dishonestSide: cleanValue(debate.dishonestSide, "unclear"),
+          participants: [
+            participants[0] || { name: "Speaker A", honesty: 0, lying: 0, points: [], weaknesses: [] },
+            participants[1] || { name: "Speaker B", honesty: 0, lying: 0, points: [], weaknesses: [] }
+          ]
+        }
+      };
+    }
+
+    function renderResult(data, status) {
+      const safe = normalizeResponse(data);
+      const a = safe.debate.participants[0];
+      const b = safe.debate.participants[1];
+
+      setText("structure", safe.structure);
+      setText("topics", safe.topics.join(", "), "-");
+      setText("worldview", safe.worldview.join(", "), "-");
+      setText("topicsCount", safe.topics.length, "0");
+      setText("worldviewCount", safe.worldview.length, "0");
+
+      setText("clarity", safe.scores.clarity, "0");
+      setText("integrity", safe.scores.integrity, "0");
+      setText("honesty", safe.scores.honesty, "0");
+      setText("manipulation", safe.scores.manipulation, "0");
+      setText("bsn", safe.scores.bsn, "0");
+
+      setText("debateSummary", safe.debate.summary);
+      setText("honestSide", safe.debate.honestSide);
+      setText("dishonestSide", safe.debate.dishonestSide);
+
+      setText("speakerAName", a.name || "Speaker A");
+      setText("speakerAHonesty", a.honesty ?? 0, "0");
+      setText("speakerALying", a.lying ?? 0, "0");
+      setList("speakerAPoints", Array.isArray(a.points) ? a.points : []);
+      setList("speakerAWeaknesses", Array.isArray(a.weaknesses) ? a.weaknesses : []);
+
+      setText("speakerBName", b.name || "Speaker B");
+      setText("speakerBHonesty", b.honesty ?? 0, "0");
+      setText("speakerBLying", b.lying ?? 0, "0");
+      setList("speakerBPoints", Array.isArray(b.points) ? b.points : []);
+      setList("speakerBWeaknesses", Array.isArray(b.weaknesses) ? b.weaknesses : []);
+
+      setText("modeChip", `Mode: ${safe.structure}`);
       setText("statusChip", `HTTP: ${status}`);
-      setText("rawJson", JSON.stringify(data, null, 2));
+      setText("rawJson", JSON.stringify(safe, null, 2));
+    }
+
+    async function callAnalyze(payload, successMessage) {
+      hideMessages();
+
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const raw = await res.text();
+      let data = null;
+
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      if (!data || typeof data !== "object") {
+        throw new Error("Backend returned invalid JSON.");
+      }
+
+      renderResult(data, res.status);
+      showOk(successMessage);
     }
 
     async function analyze() {
@@ -505,34 +667,7 @@
       $("analyzeBtn").textContent = "Analyzing...";
 
       try {
-        const res = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, link })
-        });
-
-        const raw = await res.text();
-        let data = null;
-
-        try {
-          data = raw ? JSON.parse(raw) : null;
-        } catch {
-          data = { raw };
-        }
-
-        setText("statusChip", `HTTP: ${res.status}`);
-        setText("rawJson", typeof data === "object" ? JSON.stringify(data, null, 2) : String(data));
-
-        if (!res.ok) {
-          throw new Error((data && data.error) || `Request failed with status ${res.status}`);
-        }
-
-        if (!data || typeof data !== "object") {
-          throw new Error("Backend returned invalid JSON.");
-        }
-
-        renderResult(data, res.status);
-        showOk("Analyze request completed.");
+        await callAnalyze({ text, link }, "Analyze request completed.");
       } catch (err) {
         showError(err.message || "Request failed.");
       } finally {
@@ -547,37 +682,13 @@
       $("pingBtn").textContent = "Pinging...";
 
       try {
-        const res = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: "Trump war Iran data evidence because I support it but I don't know.",
+        await callAnalyze(
+          {
+            text: "Speaker A: I have evidence and data for my claim because the study supports it.\nSpeaker B: That is obviously false and everyone knows you are lying.",
             link: ""
-          })
-        });
-
-        const raw = await res.text();
-        let data = null;
-
-        try {
-          data = raw ? JSON.parse(raw) : null;
-        } catch {
-          data = { raw };
-        }
-
-        setText("statusChip", `HTTP: ${res.status}`);
-        setText("rawJson", typeof data === "object" ? JSON.stringify(data, null, 2) : String(data));
-
-        if (!res.ok) {
-          throw new Error((data && data.error) || `Ping failed with status ${res.status}`);
-        }
-
-        if (!data || typeof data !== "object") {
-          throw new Error("Ping returned invalid JSON.");
-        }
-
-        renderResult(data, res.status);
-        showOk("API is alive and returned JSON.");
+          },
+          "API is alive and returned JSON."
+        );
       } catch (err) {
         showError(err.message || "Ping failed.");
       } finally {
