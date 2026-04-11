@@ -225,12 +225,12 @@ function stripNoiseKeepLines(text) {
     .replace(/^\s*\d+:\d+\s*/gm, "")
     .replace(/^\s*\d+\s*seconds?\s*$/gim, "")
     .replace(/^\s*\d+\s*minutes?,?\s*\d*\s*seconds?\s*$/gim, "")
-    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "")
-    .replace(/[^\x00-\x7F]+/g, " ");
+    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "");
 }
 
 function removeNoise(text) {
   return stripNoiseKeepLines(text)
+    .replace(/[^\x00-\x7F]+/g, " ")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/\s+\n/g, "\n")
@@ -661,6 +661,61 @@ function buildSummary(scan, title) {
   };
 }
 
+function analyzeScores(text) {
+  const words = splitWords(text);
+  const wordCount = words.length;
+  const lines = breakLines(text);
+  const lineCount = Math.max(lines.length, 1);
+  const avgLineLength = wordCount / lineCount;
+
+  const connectors = countMatches(text, [
+    "because", "therefore", "however", "for example", "if", "then", "but", "so", "since"
+  ]);
+  const evidenceCount = countMatches(text, [
+    "evidence", "proof", "source", "study", "data", "statistics", "according to", "poll", "research"
+  ]);
+  const hedgeCount = countMatches(text, [
+    "maybe", "perhaps", "probably", "possibly", "kind of", "sort of", "seems"
+  ]);
+  const pressureCount = countMatches(text, [
+    "stop", "let me", "you keep", "talking over", "attitude", "obviously", "clearly"
+  ]);
+  const exaggerationCount = countMatches(text, [
+    "always", "never", "everyone", "nobody", "totally", "completely"
+  ]);
+  const evasionCount = countMatches(text, [
+    "that's not the point", "totally different statistics", "i've read the opposite",
+    "anyway", "whatever", "i do not believe they are"
+  ]);
+
+  let clarity = 35 + Math.min(connectors * 6, 24);
+  if (avgLineLength >= 7 && avgLineLength <= 24) clarity += 18;
+  if (avgLineLength > 35) clarity -= 15;
+  if (wordCount < 8) clarity -= 20;
+
+  let integrity = 45 + Math.min(evidenceCount * 8, 32);
+  integrity -= Math.min(exaggerationCount * 4, 20);
+  integrity -= Math.min(evasionCount * 8, 24);
+
+  let honesty = 50 + Math.min(evidenceCount * 4, 20);
+  honesty -= Math.min(hedgeCount * 5, 25);
+  honesty -= Math.min(evasionCount * 8, 24);
+
+  let manipulation = 10 + Math.min(pressureCount * 8, 40);
+  manipulation += Math.min(exaggerationCount * 5, 20);
+
+  let bsn = 15 + Math.min(evasionCount * 10, 30) + Math.min(exaggerationCount * 5, 20);
+  if (evidenceCount === 0 && connectors === 0 && wordCount > 20) bsn += 15;
+
+  return {
+    clarity: clamp(clarity),
+    integrity: clamp(integrity),
+    honesty: clamp(honesty),
+    manipulation: clamp(manipulation),
+    bsn: clamp(bsn)
+  };
+}
+
 function buildAnalysis(text, link) {
   const combined = cleanText(`${safeString(text)} ${safeString(link)}`);
   const base = makeBaseResponse();
@@ -673,7 +728,6 @@ function buildAnalysis(text, link) {
   const cleaned = removeNoise(segment.body);
   const rawLines = breakLines(cleaned);
   const scan = rawLines.map((line, index) => classifyLine(line, index));
-
   const analytics = buildAnalytics(scan);
 
   return normalizeOutput({
