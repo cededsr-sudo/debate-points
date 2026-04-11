@@ -72,19 +72,17 @@ function unique(items, limit = 8) {
 }
 
 function normalizeArray(value, limit = 8) {
-  return unique(Array.isArray(value) ? value : [], limit);
+  if (!Array.isArray(value)) return [];
+  return unique(value, limit);
 }
 
 function normalizeParticipant(value, fallbackName) {
-  const points = normalizeArray(value && value.points, 5);
-  const weaknesses = normalizeArray(value && value.weaknesses, 5);
-
   return {
     name: cleanText(value && value.name) || fallbackName,
     honesty: clamp(Number(value && value.honesty)),
     lying: clamp(Number(value && value.lying)),
-    points,
-    weaknesses
+    points: normalizeArray(value && value.points, 5),
+    weaknesses: normalizeArray(value && value.weaknesses, 5)
   };
 }
 
@@ -92,13 +90,7 @@ function normalizeOutput(value) {
   const base = makeBaseResponse();
   const scores = value && value.scores && typeof value.scores === "object" ? value.scores : {};
   const debate = value && value.debate && typeof value.debate === "object" ? value.debate : {};
-
   const rawParticipants = Array.isArray(debate.participants) ? debate.participants : base.debate.participants;
-
-  const participants = [
-    normalizeParticipant(rawParticipants[0], "Speaker A"),
-    normalizeParticipant(rawParticipants[1], "Speaker B")
-  ];
 
   return {
     structure: cleanText(value && value.structure) || base.structure,
@@ -115,7 +107,10 @@ function normalizeOutput(value) {
       summary: cleanText(debate.summary) || base.debate.summary,
       honestSide: cleanText(debate.honestSide) || "unclear",
       dishonestSide: cleanText(debate.dishonestSide) || "unclear",
-      participants
+      participants: [
+        normalizeParticipant(rawParticipants[0], "Speaker A"),
+        normalizeParticipant(rawParticipants[1], "Speaker B")
+      ]
     }
   };
 }
@@ -323,35 +318,72 @@ function analyzeOverallScores(text) {
   };
 }
 
-function parseTranscript(text) {
-  const lines = text
+function removeTimestamps(text) {
+  return text
+    .replace(/^\s*\d+:\d+\s*/gm, "")
+    .replace(/^\s*\d+\s*minutes?,?\s*\d*\s*seconds?\s*/gim, "")
+    .replace(/^\s*\d+\s*seconds?\s*/gim, "")
+    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitIntoSegments(text) {
+  const raw = cleanText(text);
+  if (!raw) return [];
+
+  const chapterSplit = raw
+    .split(/(?:^|\n)\s*chapter\s+\d+\s*:/i)
+    .map((part) => cleanText(part))
+    .filter(Boolean);
+
+  if (chapterSplit.length > 1) return chapterSplit;
+
+  const introSplit = raw
+    .split(/(?:^|\n)\s*my next claim is\s+/i)
+    .map((part) => cleanText(part))
+    .filter(Boolean);
+
+  if (introSplit.length > 1) return introSplit;
+
+  return [raw];
+}
+
+function parseSpeakerTurns(segment) {
+  const lines = segment
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((line) => !/^\d+[:.]\d+/.test(line))
-    .filter((line) => !/^chapter\s+\d+/i.test(line));
+    .filter((line) => !/^\d+:\d+/.test(line))
+    .filter((line) => !/^\d+\s*seconds?$/i.test(line))
+    .filter((line) => !/^\d+\s*minutes?,?\s*\d*\s*seconds?$/i.test(line));
 
   const turns = [];
-  const speakerRegex = /^([A-Za-z][A-Za-z0-9 '&._-]{0,40}):\s*(.+)$/;
+  const namedLinePattern = /^([A-Z][A-Za-z0-9 '&._-]{0,40}):\s*(.+)$/;
 
-  for (const line of lines) {
-    const match = line.match(speakerRegex);
+  for (const rawLine of lines) {
+    const line = cleanText(rawLine);
+    if (!line) continue;
 
-    if (match) {
+    const named = line.match(namedLinePattern);
+    if (named) {
       turns.push({
-        speaker: cleanText(match[1]),
-        text: cleanText(match[2])
+        speaker: cleanText(named[1]),
+        text: cleanText(named[2])
       });
       continue;
     }
 
     if (turns.length === 0) {
-      turns.push({ speaker: "Speaker A", text: line });
+      turns.push({
+        speaker: "Speaker A",
+        text: line
+      });
       continue;
     }
 
     const last = turns[turns.length - 1];
-    if (last.text.length < 600) {
+    if (last.text.length < 700) {
       last.text += ` ${line}`;
     } else {
       turns.push({
@@ -361,49 +393,74 @@ function parseTranscript(text) {
     }
   }
 
-  if (turns.length === 1) {
-    const chunks = text
-      .split(/\n{2,}|(?<=[.!?])\s+(?=[A-Z])/)
-      .map((item) => item.trim())
+  if (turns.length < 2) {
+    const cleaned = removeTimestamps(segment);
+    const chunks = cleaned
+      .split(/(?<=[.!?])\s+(?=[A-Z])/)
+      .map((chunk) => cleanText(chunk))
       .filter(Boolean);
 
     if (chunks.length >= 2) {
-      return chunks.slice(0, 12).map((chunk, index) => ({
+      return chunks.slice(0, 16).map((chunk, index) => ({
         speaker: index % 2 === 0 ? "Speaker A" : "Speaker B",
         text: chunk
       }));
     }
   }
 
-  return turns.slice(0, 40);
+  return turns.slice(0, 50);
+}
+
+function aggregateTurnsBySpeaker(turns) {
+  const map = new Map();
+
+  for (const turn of turns) {
+    const speaker = cleanText(turn.speaker) || `Speaker ${map.size + 1}`;
+    const existing = map.get(speaker) || [];
+    existing.push(cleanText(turn.text));
+    map.set(speaker, existing);
+  }
+
+  return Array.from(map.entries()).map(([name, parts]) => ({
+    name,
+    text: cleanText(parts.join(" "))
+  }));
 }
 
 function buildPoints(segmentText) {
   const sentences = (segmentText.match(/[^.!?\n]+[.!?]?/g) || [])
-    .map((s) => s.trim())
+    .map((s) => cleanText(s))
     .filter(Boolean);
 
-  const candidates = sentences.filter((sentence) => {
-    const lower = sentence.toLowerCase();
-    return (
-      lower.includes("because") ||
-      lower.includes("evidence") ||
-      lower.includes("data") ||
-      lower.includes("statistics") ||
-      lower.includes("my point") ||
-      lower.includes("i think") ||
-      lower.includes("the point") ||
-      lower.includes("means") ||
-      lower.includes("shows")
-    );
-  });
+  const scored = sentences
+    .map((sentence) => {
+      const lower = sentence.toLowerCase();
+      let score = 0;
 
-  const picked = candidates.length ? candidates : sentences;
+      if (lower.includes("because")) score += 3;
+      if (lower.includes("evidence")) score += 3;
+      if (lower.includes("data")) score += 3;
+      if (lower.includes("study")) score += 3;
+      if (lower.includes("statistics")) score += 3;
+      if (lower.includes("the point")) score += 2;
+      if (lower.includes("my point")) score += 2;
+      if (lower.includes("shows")) score += 2;
+      if (lower.includes("means")) score += 2;
+      if (lower.includes("i think")) score += 1;
+      if (sentence.length >= 35) score += 1;
+      if (sentence.length > 220) score -= 1;
+
+      return { sentence, score };
+    })
+    .filter((item) => item.sentence.length >= 20)
+    .sort((a, b) => b.score - a.score);
+
+  const selected = scored.length ? scored : sentences.map((sentence) => ({ sentence, score: 0 }));
+
   return unique(
-    picked
-      .map((sentence) => sentence.replace(/\s+/g, " ").trim())
-      .filter((sentence) => sentence.length >= 20)
-      .map((sentence) => sentence.length > 160 ? `${sentence.slice(0, 157)}...` : sentence),
+    selected
+      .slice(0, 4)
+      .map((item) => item.sentence.length > 180 ? `${item.sentence.slice(0, 177)}...` : item.sentence),
     4
   );
 }
@@ -445,7 +502,6 @@ function buildWeaknesses(segmentText) {
 
 function analyzeSpeaker(name, text) {
   const overall = analyzeOverallScores(text);
-
   const honesty = clamp((overall.honesty + overall.integrity + overall.clarity) / 3);
   const lying = clamp((overall.manipulation + overall.bsn + (100 - overall.integrity)) / 3);
 
@@ -458,49 +514,42 @@ function analyzeSpeaker(name, text) {
   };
 }
 
-function analyzeDebate(text) {
-  const turns = parseTranscript(text);
-
-  if (!turns.length) {
-    return makeBaseResponse().debate;
-  }
-
-  const speakerMap = new Map();
-
-  for (const turn of turns) {
-    const speaker = cleanText(turn.speaker) || `Speaker ${speakerMap.size + 1}`;
-    const existing = speakerMap.get(speaker) || [];
-    existing.push(cleanText(turn.text));
-    speakerMap.set(speaker, existing);
-  }
-
-  let participants = Array.from(speakerMap.entries()).map(([name, parts]) => {
-    return analyzeSpeaker(name, parts.join(" "));
+function rankParticipants(participants) {
+  return [...participants].sort((a, b) => {
+    const aScore = a.honesty + a.points.length * 5 - a.lying;
+    const bScore = b.honesty + b.points.length * 5 - b.lying;
+    return bScore - aScore;
   });
+}
+
+function analyzeDebate(segment) {
+  const baseDebate = makeBaseResponse().debate;
+  const turns = parseSpeakerTurns(segment);
+
+  if (!turns.length) return baseDebate;
+
+  let participants = aggregateTurnsBySpeaker(turns).map((speaker) =>
+    analyzeSpeaker(speaker.name, speaker.text)
+  );
+
+  if (!participants.length) return baseDebate;
 
   if (participants.length === 1) {
-    participants.push(
-      normalizeParticipant(
-        {
-          name: "Speaker B",
-          honesty: 0,
-          lying: 0,
-          points: [],
-          weaknesses: ["No second speaker was clearly detected."]
-        },
-        "Speaker B"
-      )
-    );
+    participants.push({
+      name: "Speaker B",
+      honesty: 0,
+      lying: 0,
+      points: [],
+      weaknesses: ["No second speaker was clearly detected."]
+    });
   }
 
   if (participants.length > 2) {
-    participants = participants
-      .sort((a, b) => (b.points.length + b.honesty) - (a.points.length + a.honesty))
-      .slice(0, 2);
+    participants = rankParticipants(participants).slice(0, 2);
   }
 
-  const a = participants[0];
-  const b = participants[1];
+  const a = normalizeParticipant(participants[0], "Speaker A");
+  const b = normalizeParticipant(participants[1], "Speaker B");
 
   let honestSide = "unclear";
   let dishonestSide = "unclear";
@@ -526,6 +575,33 @@ function analyzeDebate(text) {
   };
 }
 
+function chooseBestSegment(text) {
+  const segments = splitIntoSegments(text);
+  if (!segments.length) return "";
+
+  const scored = segments.map((segment, index) => {
+    const cleaned = removeTimestamps(segment);
+    const words = splitWords(cleaned).length;
+    const turns = parseSpeakerTurns(segment);
+    const speakerCount = new Set(turns.map((t) => cleanText(t.speaker)).filter(Boolean)).size;
+    const evidenceHits = countMatches(cleaned, ["because", "evidence", "data", "study", "statistics", "proof"]);
+    const conflictHits = countMatches(cleaned, ["wrong", "lie", "lying", "dishonest", "obviously", "clearly"]);
+
+    let score = 0;
+    score += Math.min(words, 1200) / 20;
+    score += speakerCount * 15;
+    score += Math.min(turns.length, 20) * 2;
+    score += evidenceHits * 3;
+    score += conflictHits * 2;
+    if (index === segments.length - 1) score += 12;
+
+    return { segment, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].segment;
+}
+
 function buildAnalysis(text, link) {
   const combined = `${cleanText(text)} ${cleanText(link)}`.trim();
   const base = makeBaseResponse();
@@ -534,13 +610,50 @@ function buildAnalysis(text, link) {
     return normalizeOutput(base);
   }
 
-  return normalizeOutput({
-    structure: detectStructure(combined),
-    topics: extractTopics(combined),
-    worldview: extractWorldview(combined),
-    scores: analyzeOverallScores(combined),
-    debate: analyzeDebate(combined)
-  });
+  try {
+    const focusedSegment = chooseBestSegment(combined) || combined;
+
+    const primary = normalizeOutput({
+      structure: detectStructure(focusedSegment),
+      topics: extractTopics(focusedSegment),
+      worldview: extractWorldview(focusedSegment),
+      scores: analyzeOverallScores(focusedSegment),
+      debate: analyzeDebate(focusedSegment)
+    });
+
+    const hasUsefulDebate =
+      primary.debate &&
+      Array.isArray(primary.debate.participants) &&
+      primary.debate.participants.length >= 2 &&
+      (
+        primary.debate.participants[0].points.length > 0 ||
+        primary.debate.participants[1].points.length > 0
+      );
+
+    if (hasUsefulDebate) {
+      return primary;
+    }
+
+    return normalizeOutput({
+      structure: detectStructure(combined),
+      topics: extractTopics(combined),
+      worldview: extractWorldview(combined),
+      scores: analyzeOverallScores(combined),
+      debate: analyzeDebate(combined)
+    });
+  } catch {
+    try {
+      return normalizeOutput({
+        structure: detectStructure(combined),
+        topics: extractTopics(combined),
+        worldview: extractWorldview(combined),
+        scores: analyzeOverallScores(combined),
+        debate: analyzeDebate(combined)
+      });
+    } catch {
+      return normalizeOutput(base);
+    }
+  }
 }
 
 module.exports = async function handler(req, res) {
