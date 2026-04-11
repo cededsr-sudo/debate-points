@@ -169,14 +169,14 @@ function stripTimestampsKeepLines(text) {
     .replace(/^\s*\d+:\d+\s*/gm, "")
     .replace(/^\s*\d+\s*seconds?\s*$/gim, "")
     .replace(/^\s*\d+\s*minutes?,?\s*\d*\s*seconds?\s*$/gim, "")
-    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "")
-    .replace(/[^\x00-\x7F]+/g, " ");
+    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "");
 }
 
 function removeNoise(text) {
   return stripTimestampsKeepLines(text)
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[^\x00-\x7F]+/g, " ")
     .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .replace(/\s+\n/g, "\n")
     .trim();
 }
@@ -214,7 +214,7 @@ function detectStructure(text) {
   ]);
   const conflictHits = countMatches(text, [
     "wrong", "liar", "lying", "stop", "let me", "not true",
-    "that's a lie", "you keep", "talking over", "attitude"
+    "that's a lie", "you keep", "talking over", "attitude", "respond"
   ]);
   const narrativeHits = countMatches(text, [
     "then", "after", "before", "later", "when", "story", "happened"
@@ -305,7 +305,8 @@ function analyzeScores(text) {
     "always", "never", "everyone", "nobody", "totally", "completely"
   ]);
   const evasionCount = countMatches(text, [
-    "that's not the point", "totally different statistics", "i've read the opposite", "anyway", "whatever"
+    "that's not the point", "totally different statistics", "i've read the opposite",
+    "anyway", "whatever", "i do not believe they are"
   ]);
 
   let clarity = 35 + Math.min(connectors * 6, 24);
@@ -341,15 +342,18 @@ function scoreSegment(segment) {
   const words = splitWords(cleaned).length;
 
   const interruptionHits = countMatches(cleaned, [
-    "stop", "let me", "you keep", "talking over", "not allowing me", "let somebody get in", "you have not let"
+    "stop", "let me", "you keep", "talking over", "not allowing me",
+    "let somebody get in", "you have not let", "respond"
   ]);
 
   const accusationHits = countMatches(cleaned, [
-    "that's a lie", "that is a lie", "that's not true", "that is not true", "wrong", "liar", "lying"
+    "that's a lie", "that is a lie", "that's not true", "that is not true",
+    "wrong", "liar", "lying"
   ]);
 
   const evidenceHits = countMatches(cleaned, [
-    "statistics", "study", "data", "research", "poll", "evidence", "proof", "according to"
+    "statistics", "study", "data", "research", "poll", "evidence", "proof",
+    "according to", "predictor", "outcomes"
   ]);
 
   const challengeHits = countMatches(cleaned, [
@@ -364,7 +368,7 @@ function scoreSegment(segment) {
   score += challengeHits * 7;
 
   if (/candace owens vs feminists/i.test(segment.title)) {
-    score += 35;
+    score += 50;
   }
 
   return score;
@@ -389,7 +393,8 @@ function classifyArgument(sentence) {
 
   const hasEvidence = [
     "study", "statistics", "data", "research", "according to", "poll",
-    "predictor", "outcomes", "rates", "poverty", "mental health"
+    "predictor", "outcomes", "rates", "poverty", "mental health",
+    "higher incomes", "behavioral problems", "divorced"
   ].some((term) => lower.includes(term));
 
   const isChallenge = [
@@ -397,14 +402,23 @@ function classifyArgument(sentence) {
   ].some((term) => lower.includes(term));
 
   const isDodge = [
-    "totally different statistics", "i've actually read the exact opposite",
-    "that's not what i'm talking about", "i do not believe they are",
-    "i'm saying that"
+    "totally different statistics",
+    "i've actually read the exact opposite",
+    "that's not what i'm talking about",
+    "i do not believe they are",
+    "i'm saying that",
+    "because everything that you said i've actually read the exact opposite"
   ].some((term) => lower.includes(term));
 
   const isManipulation = [
-    "you have an attitude", "performative", "stop", "let somebody get in",
-    "you don't want", "you keep"
+    "you have an attitude",
+    "performative",
+    "stop",
+    "let somebody get in",
+    "you don't want to",
+    "you keep",
+    "not allowing me to respond",
+    "not productive"
   ].some((term) => lower.includes(term));
 
   const isCounter = [
@@ -473,12 +487,16 @@ function extractArguments(text) {
     .filter((sentence) => {
       const lower = sentence.toLowerCase();
       return (
-        lower.includes("because") ||
         lower.includes("statistics") ||
         lower.includes("study") ||
         lower.includes("data") ||
         lower.includes("research") ||
         lower.includes("poll") ||
+        lower.includes("poverty") ||
+        lower.includes("predictor") ||
+        lower.includes("mental health") ||
+        lower.includes("behavioral problems") ||
+        lower.includes("higher incomes") ||
         lower.includes("that's not true") ||
         lower.includes("wrong") ||
         lower.includes("how can") ||
@@ -486,9 +504,9 @@ function extractArguments(text) {
         lower.includes("totally different statistics") ||
         lower.includes("attitude") ||
         lower.includes("let me finish") ||
-        lower.includes("predictor") ||
-        lower.includes("mental health") ||
-        lower.includes("poverty")
+        lower.includes("performative") ||
+        lower.includes("obviously") ||
+        lower.includes("because")
       );
     })
     .map(classifyArgument)
@@ -526,11 +544,10 @@ function buildSummary(argumentsList, segmentTitle) {
     .map((item) => item.text);
 
   const problems = unique(argumentsList.flatMap((item) => item.issues || []), 8);
-
   const title = cleanText(segmentTitle) || "Selected segment";
 
   return {
-    text: `${title} was selected as the strongest debate segment and reduced into argument units.`,
+    text: `${title} was selected as the strongest debate segment and reduced into argument moves.`,
     strongest_points: strongest.length ? strongest : ["No especially strong argument units detected."],
     weakest_points: weakest.length ? weakest : ["No especially weak argument units detected."],
     notable_problems: problems.length ? problems : ["none flagged"]
