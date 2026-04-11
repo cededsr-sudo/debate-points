@@ -471,15 +471,15 @@
 
     function renderResult(data, status) {
       const structure = cleanValue(data.structure);
-      const topics = Array.isArray(data.topics) && data.topics.length ? data.topics : ["-"];
-      const worldview = Array.isArray(data.worldview) && data.worldview.length ? data.worldview : ["-"];
-      const scores = data.scores || {};
+      const topics = Array.isArray(data.topics) ? data.topics : ["not_array"];
+      const worldview = Array.isArray(data.worldview) ? data.worldview : ["not_array"];
+      const scores = (data && typeof data === "object" && data.scores) ? data.scores : {};
 
       setText("structure", structure);
       setText("topics", topics.join(", "));
       setText("worldview", worldview.join(", "));
-      setText("topicsCount", Array.isArray(data.topics) ? data.topics.length : 0, "0");
-      setText("worldviewCount", Array.isArray(data.worldview) ? data.worldview.length : 0, "0");
+      setText("topicsCount", topics.length, "0");
+      setText("worldviewCount", worldview.length, "0");
       setText("clarity", scores.clarity ?? 0, "0");
       setText("integrity", scores.integrity ?? 0, "0");
       setText("honesty", scores.honesty ?? 0, "0");
@@ -550,7 +550,10 @@
         const res = await fetch(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: "Trump war Iran CNN data evidence because I support it but I don't know.", link: "" })
+          body: JSON.stringify({
+            text: "Trump war Iran data evidence because I support it but I don't know.",
+            link: ""
+          })
         });
 
         const raw = await res.text();
