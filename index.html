@@ -6,20 +6,22 @@
   <title>Reasoning Audit</title>
   <style>
     :root {
-      --bg: #eef3ff;
-      --bg2: #f8fbff;
-      --panel: #ffffff;
-      --line: #d8e2ff;
-      --text: #162033;
-      --muted: #67748e;
-      --blue: #4f7cff;
-      --blue2: #7ea5ff;
-      --danger: #d64545;
-      --danger-soft: rgba(214, 69, 69, 0.1);
-      --ok-soft: rgba(79, 124, 255, 0.08);
-      --shadow-soft: 0 8px 22px rgba(49, 76, 145, 0.07);
-      --radius-xl: 28px;
-      --radius-lg: 20px;
+      --bg: #05080b;
+      --bg2: #091015;
+      --panel: rgba(10, 18, 22, 0.92);
+      --panel-2: rgba(8, 14, 18, 0.96);
+      --line: rgba(76, 255, 163, 0.18);
+      --line-strong: rgba(76, 255, 163, 0.38);
+      --text: #d9ffe9;
+      --muted: #7ebf98;
+      --green: #4cff9f;
+      --green-2: #98ffd0;
+      --green-soft: rgba(76, 255, 159, 0.12);
+      --danger: #ff6b7a;
+      --danger-soft: rgba(255, 107, 122, 0.12);
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+      --radius-xl: 26px;
+      --radius-lg: 18px;
       --radius-md: 14px;
     }
 
@@ -32,37 +34,69 @@
       font-family: Inter, Arial, sans-serif;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(126,165,255,0.18), transparent 24%),
-        radial-gradient(circle at top right, rgba(79,124,255,0.12), transparent 22%),
-        linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+        radial-gradient(circle at top left, rgba(76,255,159,0.08), transparent 28%),
+        radial-gradient(circle at top right, rgba(0,255,128,0.05), transparent 25%),
+        linear-gradient(180deg, #030507 0%, #071015 55%, #05080b 100%);
+      overflow-x: hidden;
     }
 
-    body { padding: 28px; }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.12;
+      background-image:
+        linear-gradient(rgba(76,255,159,0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(76,255,159,0.05) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+    }
+
+    body {
+      padding: 24px;
+    }
 
     .app {
-      width: min(1450px, 100%);
+      width: min(1480px, 100%);
       margin: 0 auto;
     }
 
     .hero, .panel {
-      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,248,255,0.98));
+      background: linear-gradient(180deg, rgba(8,14,18,0.94), rgba(6,10,13,0.96));
       border: 1px solid var(--line);
-      box-shadow: var(--shadow-soft);
+      box-shadow: var(--shadow);
       border-radius: var(--radius-xl);
+      backdrop-filter: blur(10px);
     }
 
     .hero {
       display: flex;
       justify-content: space-between;
       gap: 20px;
-      padding: 28px 30px;
+      padding: 26px 28px;
       margin-bottom: 22px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "01010010 01000101 01000001 01010011 01001111 01001110 01001001 01001110 01000111";
+      position: absolute;
+      right: 22px;
+      top: 12px;
+      font-size: 10px;
+      color: rgba(76, 255, 159, 0.16);
+      letter-spacing: 0.18em;
+      white-space: nowrap;
     }
 
     .hero-left {
       display: flex;
       align-items: center;
       gap: 16px;
+      position: relative;
+      z-index: 1;
     }
 
     .orb {
@@ -70,26 +104,29 @@
       height: 64px;
       border-radius: 50%;
       background:
-        radial-gradient(circle at 35% 35%, rgba(255,255,255,0.96), rgba(126,165,255,0.56) 42%, rgba(79,124,255,0.95) 76%);
+        radial-gradient(circle at 35% 35%, rgba(210,255,232,0.92), rgba(76,255,159,0.55) 42%, rgba(0,122,76,0.9) 76%);
       box-shadow:
-        inset 0 2px 10px rgba(255,255,255,0.55),
-        0 10px 22px rgba(79,124,255,0.22);
+        inset 0 2px 14px rgba(255,255,255,0.18),
+        0 0 40px rgba(76,255,159,0.18);
+      border: 1px solid rgba(76,255,159,0.26);
     }
 
     .title {
       margin: 0;
-      font-size: clamp(34px, 5vw, 58px);
-      line-height: 0.95;
+      font-size: clamp(34px, 5vw, 60px);
+      line-height: 0.96;
       font-weight: 1000;
-      letter-spacing: -0.04em;
+      letter-spacing: -0.05em;
+      color: #e8fff3;
+      text-shadow: 0 0 18px rgba(76,255,159,0.08);
     }
 
     .subtitle {
       margin-top: 8px;
       color: var(--muted);
-      font-size: 13px;
-      font-weight: 800;
-      letter-spacing: 0.16em;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
     }
 
@@ -98,26 +135,31 @@
       flex-wrap: wrap;
       gap: 10px;
       align-content: flex-start;
+      position: relative;
+      z-index: 1;
     }
 
     .chip {
-      min-height: 42px;
+      min-height: 40px;
       display: inline-flex;
       align-items: center;
       padding: 0 14px;
       border-radius: 999px;
-      background: var(--panel);
+      background: rgba(8, 18, 14, 0.86);
       border: 1px solid var(--line);
-      box-shadow: var(--shadow-soft);
       font-size: 11px;
       font-weight: 900;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
+      color: var(--text);
+      box-shadow: inset 0 0 0 1px rgba(76,255,159,0.04);
     }
 
     .chip.primary {
-      background: linear-gradient(180deg, #eef4ff, #dde8ff);
-      color: #2552d9;
+      background: linear-gradient(180deg, rgba(14,37,23,0.95), rgba(10,25,16,0.98));
+      border-color: var(--line-strong);
+      color: var(--green-2);
+      box-shadow: 0 0 22px rgba(76,255,159,0.08);
     }
 
     .layout {
@@ -127,7 +169,7 @@
 
     .grid-2 {
       display: grid;
-      grid-template-columns: 1.08fr 0.92fr;
+      grid-template-columns: 1.06fr 0.94fr;
       gap: 22px;
     }
 
@@ -137,12 +179,14 @@
 
     .section-title {
       margin: 0 0 16px;
-      font-size: clamp(22px, 2.4vw, 34px);
+      font-size: clamp(22px, 2.5vw, 34px);
       font-weight: 950;
       letter-spacing: -0.04em;
     }
 
-    .section-title .accent { color: var(--blue); }
+    .section-title .accent {
+      color: var(--green);
+    }
 
     .field {
       display: flex;
@@ -162,13 +206,18 @@
     input[type="text"], textarea {
       width: 100%;
       border: 1px solid var(--line);
-      background: #fff;
+      background: rgba(5, 11, 14, 0.92);
       color: var(--text);
       border-radius: var(--radius-md);
       padding: 14px 15px;
       font-size: 15px;
       outline: none;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input[type="text"]:focus, textarea:focus {
+      border-color: var(--line-strong);
+      box-shadow: 0 0 0 4px rgba(76,255,159,0.08);
     }
 
     textarea {
@@ -188,25 +237,28 @@
     button {
       border: 0;
       border-radius: 14px;
-      padding: 14px 20px;
-      font-size: 13px;
+      padding: 14px 18px;
+      font-size: 12px;
       font-weight: 1000;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease;
     }
 
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.7; cursor: wait; transform: none; }
+
     .primary-btn {
-      color: #fff;
-      background: linear-gradient(180deg, var(--blue2), var(--blue));
-      box-shadow: 0 10px 22px rgba(79,124,255,0.28);
+      color: #031108;
+      background: linear-gradient(180deg, var(--green-2), var(--green));
+      box-shadow: 0 12px 28px rgba(76,255,159,0.16);
     }
 
     .secondary-btn {
       color: var(--text);
-      background: #fff;
+      background: rgba(7, 14, 18, 0.94);
       border: 1px solid var(--line);
-      box-shadow: var(--shadow-soft);
     }
 
     .error, .okbox {
@@ -220,34 +272,36 @@
     }
 
     .error {
-      border: 1px solid rgba(214,69,69,0.22);
+      border: 1px solid rgba(255,107,122,0.25);
       background: var(--danger-soft);
-      color: #9c2e2e;
+      color: #ff9eaa;
     }
 
     .okbox {
-      border: 1px solid rgba(79,124,255,0.18);
-      background: var(--ok-soft);
-      color: #2552d9;
+      border: 1px solid rgba(76,255,159,0.18);
+      background: var(--green-soft);
+      color: var(--green-2);
     }
 
-    .stats-grid, .score-row, .debate-grid {
+    .stats-grid, .score-row, .summary-grid, .arguments-grid {
       display: grid;
       gap: 12px;
     }
 
     .stats-grid { grid-template-columns: repeat(3, 1fr); }
     .score-row { grid-template-columns: repeat(5, 1fr); }
-    .debate-grid { grid-template-columns: 1fr 1fr; }
+    .summary-grid { grid-template-columns: repeat(3, 1fr); }
+    .arguments-grid { grid-template-columns: repeat(2, 1fr); }
 
-    .stat, .score-card, .box, .codebox, .debate-card {
-      background: #fff;
+    .stat, .score-card, .box, .codebox, .argument-card {
+      background: linear-gradient(180deg, rgba(8,15,19,0.9), rgba(5,10,13,0.96));
       border: 1px solid var(--line);
-      box-shadow: var(--shadow-soft);
       border-radius: 18px;
     }
 
-    .stat, .score-card, .debate-card { padding: 16px; }
+    .stat, .score-card, .argument-card {
+      padding: 16px;
+    }
 
     .stat-value, .score {
       font-size: 30px;
@@ -255,6 +309,7 @@
       line-height: 1.1;
       letter-spacing: -0.04em;
       margin-top: 8px;
+      color: #e7fff2;
     }
 
     .readout {
@@ -264,24 +319,29 @@
       margin-top: 14px;
     }
 
-    .readout-full { grid-column: 1 / -1; }
-
-    .box, .codebox {
-      padding: 14px 15px;
-      line-height: 1.55;
-      white-space: pre-wrap;
-      word-break: break-word;
+    .readout-full {
+      grid-column: 1 / -1;
     }
 
     .box {
-      min-height: 60px;
+      min-height: 64px;
+      padding: 14px 15px;
+      line-height: 1.55;
       font-size: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text);
     }
 
     .codebox {
+      padding: 14px 15px;
       font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       min-height: 120px;
+      color: #bfffd9;
     }
 
     .score-sub {
@@ -298,17 +358,65 @@
     .list li {
       margin: 6px 0;
       line-height: 1.45;
+      color: var(--text);
     }
 
-    .subline {
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 14px;
-      font-weight: 700;
+    .argument-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .argument-type {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--green-2);
+    }
+
+    .strength-pill {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--text);
+      background: rgba(76,255,159,0.06);
+      white-space: nowrap;
+    }
+
+    .argument-text {
+      font-size: 15px;
+      line-height: 1.55;
+      color: #ebfff4;
+    }
+
+    .issues {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .issue {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 7px 9px;
+      border-radius: 999px;
+      background: rgba(255,107,122,0.08);
+      border: 1px solid rgba(255,107,122,0.18);
+      color: #ffb8c1;
     }
 
     @media (max-width: 1180px) {
-      .grid-2, .readout, .score-row, .stats-grid, .debate-grid {
+      .grid-2, .readout, .score-row, .stats-grid, .summary-grid, .arguments-grid {
         grid-template-columns: 1fr;
       }
 
@@ -325,13 +433,13 @@
         <div class="orb"></div>
         <div>
           <h1 class="title">Reasoning Audit</h1>
-          <div class="subtitle">Simple debate analysis that actually renders.</div>
+          <div class="subtitle">2026 matrix argument extraction</div>
         </div>
       </div>
 
       <div class="hero-right">
-        <div class="chip">Frontend Fixed</div>
-        <div class="chip">Backend Fixed</div>
+        <div class="chip">Argument First</div>
+        <div class="chip">No Speaker Guessing</div>
         <div class="chip primary" id="modeChip">Mode: -</div>
         <div class="chip" id="statusChip">HTTP: -</div>
       </div>
@@ -375,8 +483,8 @@
               <div id="topicsCount" class="stat-value">-</div>
             </div>
             <div class="stat">
-              <div class="mini-label">Worldview</div>
-              <div id="worldviewCount" class="stat-value">-</div>
+              <div class="mini-label">Arguments</div>
+              <div id="argumentsCount" class="stat-value">-</div>
             </div>
           </div>
 
@@ -390,16 +498,8 @@
               <div id="worldview" class="box">-</div>
             </div>
             <div class="readout-full">
-              <div class="mini-label">Debate Summary</div>
-              <div id="debateSummary" class="box">-</div>
-            </div>
-            <div>
-              <div class="mini-label">More Honest</div>
-              <div id="honestSide" class="box">-</div>
-            </div>
-            <div>
-              <div class="mini-label">More Dishonest</div>
-              <div id="dishonestSide" class="box">-</div>
+              <div class="mini-label">Summary</div>
+              <div id="summaryText" class="box">-</div>
             </div>
           </div>
         </div>
@@ -416,7 +516,7 @@
           <div class="score-card">
             <div class="mini-label">Integrity</div>
             <div id="integrity" class="score">-</div>
-            <div class="score-sub">How grounded and fair it is</div>
+            <div class="score-sub">How grounded the argument is</div>
           </div>
           <div class="score-card">
             <div class="mini-label">Honesty</div>
@@ -437,30 +537,26 @@
       </div>
 
       <div class="panel">
-        <h2 class="section-title"><span class="accent">Speaker</span> Breakdown</h2>
-        <div class="debate-grid">
-          <div class="debate-card">
-            <div class="mini-label">Speaker A</div>
-            <div id="speakerAName" class="stat-value">-</div>
-            <div class="subline">Honesty: <span id="speakerAHonesty">-</span></div>
-            <div class="subline">Lying: <span id="speakerALying">-</span></div>
-            <div class="mini-label" style="margin-top:14px;">Points</div>
-            <ul id="speakerAPoints" class="list"><li>-</li></ul>
-            <div class="mini-label" style="margin-top:14px;">Weaknesses</div>
-            <ul id="speakerAWeaknesses" class="list"><li>-</li></ul>
+        <h2 class="section-title"><span class="accent">Summary</span> Buckets</h2>
+        <div class="summary-grid">
+          <div class="box">
+            <div class="mini-label">Strongest Points</div>
+            <ul id="strongestPoints" class="list"><li>-</li></ul>
           </div>
-
-          <div class="debate-card">
-            <div class="mini-label">Speaker B</div>
-            <div id="speakerBName" class="stat-value">-</div>
-            <div class="subline">Honesty: <span id="speakerBHonesty">-</span></div>
-            <div class="subline">Lying: <span id="speakerBLying">-</span></div>
-            <div class="mini-label" style="margin-top:14px;">Points</div>
-            <ul id="speakerBPoints" class="list"><li>-</li></ul>
-            <div class="mini-label" style="margin-top:14px;">Weaknesses</div>
-            <ul id="speakerBWeaknesses" class="list"><li>-</li></ul>
+          <div class="box">
+            <div class="mini-label">Weakest Points</div>
+            <ul id="weakestPoints" class="list"><li>-</li></ul>
+          </div>
+          <div class="box">
+            <div class="mini-label">Notable Problems</div>
+            <ul id="notableProblems" class="list"><li>-</li></ul>
           </div>
         </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="section-title"><span class="accent">Argument</span> Cards</h2>
+        <div id="argumentsGrid" class="arguments-grid"></div>
       </div>
 
       <div class="panel">
@@ -487,16 +583,6 @@
       el.textContent = cleanValue(value, fallback);
     }
 
-    function setList(id, items) {
-      const el = $(id);
-      if (!el) return;
-
-      const safeItems = Array.isArray(items) && items.length ? items : ["-"];
-      el.innerHTML = safeItems
-        .map((item) => `<li>${escapeHtml(cleanValue(item))}</li>`)
-        .join("");
-    }
-
     function escapeHtml(value) {
       return String(value)
         .replaceAll("&", "&amp;")
@@ -504,6 +590,13 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#39;");
+    }
+
+    function setList(id, items) {
+      const el = $(id);
+      if (!el) return;
+      const safeItems = Array.isArray(items) && items.length ? items : ["-"];
+      el.innerHTML = safeItems.map((item) => `<li>${escapeHtml(cleanValue(item))}</li>`).join("");
     }
 
     function showError(message) {
@@ -525,31 +618,52 @@
       $("okbox").textContent = "";
     }
 
+    function renderArguments(argumentsList) {
+      const grid = $("argumentsGrid");
+      if (!grid) return;
+
+      const safe = Array.isArray(argumentsList) && argumentsList.length ? argumentsList : [{
+        type: "argument",
+        text: "No argument units extracted.",
+        strength: 0,
+        issues: []
+      }];
+
+      grid.innerHTML = safe.map((item) => {
+        const issues = Array.isArray(item.issues) && item.issues.length
+          ? item.issues.map((issue) => `<span class="issue">${escapeHtml(issue)}</span>`).join("")
+          : `<span class="issue">none flagged</span>`;
+
+        return `
+          <div class="argument-card">
+            <div class="argument-top">
+              <div class="argument-type">${escapeHtml(cleanValue(item.type, "argument"))}</div>
+              <div class="strength-pill">Strength ${escapeHtml(cleanValue(item.strength, "0"))}</div>
+            </div>
+            <div class="argument-text">${escapeHtml(cleanValue(item.text, "-"))}</div>
+            <div class="issues">${issues}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
     function resetUI() {
       hideMessages();
       setText("structure", "-");
       setText("topics", "-");
       setText("worldview", "-");
       setText("topicsCount", "-");
-      setText("worldviewCount", "-");
+      setText("argumentsCount", "-");
       setText("clarity", "-");
       setText("integrity", "-");
       setText("honesty", "-");
       setText("manipulation", "-");
       setText("bsn", "-");
-      setText("debateSummary", "-");
-      setText("honestSide", "-");
-      setText("dishonestSide", "-");
-      setText("speakerAName", "-");
-      setText("speakerBName", "-");
-      setText("speakerAHonesty", "-");
-      setText("speakerALying", "-");
-      setText("speakerBHonesty", "-");
-      setText("speakerBLying", "-");
-      setList("speakerAPoints", ["-"]);
-      setList("speakerAWeaknesses", ["-"]);
-      setList("speakerBPoints", ["-"]);
-      setList("speakerBWeaknesses", ["-"]);
+      setText("summaryText", "-");
+      setList("strongestPoints", ["-"]);
+      setList("weakestPoints", ["-"]);
+      setList("notableProblems", ["-"]);
+      renderArguments([]);
       setText("modeChip", "Mode: -");
       setText("statusChip", "HTTP: -");
       setText("rawJson", "-");
@@ -557,9 +671,8 @@
 
     function normalizeResponse(data) {
       const safe = data && typeof data === "object" ? data : {};
-      const debate = safe.debate && typeof safe.debate === "object" ? safe.debate : {};
       const scores = safe.scores && typeof safe.scores === "object" ? safe.scores : {};
-      const participants = Array.isArray(debate.participants) ? debate.participants : [];
+      const summary = safe.summary && typeof safe.summary === "object" ? safe.summary : {};
 
       return {
         structure: cleanValue(safe.structure, "mixed"),
@@ -572,51 +685,34 @@
           manipulation: Number.isFinite(Number(scores.manipulation)) ? Number(scores.manipulation) : 0,
           bsn: Number.isFinite(Number(scores.bsn)) ? Number(scores.bsn) : 0
         },
-        debate: {
-          summary: cleanValue(debate.summary, "No analysis available."),
-          honestSide: cleanValue(debate.honestSide, "unclear"),
-          dishonestSide: cleanValue(debate.dishonestSide, "unclear"),
-          participants: [
-            participants[0] || { name: "Speaker A", honesty: 0, lying: 0, points: [], weaknesses: [] },
-            participants[1] || { name: "Speaker B", honesty: 0, lying: 0, points: [], weaknesses: [] }
-          ]
+        arguments: Array.isArray(safe.arguments) ? safe.arguments : [],
+        summary: {
+          text: cleanValue(summary.text, "No summary available."),
+          strongest_points: Array.isArray(summary.strongest_points) ? summary.strongest_points : [],
+          weakest_points: Array.isArray(summary.weakest_points) ? summary.weakest_points : [],
+          notable_problems: Array.isArray(summary.notable_problems) ? summary.notable_problems : []
         }
       };
     }
 
     function renderResult(data, status) {
       const safe = normalizeResponse(data);
-      const a = safe.debate.participants[0];
-      const b = safe.debate.participants[1];
 
       setText("structure", safe.structure);
       setText("topics", safe.topics.join(", "), "-");
       setText("worldview", safe.worldview.join(", "), "-");
       setText("topicsCount", safe.topics.length, "0");
-      setText("worldviewCount", safe.worldview.length, "0");
-
+      setText("argumentsCount", safe.arguments.length, "0");
       setText("clarity", safe.scores.clarity, "0");
       setText("integrity", safe.scores.integrity, "0");
       setText("honesty", safe.scores.honesty, "0");
       setText("manipulation", safe.scores.manipulation, "0");
       setText("bsn", safe.scores.bsn, "0");
-
-      setText("debateSummary", safe.debate.summary);
-      setText("honestSide", safe.debate.honestSide);
-      setText("dishonestSide", safe.debate.dishonestSide);
-
-      setText("speakerAName", a.name || "Speaker A");
-      setText("speakerAHonesty", a.honesty ?? 0, "0");
-      setText("speakerALying", a.lying ?? 0, "0");
-      setList("speakerAPoints", Array.isArray(a.points) ? a.points : []);
-      setList("speakerAWeaknesses", Array.isArray(a.weaknesses) ? a.weaknesses : []);
-
-      setText("speakerBName", b.name || "Speaker B");
-      setText("speakerBHonesty", b.honesty ?? 0, "0");
-      setText("speakerBLying", b.lying ?? 0, "0");
-      setList("speakerBPoints", Array.isArray(b.points) ? b.points : []);
-      setList("speakerBWeaknesses", Array.isArray(b.weaknesses) ? b.weaknesses : []);
-
+      setText("summaryText", safe.summary.text);
+      setList("strongestPoints", safe.summary.strongest_points);
+      setList("weakestPoints", safe.summary.weakest_points);
+      setList("notableProblems", safe.summary.notable_problems);
+      renderArguments(safe.arguments);
       setText("modeChip", `Mode: ${safe.structure}`);
       setText("statusChip", `HTTP: ${status}`);
       setText("rawJson", JSON.stringify(safe, null, 2));
@@ -682,13 +778,13 @@
       $("pingBtn").textContent = "Pinging...";
 
       try {
-        await callAnalyze(
-          {
-            text: "Speaker A: I have evidence and data for my claim because the study supports it.\nSpeaker B: That is obviously false and everyone knows you are lying.",
-            link: ""
-          },
-          "API is alive and returned JSON."
-        );
+        await callAnalyze({
+          text: `Candace: Women are more fulfilled at home with children.
+Opponent: That claim does not match the statistics on poverty, education, and child outcomes.
+Candace: I have seen opposite statistics.
+Opponent: That is not a rebuttal unless you name the source.`,
+          link: ""
+        }, "API is alive and returned JSON.");
       } catch (err) {
         showError(err.message || "Ping failed.");
       } finally {
