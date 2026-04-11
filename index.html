@@ -39,9 +39,7 @@
         linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
     }
 
-    body {
-      padding: 28px;
-    }
+    body { padding: 28px; }
 
     .app {
       width: min(1400px, 100%);
@@ -396,11 +394,11 @@
           <div class="actions">
             <button class="primary-btn" id="analyzeBtn">Analyze</button>
             <button class="secondary-btn" id="clearBtn">Clear</button>
-            <div class="helper-pill" id="apiPill">API: /api/analyze</div>
+            <div class="helper-pill">API: /api/analyze</div>
           </div>
 
           <div id="error" class="error"></div>
-          <div class="footer-note">This frontend expects only the fixed backend contract. Nothing extra.</div>
+          <div class="footer-note">This frontend matches the fixed backend contract only.</div>
         </div>
 
         <div class="panel">
@@ -503,7 +501,6 @@
 
     function resetUI() {
       hideError();
-
       setText("structure", "-");
       setText("topics", "-");
       setText("worldview", "-");
@@ -528,13 +525,11 @@
       setText("worldview", worldview.join(", "));
       setText("topicsCount", Array.isArray(data.topics) ? data.topics.length : 0, "0");
       setText("worldviewCount", Array.isArray(data.worldview) ? data.worldview.length : 0, "0");
-
       setText("clarity", scores.clarity ?? 0, "0");
       setText("integrity", scores.integrity ?? 0, "0");
       setText("honesty", scores.honesty ?? 0, "0");
       setText("manipulation", scores.manipulation ?? 0, "0");
       setText("bsn", scores.bsn ?? 0, "0");
-
       setText("modeChip", `Mode: ${structure}`);
     }
 
