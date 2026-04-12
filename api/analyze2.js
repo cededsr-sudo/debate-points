@@ -1,3 +1,5 @@
+// /api/analyze.js
+
 const MAX_TEXT_LENGTH = 250000;
 
 function makeBaseResponse() {
@@ -161,14 +163,10 @@ async function parseIncomingBody(req) {
       try {
         return JSON.parse(raw);
       } catch {
-        try {
-          const params = new URLSearchParams(raw);
-          const obj = {};
-          for (const [key, value] of params.entries()) obj[key] = value;
-          return obj;
-        } catch {
-          return { text: raw };
-        }
+        const params = new URLSearchParams(raw);
+        const obj = {};
+        for (const [key, value] of params.entries()) obj[key] = value;
+        return Object.keys(obj).length ? obj : { text: raw };
       }
     }
 
@@ -186,14 +184,10 @@ async function parseIncomingBody(req) {
     try {
       return JSON.parse(raw);
     } catch {
-      try {
-        const params = new URLSearchParams(raw);
-        const obj = {};
-        for (const [key, value] of params.entries()) obj[key] = value;
-        return obj;
-      } catch {
-        return { text: raw };
-      }
+      const params = new URLSearchParams(raw);
+      const obj = {};
+      for (const [key, value] of params.entries()) obj[key] = value;
+      return Object.keys(obj).length ? obj : { text: raw };
     }
   } catch {
     return {};
@@ -208,16 +202,7 @@ function extractTextAndLink(body, req) {
   }
 
   if (body && typeof body === "object") {
-    const preferredKeys = [
-      "text",
-      "transcript",
-      "input",
-      "content",
-      "raw",
-      "message",
-      "body"
-    ];
-
+    const preferredKeys = ["text", "transcript", "input", "content", "raw", "message", "body"];
     for (const key of preferredKeys) {
       if (typeof body[key] === "string" && body[key].trim()) {
         candidates.push(body[key]);
@@ -395,7 +380,8 @@ function scoreSegment(segment) {
   ]);
 
   const evidenceHits = countMatches(cleaned, [
-    "statistics", "study", "data", "research", "poll", "evidence", "proof", "predictor", "outcomes", "poverty", "mental health", "inflation", "interest rates"
+    "statistics", "study", "data", "research", "poll", "evidence", "proof",
+    "predictor", "outcomes", "poverty", "mental health", "inflation", "interest rates"
   ]);
 
   const challengeHits = countMatches(cleaned, [
@@ -712,9 +698,21 @@ module.exports = async function handler(req, res) {
     }
 
     const body = await parseIncomingBody(req);
-    const { text, link } = extractTextAndLink(body, req);
+    const extracted = extractTextAndLink(body, req);
 
-    return sendJson(res, 200, buildAnalysis(text, link));
+    if (!extracted.text) {
+      return sendJson(res, 200, {
+        ...makeBaseResponse(),
+        summary: {
+          text: "Request reached the backend, but no transcript text was received. Check that the frontend sends JSON with a text field.",
+          strongest_points: [],
+          weakest_points: [],
+          notable_problems: ["missing input text"]
+        }
+      });
+    }
+
+    return sendJson(res, 200, buildAnalysis(extracted.text, extracted.link));
   } catch {
     return sendJson(res, 200, makeBaseResponse());
   }
