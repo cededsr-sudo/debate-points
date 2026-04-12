@@ -1,3 +1,5 @@
+// /api/analyze.js
+
 const MAX_TEXT_LENGTH = 250000;
 
 function makeBaseResponse() {
@@ -28,7 +30,7 @@ function makeBaseResponse() {
       punctuation_intensity: 0
     },
     summary: {
-      text: "No analysis available.",
+      text: "No summary available.",
       strongest_points: [],
       weakest_points: [],
       notable_problems: []
@@ -48,12 +50,16 @@ function safeString(value) {
 }
 
 function cleanText(value) {
-  return safeString(value).replace(/\u0000/g, "").replace(/\r/g, "").trim();
+  return safeString(value)
+    .replace(/\u0000/g, "")
+    .replace(/\r/g, "")
+    .trim();
 }
 
 function unique(items, limit = 8) {
   const seen = new Set();
   const out = [];
+
   for (const item of items || []) {
     const value = cleanText(item);
     if (!value) continue;
@@ -63,6 +69,7 @@ function unique(items, limit = 8) {
     out.push(value);
     if (out.length >= limit) break;
   }
+
   return out;
 }
 
@@ -71,7 +78,8 @@ function normalizeArray(value, limit = 8) {
 }
 
 function normalizeScanItem(item, index) {
-  const p = item && item.punctuation && typeof item.punctuation === "object" ? item.punctuation : {};
+  const punctuation = item && item.punctuation && typeof item.punctuation === "object" ? item.punctuation : {};
+
   return {
     index: Number.isFinite(Number(item && item.index)) ? Number(item.index) : index + 1,
     text: cleanText(item && item.text) || "General argument detected but not cleanly parsed.",
@@ -80,14 +88,14 @@ function normalizeScanItem(item, index) {
     reason: cleanText(item && item.reason) || "No reason available.",
     flags: normalizeArray(item && item.flags, 8),
     punctuation: {
-      question_marks: Math.max(0, Number(p.question_marks) || 0),
-      exclamations: Math.max(0, Number(p.exclamations) || 0),
-      ellipses: Math.max(0, Number(p.ellipses) || 0),
-      repeated_punctuation: Boolean(p.repeated_punctuation),
-      all_caps_words: Math.max(0, Number(p.all_caps_words) || 0),
-      quotes: Math.max(0, Number(p.quotes) || 0),
-      parentheticals: Math.max(0, Number(p.parentheticals) || 0),
-      dash_breaks: Math.max(0, Number(p.dash_breaks) || 0)
+      question_marks: Math.max(0, Number(punctuation.question_marks) || 0),
+      exclamations: Math.max(0, Number(punctuation.exclamations) || 0),
+      ellipses: Math.max(0, Number(punctuation.ellipses) || 0),
+      repeated_punctuation: Boolean(punctuation.repeated_punctuation),
+      all_caps_words: Math.max(0, Number(punctuation.all_caps_words) || 0),
+      quotes: Math.max(0, Number(punctuation.quotes) || 0),
+      parentheticals: Math.max(0, Number(punctuation.parentheticals) || 0),
+      dash_breaks: Math.max(0, Number(punctuation.dash_breaks) || 0)
     }
   };
 }
@@ -143,45 +151,41 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(safe));
 }
 
-async function readBody(req) {
-  if (req && req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
-    return req.body;
-  }
-
-  if (req && typeof req.body === "string") {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      return {};
+async function parseIncomingBody(req) {
+  try {
+    if (req && req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
+      return req.body;
     }
-  }
 
-  return new Promise((resolve) => {
+    if (req && typeof req.body === "string") {
+      return req.body ? JSON.parse(req.body) : {};
+    }
+
     let raw = "";
-    req.on("data", (chunk) => {
-      raw += chunk;
-      if (raw.length > MAX_TEXT_LENGTH * 2) raw = raw.slice(0, MAX_TEXT_LENGTH * 2);
-    });
-    req.on("end", () => {
-      if (!raw) return resolve({});
-      try {
-        resolve(JSON.parse(raw));
-      } catch {
-        resolve({});
+
+    for await (const chunk of req) {
+      raw += chunk.toString();
+      if (raw.length > MAX_TEXT_LENGTH * 2) {
+        raw = raw.slice(0, MAX_TEXT_LENGTH * 2);
       }
-    });
-    req.on("error", () => resolve({}));
-  });
+    }
+
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
 }
 
 function countMatches(text, patterns) {
   const lower = text.toLowerCase();
   let total = 0;
+
   for (const pattern of patterns) {
     const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const matches = lower.match(new RegExp(escaped, "g"));
     total += matches ? matches.length : 0;
   }
+
   return total;
 }
 
@@ -195,12 +199,12 @@ function stripNoiseKeepLines(text) {
     .replace(/^\s*\d+:\d+\s*/gm, "")
     .replace(/^\s*\d+\s*seconds?\s*$/gim, "")
     .replace(/^\s*\d+\s*minutes?,?\s*\d*\s*seconds?\s*$/gim, "")
-    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "")
-    .replace(/[^\x00-\x7F]+/g, " ");
+    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "");
 }
 
 function removeNoise(text) {
   return stripNoiseKeepLines(text)
+    .replace(/[^\x00-\x7F]+/g, " ")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/\s+\n/g, "\n")
@@ -212,7 +216,9 @@ function splitIntoSegments(rawText) {
   if (!text) return [];
 
   const matches = [...text.matchAll(/(^|\n)(chapter\s+\d+\s*:\s*[^\n]+)/gi)];
-  if (!matches.length) return [{ title: "Full Text", body: text }];
+  if (!matches.length) {
+    return [{ title: "Full Text", body: text }];
+  }
 
   const segments = [];
   for (let i = 0; i < matches.length; i += 1) {
@@ -220,20 +226,31 @@ function splitIntoSegments(rawText) {
     const end = i + 1 < matches.length ? matches[i + 1].index || text.length : text.length;
     const chunk = text.slice(start, end).trim();
     const firstLine = chunk.split("\n")[0] || `Chapter ${i + 1}`;
-    segments.push({ title: cleanText(firstLine), body: chunk });
+    segments.push({
+      title: cleanText(firstLine),
+      body: chunk
+    });
   }
+
   return segments;
 }
 
 function detectStructure(text) {
   if (!text) return "mixed";
+
   const argumentHits = countMatches(text, [
-    "because", "therefore", "however", "evidence", "proof", "claim", "reason", "statistics", "research", "poll"
+    "because", "therefore", "however", "evidence", "proof", "claim", "reason",
+    "statistics", "research", "poll"
   ]);
+
   const conflictHits = countMatches(text, [
-    "wrong", "liar", "lying", "stop", "let me", "not true", "that's a lie", "talking over", "attitude"
+    "wrong", "liar", "lying", "stop", "let me", "not true", "that's a lie",
+    "talking over", "attitude"
   ]);
-  const narrativeHits = countMatches(text, ["then", "after", "before", "later", "story", "happened"]);
+
+  const narrativeHits = countMatches(text, [
+    "then", "after", "before", "later", "story", "happened"
+  ]);
 
   if (conflictHits >= 4) return "conflict";
   if (argumentHits >= 4) return "argument";
@@ -244,9 +261,10 @@ function detectStructure(text) {
 function extractTopics(text) {
   const lower = text.toLowerCase();
   const topics = [];
+
   const rules = [
     ["religion", ["god", "jesus", "bible", "church", "atheist", "christian", "faith"]],
-    ["politics", ["government", "president", "conservative", "liberal", "policy", "election"]],
+    ["politics", ["government", "president", "conservative", "liberal", "policy", "election", "democrat", "trump"]],
     ["health", ["vaccine", "doctor", "medical", "health", "covid", "disease", "medicine", "rfk"]],
     ["morality", ["moral", "morality", "good", "evil", "purpose", "sin"]],
     ["gender", ["women", "woman", "men", "man", "mother", "feminism", "marriage"]],
@@ -254,15 +272,20 @@ function extractTopics(text) {
     ["sports", ["nba", "lakers", "kobe", "magic", "lebron", "finals"]],
     ["truth", ["truth", "lie", "lying", "honest", "dishonest", "facts", "evidence"]]
   ];
+
   for (const [label, words] of rules) {
-    if (words.some((word) => lower.includes(word))) topics.push(label);
+    if (words.some((word) => lower.includes(word))) {
+      topics.push(label);
+    }
   }
+
   return unique(topics, 8);
 }
 
 function extractWorldview(text) {
   const lower = text.toLowerCase();
   const worldview = [];
+
   const rules = [
     ["skeptical framing", ["evidence", "proof", "source", "statistics", "research", "poll"]],
     ["adversarial framing", ["wrong", "liar", "lying", "stop", "attitude", "talking over"]],
@@ -271,9 +294,13 @@ function extractWorldview(text) {
     ["moral absolutism", ["always", "never", "good", "evil", "truth"]],
     ["religious framing", ["god", "jesus", "faith", "sin", "christian"]]
   ];
+
   for (const [label, words] of rules) {
-    if (words.some((word) => lower.includes(word))) worldview.push(label);
+    if (words.some((word) => lower.includes(word))) {
+      worldview.push(label);
+    }
   }
+
   return unique(worldview, 8);
 }
 
@@ -284,12 +311,15 @@ function scoreSegment(segment) {
   const interruptionHits = countMatches(cleaned, [
     "stop", "let me", "you keep", "talking over", "not allowing me", "let somebody get in", "respond"
   ]);
+
   const accusationHits = countMatches(cleaned, [
     "that's a lie", "that is a lie", "that's not true", "that is not true", "wrong", "liar", "lying"
   ]);
+
   const evidenceHits = countMatches(cleaned, [
     "statistics", "study", "data", "research", "poll", "evidence", "proof", "predictor", "outcomes", "poverty", "mental health"
   ]);
+
   const challengeHits = countMatches(cleaned, [
     "how can", "how is that", "what do you mean", "why are you", "how are you measuring"
   ]);
@@ -309,8 +339,12 @@ function scoreSegment(segment) {
 
 function chooseBestSegment(text) {
   const segments = splitIntoSegments(text);
-  if (!segments.length) return { title: "Full Text", body: removeNoise(text) };
-  return segments.map((segment) => ({ ...segment, score: scoreSegment(segment) }))
+  if (!segments.length) {
+    return { title: "Full Text", body: removeNoise(text) };
+  }
+
+  return segments
+    .map((segment) => ({ ...segment, score: scoreSegment(segment) }))
     .sort((a, b) => b.score - a.score)[0];
 }
 
@@ -321,6 +355,7 @@ function breakLines(text) {
     .filter(Boolean);
 
   const lines = [];
+
   for (const line of rawLines) {
     const pieces = line
       .replace(/\s+/g, " ")
@@ -331,6 +366,7 @@ function breakLines(text) {
     if (pieces.length) lines.push(...pieces);
     else lines.push(line);
   }
+
   return lines;
 }
 
@@ -358,21 +394,25 @@ function classifyLine(text, index) {
 
   const hasEvidence = [
     "study", "statistics", "data", "research", "according to", "poll", "predictor",
-    "outcomes", "rates", "poverty", "mental health", "higher incomes", "behavioral problems", "divorced"
+    "outcomes", "rates", "poverty", "mental health", "higher incomes",
+    "behavioral problems", "divorced"
   ].some((term) => lower.includes(term));
 
   const isPressureQuestion = [
-    "how are you measuring", "how can you say", "how is that", "what do you mean", "why are you", "so how can"
+    "how are you measuring", "how can you say", "how is that",
+    "what do you mean", "why are you", "so how can"
   ].some((term) => lower.includes(term));
 
   const isDodge = [
-    "totally different statistics", "i've actually read the exact opposite", "that's not what i'm talking about",
-    "i do not believe they are", "i'm saying that", "i've read the opposite"
+    "totally different statistics", "i've actually read the exact opposite",
+    "that's not what i'm talking about", "i do not believe they are",
+    "i'm saying that", "i've read the opposite"
   ].some((term) => lower.includes(term));
 
   const isManipulation = [
-    "you have an attitude", "performative", "stop", "let somebody get in", "you don't want to",
-    "you keep", "not allowing me to respond", "walk away and feel like i've won", "you just have an attitude"
+    "you have an attitude", "performative", "stop", "let somebody get in",
+    "you don't want to", "you keep", "not allowing me to respond",
+    "walk away and feel like i've won", "you just have an attitude"
   ].some((term) => lower.includes(term));
 
   const isCounter = [
@@ -432,7 +472,9 @@ function classifyLine(text, index) {
   if (isUnsupported) {
     if (label === "point") label = "unsupported";
     strength = Math.max(10, strength - 15);
-    if (reason === "Recognized as a substantive line.") reason = "Makes a claim without grounding it.";
+    if (reason === "Recognized as a substantive line.") {
+      reason = "Makes a claim without grounding it.";
+    }
     flags.push("unsupported certainty");
   }
 
@@ -472,12 +514,15 @@ function buildAnalytics(scan) {
     analytics.question_count += item.punctuation.question_marks;
     analytics.repeated_punctuation_count += item.punctuation.repeated_punctuation ? 1 : 0;
     analytics.all_caps_count += item.punctuation.all_caps_words;
+
     if (item.label === "evidence") analytics.evidence_signals += 1;
     if (item.label === "dodge") analytics.dodge_signals += 1;
     if (item.label === "trash") analytics.trash_signals += 1;
     if (item.label === "manipulation") analytics.manipulation_signals += 1;
     if (item.label === "unsupported") analytics.unsupported_claims += 1;
-    if (item.label === "question" && item.flags.includes("evidence-pressure")) analytics.pressure_questions += 1;
+    if (item.label === "question" && item.flags.includes("evidence-pressure")) {
+      analytics.pressure_questions += 1;
+    }
   }
 
   analytics.punctuation_intensity = clamp(
@@ -559,7 +604,10 @@ function analyzeScores(text) {
 function buildAnalysis(text, link) {
   const combined = cleanText(`${safeString(text)} ${safeString(link)}`);
   const base = makeBaseResponse();
-  if (!combined) return normalizeOutput(base);
+
+  if (!combined) {
+    return normalizeOutput(base);
+  }
 
   const segment = chooseBestSegment(combined);
   const cleaned = removeNoise(segment.body);
@@ -585,9 +633,9 @@ module.exports = async function handler(req, res) {
       return sendJson(res, 200, makeBaseResponse());
     }
 
-    const body = await readBody(req);
-    const text = cleanText(body && body.text).slice(0, MAX_TEXT_LENGTH);
-    const link = cleanText(body && body.link).slice(0, 5000);
+    const body = await parseIncomingBody(req);
+    const text = typeof body.text === "string" ? body.text.slice(0, MAX_TEXT_LENGTH) : "";
+    const link = typeof body.link === "string" ? body.link.slice(0, 5000) : "";
 
     return sendJson(res, 200, buildAnalysis(text, link));
   } catch {
