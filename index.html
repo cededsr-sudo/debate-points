@@ -50,8 +50,14 @@
       mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
     }
 
-    body { padding: 24px; }
-    .app { width: min(1540px, 100%); margin: 0 auto; }
+    body {
+      padding: 24px;
+    }
+
+    .app {
+      width: min(1540px, 100%);
+      margin: 0 auto;
+    }
 
     .hero, .panel {
       background: linear-gradient(180deg, rgba(8,14,18,0.94), rgba(6,10,13,0.96));
@@ -161,7 +167,9 @@
       gap: 22px;
     }
 
-    .panel { padding: 22px; }
+    .panel {
+      padding: 22px;
+    }
 
     .section-title {
       margin: 0 0 16px;
@@ -221,6 +229,11 @@
       letter-spacing: 0.1em;
       text-transform: uppercase;
       cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: wait;
     }
 
     .primary-btn {
@@ -774,6 +787,7 @@
       const sortMode = $("sortMode").value;
 
       let rows = [...safe];
+
       if (labelFilter !== "all") {
         rows = rows.filter((item) => String(item.label).toLowerCase() === labelFilter);
       }
@@ -896,7 +910,10 @@
 
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
         body: JSON.stringify(payload)
       });
 
@@ -905,19 +922,27 @@
 
       try {
         data = raw ? JSON.parse(raw) : null;
-      } catch {
-        data = null;
+      } catch (err) {
+        console.error("Invalid JSON from backend:", raw);
+        throw new Error("Backend returned invalid JSON.");
       }
 
-      if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
-      if (!data || typeof data !== "object") throw new Error("Backend returned invalid JSON.");
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
 
+      if (!data || typeof data !== "object") {
+        throw new Error("Backend returned invalid JSON.");
+      }
+
+      console.log("API RESPONSE:", data);
       renderResult(data, res.status);
       showOk(successMessage);
     }
 
     async function analyze() {
       hideMessages();
+
       const text = $("text").value.trim();
       const link = $("link").value.trim();
 
