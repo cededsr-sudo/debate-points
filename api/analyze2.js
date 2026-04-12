@@ -119,7 +119,7 @@ function normalizeOutput(value) {
       bsn: clamp(Number(scores.bsn))
     },
     scan: Array.isArray(value && value.scan)
-      ? value.scan.map((item, index) => normalizeScanItem(item, index)).slice(0, 120)
+      ? value.scan.map((item, index) => normalizeScanItem(item, index)).slice(0, 200)
       : [],
     analytics: {
       line_count: Math.max(0, Number(analytics.line_count) || 0),
@@ -158,15 +158,15 @@ async function parseIncomingBody(req) {
     }
 
     if (req && typeof req.body === "string") {
-      const raw = req.body.trim();
-      if (!raw) return {};
+      const rawString = req.body.trim();
+      if (!rawString) return {};
       try {
-        return JSON.parse(raw);
+        return JSON.parse(rawString);
       } catch {
-        const params = new URLSearchParams(raw);
+        const params = new URLSearchParams(rawString);
         const obj = {};
         for (const [key, value] of params.entries()) obj[key] = value;
-        return Object.keys(obj).length ? obj : { text: raw };
+        return Object.keys(obj).length ? obj : { text: rawString };
       }
     }
 
@@ -202,7 +202,16 @@ function extractTextAndLink(body, req) {
   }
 
   if (body && typeof body === "object") {
-    const preferredKeys = ["text", "transcript", "input", "content", "raw", "message", "body"];
+    const preferredKeys = [
+      "text",
+      "transcript",
+      "input",
+      "content",
+      "raw",
+      "message",
+      "body"
+    ];
+
     for (const key of preferredKeys) {
       if (typeof body[key] === "string" && body[key].trim()) {
         candidates.push(body[key]);
@@ -210,7 +219,7 @@ function extractTextAndLink(body, req) {
     }
 
     for (const [key, value] of Object.entries(body)) {
-      if (typeof value === "string" && value.trim().length > 80 && !preferredKeys.includes(key)) {
+      if (typeof value === "string" && value.trim().length > 40 && !preferredKeys.includes(key)) {
         candidates.push(value);
       }
     }
@@ -257,18 +266,19 @@ function splitWords(text) {
 
 function stripNoiseKeepLines(text) {
   return cleanText(text)
-    .replace(/^\s*intro\s*:?\s*$/gim, "")
-    .replace(/^\s*\d+:\d+\s*/gm, "")
-    .replace(/^\s*\d+\s*seconds?\s*$/gim, "")
-    .replace(/^\s*\d+\s*minutes?,?\s*\d*\s*seconds?\s*$/gim, "")
-    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*clears throat\s*\]/gi, "");
+    .replace(/\b\d{1,2}:\d{2}\b/g, "\n")
+    .replace(/\b\d+\s*minutes?(?:,\s*\d+\s*seconds?)?\b/gi, "\n")
+    .replace(/\b\d+\s*seconds?\b/gi, "\n")
+    .replace(/\[\s*applause\s*\]|\[\s*laughter\s*\]|\[\s*music\s*\]|\[\s*clears throat\s*\]/gi, "\n")
+    .replace(/Sync to video time/gi, "\n")
+    .replace(/[^\x00-\x7F]+/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
 }
 
 function removeNoise(text) {
   return stripNoiseKeepLines(text)
-    .replace(/[^\x00-\x7F]+/g, " ")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
     .replace(/\s+\n/g, "\n")
     .trim();
 }
@@ -381,11 +391,11 @@ function scoreSegment(segment) {
 
   const evidenceHits = countMatches(cleaned, [
     "statistics", "study", "data", "research", "poll", "evidence", "proof",
-    "predictor", "outcomes", "poverty", "mental health", "inflation", "interest rates"
+    "predictor", "outcomes", "poverty", "mental health", "inflation", "interest rates", "debt", "bond market"
   ]);
 
   const challengeHits = countMatches(cleaned, [
-    "how can", "how is that", "what do you mean", "why are you", "how are you measuring"
+    "how can", "how is that", "what do you mean", "why are you", "how are you measuring", "is that correct"
   ]);
 
   let score = 0;
@@ -413,25 +423,18 @@ function chooseBestSegment(text) {
 }
 
 function breakLines(text) {
-  const rawLines = stripNoiseKeepLines(text)
+  const cleaned = stripNoiseKeepLines(text);
+  if (!cleaned) return [];
+
+  return cleaned
     .split(/\n+/)
+    .flatMap((chunk) =>
+      chunk
+        .split(/(?<=[.!?])\s+|(?<=["”])\s+|(?<=\))\s+/)
+    )
     .map((line) => cleanText(line))
-    .filter(Boolean);
-
-  const lines = [];
-
-  for (const line of rawLines) {
-    const pieces = line
-      .replace(/\s+/g, " ")
-      .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
-      .map((piece) => cleanText(piece))
-      .filter(Boolean);
-
-    if (pieces.length) lines.push(...pieces);
-    else lines.push(line);
-  }
-
-  return lines;
+    .filter(Boolean)
+    .filter((line) => line.length > 10);
 }
 
 function scanPunctuation(text) {
@@ -459,12 +462,13 @@ function classifyLine(text, index) {
   const hasEvidence = [
     "study", "statistics", "data", "research", "according to", "poll", "predictor",
     "outcomes", "rates", "poverty", "mental health", "higher incomes",
-    "behavioral problems", "divorced", "inflation", "interest rates", "bond market", "debt"
+    "behavioral problems", "divorced", "inflation", "interest rates", "bond market", "debt",
+    "insurance premiums", "oil", "fertilizers", "ships"
   ].some((term) => lower.includes(term));
 
   const isPressureQuestion = [
     "how are you measuring", "how can you say", "how is that",
-    "what do you mean", "why are you", "so how can"
+    "what do you mean", "why are you", "so how can", "is that correct"
   ].some((term) => lower.includes(term));
 
   const isDodge = [
@@ -476,19 +480,20 @@ function classifyLine(text, index) {
   const isManipulation = [
     "you have an attitude", "performative", "stop", "let somebody get in",
     "you don't want to", "you keep", "not allowing me to respond",
-    "walk away and feel like i've won", "you just have an attitude"
+    "walk away and feel like i've won", "you just have an attitude", "government liars"
   ].some((term) => lower.includes(term));
 
   const isCounter = [
-    "that's not true", "that is not true", "wrong", "that's a lie", "that is a lie"
+    "that's not true", "that is not true", "wrong", "that's a lie", "that is a lie", "i don't disagree"
   ].some((term) => lower.includes(term));
 
   const isUnsupported = [
-    "obviously", "clearly", "because you said so", "i do not believe", "it is obvious"
+    "obviously", "clearly", "because you said so", "i do not believe", "it is obvious",
+    "i guarantee you"
   ].some((term) => lower.includes(term));
 
   const isTrash = [
-    "nice to meet you", "great conversation", "good job", "okay.", "yeah.", "hello.", "good to see you"
+    "nice to meet you", "great conversation", "good job", "okay.", "yeah.", "hello.", "good to see you", "all right."
   ].includes(lower);
 
   if (isTrash) {
@@ -513,7 +518,7 @@ function classifyLine(text, index) {
   if (isCounter) {
     label = "counter";
     strength += 14;
-    reason = "Directly rejects the previous claim.";
+    reason = "Directly rejects or reframes the previous claim.";
     flags.push("rebuttal");
   }
 
@@ -528,8 +533,8 @@ function classifyLine(text, index) {
   if (isManipulation) {
     label = "manipulation";
     strength = Math.max(8, strength - 30);
-    reason = "Uses pressure, control, or personal framing instead of argument.";
-    flags.push("personal attack");
+    reason = "Uses pressure, framing, or attack language instead of argument.";
+    flags.push("personal framing");
     flags.push("conversation control");
   }
 
@@ -631,9 +636,9 @@ function analyzeScores(text) {
   const avgLineLength = wordCount / lineCount;
 
   const connectors = countMatches(text, ["because", "therefore", "however", "if", "then", "but", "so", "since"]);
-  const evidenceCount = countMatches(text, ["evidence", "proof", "source", "study", "data", "statistics", "according to", "poll", "research"]);
+  const evidenceCount = countMatches(text, ["evidence", "proof", "source", "study", "data", "statistics", "according to", "poll", "research", "debt", "inflation"]);
   const hedgeCount = countMatches(text, ["maybe", "perhaps", "probably", "possibly", "kind of", "sort of", "seems"]);
-  const pressureCount = countMatches(text, ["stop", "let me", "you keep", "talking over", "attitude", "obviously", "clearly"]);
+  const pressureCount = countMatches(text, ["stop", "let me", "you keep", "talking over", "attitude", "obviously", "clearly", "liars"]);
   const exaggerationCount = countMatches(text, ["always", "never", "everyone", "nobody", "totally", "completely"]);
   const evasionCount = countMatches(text, ["that's not the point", "totally different statistics", "i've read the opposite", "anyway", "whatever", "i do not believe they are"]);
 
@@ -711,6 +716,26 @@ module.exports = async function handler(req, res) {
         }
       });
     }
+
+    const result = buildAnalysis(extracted.text, extracted.link);
+
+    if (!result.scan.length) {
+      return sendJson(res, 200, {
+        ...result,
+        summary: {
+          text: "Transcript was received, but no scan lines were produced. The line splitter still needs adjustment.",
+          strongest_points: [],
+          weakest_points: [],
+          notable_problems: ["splitter produced zero lines"]
+        }
+      });
+    }
+
+    return sendJson(res, 200, result);
+  } catch {
+    return sendJson(res, 200, makeBaseResponse());
+  }
+};
 
     return sendJson(res, 200, buildAnalysis(extracted.text, extracted.link));
   } catch {
