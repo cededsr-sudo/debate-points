@@ -1,5 +1,3 @@
-// /api/analyze.js
-
 const MAX_TEXT_LENGTH = 250000;
 
 function makeBaseResponse() {
@@ -158,11 +156,23 @@ async function parseIncomingBody(req) {
     }
 
     if (req && typeof req.body === "string") {
-      return req.body ? JSON.parse(req.body) : {};
+      const raw = req.body.trim();
+      if (!raw) return {};
+      try {
+        return JSON.parse(raw);
+      } catch {
+        try {
+          const params = new URLSearchParams(raw);
+          const obj = {};
+          for (const [key, value] of params.entries()) obj[key] = value;
+          return obj;
+        } catch {
+          return { text: raw };
+        }
+      }
     }
 
     let raw = "";
-
     for await (const chunk of req) {
       raw += chunk.toString();
       if (raw.length > MAX_TEXT_LENGTH * 2) {
@@ -170,10 +180,77 @@ async function parseIncomingBody(req) {
       }
     }
 
-    return raw ? JSON.parse(raw) : {};
+    raw = raw.trim();
+    if (!raw) return {};
+
+    try {
+      return JSON.parse(raw);
+    } catch {
+      try {
+        const params = new URLSearchParams(raw);
+        const obj = {};
+        for (const [key, value] of params.entries()) obj[key] = value;
+        return obj;
+      } catch {
+        return { text: raw };
+      }
+    }
   } catch {
     return {};
   }
+}
+
+function extractTextAndLink(body, req) {
+  const candidates = [];
+
+  if (body && typeof body === "string") {
+    candidates.push(body);
+  }
+
+  if (body && typeof body === "object") {
+    const preferredKeys = [
+      "text",
+      "transcript",
+      "input",
+      "content",
+      "raw",
+      "message",
+      "body"
+    ];
+
+    for (const key of preferredKeys) {
+      if (typeof body[key] === "string" && body[key].trim()) {
+        candidates.push(body[key]);
+      }
+    }
+
+    for (const [key, value] of Object.entries(body)) {
+      if (typeof value === "string" && value.trim().length > 80 && !preferredKeys.includes(key)) {
+        candidates.push(value);
+      }
+    }
+  }
+
+  if (req && req.query) {
+    if (typeof req.query.text === "string" && req.query.text.trim()) candidates.push(req.query.text);
+    if (typeof req.query.transcript === "string" && req.query.transcript.trim()) candidates.push(req.query.transcript);
+    if (typeof req.query.input === "string" && req.query.input.trim()) candidates.push(req.query.input);
+  }
+
+  const link =
+    (body && typeof body.link === "string" && body.link.trim()) ||
+    (body && typeof body.url === "string" && body.url.trim()) ||
+    (req && req.query && typeof req.query.link === "string" && req.query.link.trim()) ||
+    "";
+
+  const text = candidates
+    .map((value) => cleanText(value))
+    .find((value) => value.length > 0) || "";
+
+  return {
+    text: text.slice(0, MAX_TEXT_LENGTH),
+    link: cleanText(link).slice(0, 5000)
+  };
 }
 
 function countMatches(text, patterns) {
@@ -264,13 +341,14 @@ function extractTopics(text) {
 
   const rules = [
     ["religion", ["god", "jesus", "bible", "church", "atheist", "christian", "faith"]],
-    ["politics", ["government", "president", "conservative", "liberal", "policy", "election", "democrat", "trump"]],
+    ["politics", ["government", "president", "conservative", "liberal", "policy", "election", "democrat", "trump", "iran", "war"]],
     ["health", ["vaccine", "doctor", "medical", "health", "covid", "disease", "medicine", "rfk"]],
     ["morality", ["moral", "morality", "good", "evil", "purpose", "sin"]],
     ["gender", ["women", "woman", "men", "man", "mother", "feminism", "marriage"]],
     ["race", ["black", "policing", "poverty", "community", "racism", "crime"]],
     ["sports", ["nba", "lakers", "kobe", "magic", "lebron", "finals"]],
-    ["truth", ["truth", "lie", "lying", "honest", "dishonest", "facts", "evidence"]]
+    ["truth", ["truth", "lie", "lying", "honest", "dishonest", "facts", "evidence"]],
+    ["economics", ["inflation", "debt", "bonds", "dollar", "market", "economy", "interest rates", "oil"]]
   ];
 
   for (const [label, words] of rules) {
@@ -317,7 +395,7 @@ function scoreSegment(segment) {
   ]);
 
   const evidenceHits = countMatches(cleaned, [
-    "statistics", "study", "data", "research", "poll", "evidence", "proof", "predictor", "outcomes", "poverty", "mental health"
+    "statistics", "study", "data", "research", "poll", "evidence", "proof", "predictor", "outcomes", "poverty", "mental health", "inflation", "interest rates"
   ]);
 
   const challengeHits = countMatches(cleaned, [
@@ -395,7 +473,7 @@ function classifyLine(text, index) {
   const hasEvidence = [
     "study", "statistics", "data", "research", "according to", "poll", "predictor",
     "outcomes", "rates", "poverty", "mental health", "higher incomes",
-    "behavioral problems", "divorced"
+    "behavioral problems", "divorced", "inflation", "interest rates", "bond market", "debt"
   ].some((term) => lower.includes(term));
 
   const isPressureQuestion = [
@@ -634,8 +712,7 @@ module.exports = async function handler(req, res) {
     }
 
     const body = await parseIncomingBody(req);
-    const text = typeof body.text === "string" ? body.text.slice(0, MAX_TEXT_LENGTH) : "";
-    const link = typeof body.link === "string" ? body.link.slice(0, 5000) : "";
+    const { text, link } = extractTextAndLink(body, req);
 
     return sendJson(res, 200, buildAnalysis(text, link));
   } catch {
